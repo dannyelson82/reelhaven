@@ -47,6 +47,15 @@ Viewing the UI from code-server: build the frontend, run the backend with
 `REELHAVEN_WEB_DIR=../frontend/dist`, then open `/proxy/7171/` on the
 code-server address. The UI uses relative paths, so the proxy prefix works.
 
+Notes:
+- CodeQL flags `py/path-injection` wherever a path returned by
+  `paths.resolve_within()` is used: it can't follow that check across the
+  function return. Those are false positives; dismiss them with that reason.
+  Paths read back from the database get a realpath containment check right
+  before use (see `jobs/replace.py`), which CodeQL does recognise.
+- Media tests generate tiny files with ffmpeg (`tests/media_fixtures.py`);
+  never add real media to the repo.
+
 CI runs all of the above plus an image build and container smoke test
 (`.github/workflows/`). `uv` warns that `VIRTUAL_ENV=/lsiopy` is ignored; that
 comes from the code-server image and is harmless.

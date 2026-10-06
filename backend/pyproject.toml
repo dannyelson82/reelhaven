@@ -1,6 +1,6 @@
 [project]
 name = "reelhaven"
-version = "0.1.0"
+version = "0.3.0"
 description = "Automatic, language-aware video library compression for Unraid"
 license = "GPL-3.0-or-later"
 requires-python = ">=3.13"
