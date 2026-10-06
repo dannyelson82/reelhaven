@@ -337,7 +337,7 @@ def test_disabled_integration_ignored(db: Database, box: SecretBox, services: Fa
 
 @pytest.fixture
 def app(settings: Settings, services: FakeServices) -> Iterator[FastAPI]:
-    application = create_app(settings, gateways=frozenset())
+    application = create_app(settings, gateways=frozenset(), detect_devices=False)
     application.state.http_transport = httpx.MockTransport(services)
     with TestClient(application):
         yield application

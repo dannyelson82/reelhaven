@@ -11,6 +11,7 @@ from fastapi.staticfiles import StaticFiles
 from reelhaven import __version__
 from reelhaven.api import (
     auth_routes,
+    device_routes,
     file_routes,
     integration_routes,
     job_routes,
@@ -22,6 +23,7 @@ from reelhaven.auth.network import IPAddress, read_default_gateways
 from reelhaven.auth.throttle import LoginThrottle
 from reelhaven.config import Settings, get_settings
 from reelhaven.db import Database
+from reelhaven.devices import DeviceRegistry
 from reelhaven.headers import SecurityHeadersMiddleware
 from reelhaven.jobs.queue import JobQueue
 from reelhaven.jobs.service import purge_expired
@@ -32,7 +34,9 @@ from reelhaven.secretbox import SecretBox
 
 
 def create_app(
-    settings: Settings | None = None, gateways: frozenset[IPAddress] | None = None
+    settings: Settings | None = None,
+    gateways: frozenset[IPAddress] | None = None,
+    detect_devices: bool = True,
 ) -> FastAPI:
     """Build the application.
 
@@ -46,6 +50,8 @@ def create_app(
     @asynccontextmanager
     async def lifespan(app: FastAPI) -> AsyncIterator[None]:
         db.migrate()
+        if detect_devices:
+            app.state.devices.detect_in_background()
         app.state.queue.start()
         janitor = threading.Thread(
             target=_janitor, args=(db, app.state.stop), name="janitor", daemon=True
@@ -71,6 +77,7 @@ def create_app(
     app.state.throttle = LoginThrottle()
     app.state.gateways = read_default_gateways() if gateways is None else gateways
     app.state.gateway_seen_at = None
+    app.state.devices = DeviceRegistry(settings.ffmpeg)
     app.state.queue = JobQueue(db, settings)
     app.state.stop = threading.Event()
     app.state.secretbox = SecretBox(settings.config_dir)
@@ -93,6 +100,7 @@ def create_app(
     app.include_router(integration_routes.router, prefix="/api/v1")
     app.include_router(title_routes.router, prefix="/api/v1")
     app.include_router(job_routes.router, prefix="/api/v1")
+    app.include_router(device_routes.router, prefix="/api/v1")
 
     @app.get("/healthz", include_in_schema=False)
     def healthz() -> dict[str, str]:

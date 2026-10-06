@@ -22,7 +22,7 @@ OLD = time.time() - 3600
 
 @pytest.fixture
 def app(settings: Settings) -> Iterator[FastAPI]:
-    application = create_app(settings, gateways=frozenset())
+    application = create_app(settings, gateways=frozenset(), detect_devices=False)
     application.state.scanner = Scanner(
         application.state.db,
         settings,

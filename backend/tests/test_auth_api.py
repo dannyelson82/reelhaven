@@ -20,7 +20,9 @@ GATEWAY = "172.17.0.1"
 
 @pytest.fixture
 def app(settings: Settings) -> Iterator[FastAPI]:
-    application = create_app(settings, gateways=frozenset({ip_address(GATEWAY)}))
+    application = create_app(
+        settings, gateways=frozenset({ip_address(GATEWAY)}), detect_devices=False
+    )
     with TestClient(application):  # run startup once (migrations)
         yield application
 

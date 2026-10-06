@@ -155,7 +155,7 @@ def test_missing_library_folder_is_an_error(
 
 @pytest.fixture
 def app(settings: Settings) -> Iterator[FastAPI]:
-    application = create_app(settings, gateways=frozenset())
+    application = create_app(settings, gateways=frozenset(), detect_devices=False)
     application.state.scanner = Scanner(application.state.db, settings, stable_seconds=0)
     with TestClient(application):
         yield application
