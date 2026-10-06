@@ -5,6 +5,7 @@ import {
   IconFolders,
   IconGauge,
   IconLogout,
+  IconPlugConnected,
   IconShieldLock,
 } from '@tabler/icons-react';
 import { NavLink as RouterLink, Outlet, useLocation } from 'react-router';
@@ -13,6 +14,7 @@ import { type AuthState, useLogout, useLogoutEverywhere } from '../api/auth';
 const NAV = [
   { to: '/', label: 'Dashboard', icon: IconGauge },
   { to: '/libraries', label: 'Libraries', icon: IconFolders },
+  { to: '/settings/integrations', label: 'Integrations', icon: IconPlugConnected },
   { to: '/settings/security', label: 'Security', icon: IconShieldLock },
 ];
 

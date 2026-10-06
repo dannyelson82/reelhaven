@@ -20,7 +20,7 @@ Each chunk is one pull request off `main`; CI must pass before merge.
 | 2 | Libraries + file browser | `libraries` table, `/media`-confined path resolution (symlinks resolved first), library CRUD API + UI, folder picker |
 | 3 | Probe | ffprobe runner (argument list, `file:` prefix, timeout), `MediaInfo` model, language-code normalisation, HDR/DV detection, disposition flags; tests on generated fixtures |
 | 4 | Scanner + library view | Background scan with progress, fingerprint (size + mtime + first/last 64 KiB), probe cache, write-stability check, ignore patterns, `media_files` table, library page with stream details |
-| 5 | Integrations | Secret encryption (`/config/secret.key`, ADR-less: SECURITY.md), `integrations` table, Sonarr/Radarr/TMDB clients, test-connection, path mappings, settings UI |
+| 5 | Integrations | Secret encryption (`/config/secret.key`, per SECURITY.md), `integrations` table holding each service's encrypted key (no separate `secrets` table: every key belongs to one integration), Sonarr/Radarr/TMDB clients, test-connection, path mappings, settings UI |
 | 6 | Language resolver | Sonarr/Radarr → TMDB → unknown; per-title cache; manual override |
 | 7 | Policy + planner | Per-library language policy; pure planner with exhaustive tests; wrong-language flag |
 | 8 | Dry run | Per-library report: counts, estimated savings, track changes, flags |

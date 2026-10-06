@@ -7,7 +7,13 @@ from fastapi import FastAPI
 from fastapi.staticfiles import StaticFiles
 
 from reelhaven import __version__
-from reelhaven.api import auth_routes, file_routes, library_routes, security_routes
+from reelhaven.api import (
+    auth_routes,
+    file_routes,
+    integration_routes,
+    library_routes,
+    security_routes,
+)
 from reelhaven.auth.network import IPAddress, read_default_gateways
 from reelhaven.auth.throttle import LoginThrottle
 from reelhaven.config import Settings, get_settings
@@ -15,6 +21,7 @@ from reelhaven.db import Database
 from reelhaven.headers import SecurityHeadersMiddleware
 from reelhaven.middleware import RequestLogMiddleware
 from reelhaven.scanner import Scanner
+from reelhaven.secretbox import SecretBox
 
 
 def create_app(
@@ -51,6 +58,8 @@ def create_app(
     app.state.gateways = read_default_gateways() if gateways is None else gateways
     app.state.gateway_seen_at = None
     app.state.scanner = Scanner(db, settings)
+    app.state.secretbox = SecretBox(settings.config_dir)
+    app.state.http_transport = None  # tests inject a fake transport
     # Last added runs first: log every request, including header-only responses.
     app.add_middleware(SecurityHeadersMiddleware)
     app.add_middleware(RequestLogMiddleware)
@@ -59,6 +68,7 @@ def create_app(
     app.include_router(security_routes.router, prefix="/api/v1")
     app.include_router(library_routes.router, prefix="/api/v1")
     app.include_router(file_routes.router, prefix="/api/v1")
+    app.include_router(integration_routes.router, prefix="/api/v1")
 
     @app.get("/healthz", include_in_schema=False)
     def healthz() -> dict[str, str]:

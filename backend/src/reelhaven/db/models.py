@@ -117,3 +117,24 @@ class MediaFile(Base):
     first_seen_at: Mapped[datetime] = mapped_column(default=utcnow)
     last_seen_at: Mapped[datetime] = mapped_column(default=utcnow)
     probed_at: Mapped[datetime | None] = mapped_column(default=None)
+
+
+INTEGRATION_KINDS = ("sonarr", "radarr", "tmdb")
+
+
+class Integration(Base):
+    __tablename__ = "integrations"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    kind: Mapped[str] = mapped_column(
+        Enum(*INTEGRATION_KINDS, name="integration_kind", native_enum=False, create_constraint=True)
+    )
+    name: Mapped[str] = mapped_column(String(100), unique=True)
+    base_url: Mapped[str] = mapped_column(String(2048))
+    api_key_encrypted: Mapped[str] = mapped_column(Text)  # secretbox.SecretBox
+    verify_tls: Mapped[bool] = mapped_column(Boolean, default=True)
+    # [{"remote": "/tv", "local": "/media/TV"}]: how this service names our paths.
+    path_mappings: Mapped[list[dict[str, str]]] = mapped_column(JSON, default=list)
+    enabled: Mapped[bool] = mapped_column(Boolean, default=True)
+    created_at: Mapped[datetime] = mapped_column(default=utcnow)
+    updated_at: Mapped[datetime] = mapped_column(default=utcnow, onupdate=utcnow)
