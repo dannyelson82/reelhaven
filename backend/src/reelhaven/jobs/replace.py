@@ -73,8 +73,25 @@ def replace_with(original: Path, output: Path, recycle_target: Path, expected: S
         raise ReplaceError(f"could not move the new file into place: {exc}") from exc
 
 
-def restore(stored: Path, original: Path, current_to: Path) -> None:
-    """Put a recycled file back. Whatever is at ``original`` now goes to ``current_to``."""
+def _inside(path: Path, root: Path) -> Path:
+    """Real path of ``path``, which must lie under ``root`` (defence in depth)."""
+    real_root = os.path.realpath(root)
+    real = os.path.realpath(path)
+    if not real.startswith(real_root + os.sep):
+        raise ReplaceError(f"refusing to touch a path outside the library: {path}")
+    return Path(real)
+
+
+def restore(stored: Path, original: Path, current_to: Path, library_root: Path) -> None:
+    """Put a recycled file back. Whatever is at ``original`` now goes to ``current_to``.
+
+    All three paths come from the database; each must still lie inside the
+    library (recycle entries inside its .reelhaven folder) before anything moves.
+    """
+    internal = library_root / ".reelhaven"
+    stored = _inside(stored, internal)
+    current_to = _inside(current_to, internal)
+    original = _inside(original, library_root)
     if not stored.exists():
         raise ReplaceError("the recycled file is no longer there")
     original.parent.mkdir(parents=True, exist_ok=True)

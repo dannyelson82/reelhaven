@@ -100,7 +100,7 @@ def restore_item(db: Database, item_id: int, actor: str) -> RecycleItem:
     had_current = original.exists()
     size_current = original.stat().st_size if had_current else 0
 
-    restore(stored, original, current_to)
+    restore(stored, original, current_to, root)
 
     now = utcnow()
     with db.write() as session:

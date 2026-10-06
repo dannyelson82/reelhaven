@@ -411,3 +411,16 @@ def test_expired_recycle_items_are_purged(app: FastAPI, settings: Settings) -> N
     assert purge_expired(db) == 1
     assert not stored.exists()
     assert not (root / ".reelhaven" / "recycle" / "job-1").exists()  # empty folders removed
+
+
+def test_restore_refuses_paths_outside_the_library(tmp_path: Path) -> None:
+    root = tmp_path / "lib"
+    (root / ".reelhaven" / "recycle").mkdir(parents=True)
+    stored = root / ".reelhaven" / "recycle" / "x.mkv"
+    stored.write_bytes(b"x")
+    outside = tmp_path / "elsewhere" / "x.mkv"
+    with pytest.raises(replace.ReplaceError, match="outside the library"):
+        replace.restore(stored, outside, root / ".reelhaven" / "recycle" / "y.mkv", root)
+    with pytest.raises(replace.ReplaceError, match="outside the library"):
+        replace.restore(outside, root / "x.mkv", root / ".reelhaven" / "recycle" / "y.mkv", root)
+    assert stored.exists()
