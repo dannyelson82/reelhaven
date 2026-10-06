@@ -6,7 +6,6 @@ from pathlib import Path
 import pytest
 from fastapi.testclient import TestClient
 
-from reelhaven.app import create_app
 from reelhaven.logsetup import REDACTED, JsonFormatter, SecretRegistry, configure_logging, redact
 from reelhaven.middleware import safe_query
 
@@ -58,9 +57,8 @@ def test_safe_query_redacts_credentials_only() -> None:
 
 
 def test_request_log_never_contains_api_key(
-    tmp_path: Path, caplog: pytest.LogCaptureFixture
+    client: TestClient, caplog: pytest.LogCaptureFixture
 ) -> None:
-    client = TestClient(create_app())
     with caplog.at_level(logging.INFO, logger="reelhaven.request"):
         client.get("/nothing-here?apikey=supersecretvalue", headers={"X-Api-Key": "hdrsecret99"})
     records = [r for r in caplog.records if r.name == "reelhaven.request"]
@@ -71,8 +69,9 @@ def test_request_log_never_contains_api_key(
     assert json.loads(rendered)["status"] == 404
 
 
-def test_healthz_is_not_request_logged(caplog: pytest.LogCaptureFixture) -> None:
-    client = TestClient(create_app())
+def test_healthz_is_not_request_logged(
+    client: TestClient, caplog: pytest.LogCaptureFixture
+) -> None:
     with caplog.at_level(logging.INFO, logger="reelhaven.request"):
         client.get("/healthz")
     assert not [r for r in caplog.records if r.name == "reelhaven.request"]
