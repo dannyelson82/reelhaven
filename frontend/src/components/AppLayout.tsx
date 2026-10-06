@@ -70,7 +70,7 @@ export function AppLayout({ auth }: { auth: AuthState }) {
             to={to}
             label={label}
             leftSection={<Icon size={18} />}
-            active={location.pathname === to}
+            active={to === '/' ? location.pathname === '/' : location.pathname.startsWith(to)}
             onClick={close}
           />
         ))}
