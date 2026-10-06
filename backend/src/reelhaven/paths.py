@@ -5,6 +5,7 @@ Every path that comes from the UI, the API or a webhook goes through
 containment check, so a link can't point ReelHaven at other host folders.
 """
 
+import os
 from pathlib import Path
 
 # ReelHaven's own folders inside a library (ADR-0016); never browsed or scanned.
@@ -20,25 +21,25 @@ def resolve_within(root: Path, user_path: str | Path, *, must_exist: bool = True
 
     Raises PathNotAllowedError if the real path escapes ``root``, passes
     through a ``.reelhaven`` folder, or doesn't exist (when ``must_exist``).
+    Written as realpath + prefix check, the pattern static analysers recognise.
     """
-    text = str(user_path)
+    text = os.fspath(user_path)
     if "\x00" in text:
         raise PathNotAllowedError("invalid path")
-    real_root = root.resolve(strict=True)
-    candidate = Path(text)
-    if not candidate.is_absolute():
-        candidate = real_root / candidate
+    real_root = os.path.realpath(root, strict=True)
     try:
-        real = candidate.resolve(strict=must_exist)
+        # os.path.join keeps ``text`` as-is when it is absolute.
+        real = os.path.realpath(os.path.join(real_root, text), strict=must_exist)  # noqa: PTH118
     except (FileNotFoundError, NotADirectoryError):
         raise PathNotAllowedError("path does not exist") from None
-    except (OSError, RuntimeError):  # permission errors, symlink loops
+    except OSError:  # permission errors, symlink loops
         raise PathNotAllowedError("path can't be read") from None
-    if real != real_root and not real.is_relative_to(real_root):
+    if real != real_root and not real.startswith(real_root + os.sep):
         raise PathNotAllowedError("path is outside the media folder")
-    if INTERNAL_DIR in real.relative_to(real_root).parts:
+    relative = os.path.relpath(real, real_root)
+    if INTERNAL_DIR in relative.split(os.sep):  # noqa: PTH206
         raise PathNotAllowedError("ReelHaven's own folders can't be used")
-    return real
+    return Path(real)
 
 
 def overlaps(a: Path, b: Path) -> bool:
