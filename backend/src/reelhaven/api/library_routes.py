@@ -22,6 +22,7 @@ from reelhaven.api.schemas import StrictModel
 from reelhaven.config import Settings
 from reelhaven.db import Library, MediaFile
 from reelhaven.paths import INTERNAL_DIR, PathNotAllowedError, overlaps, resolve_within
+from reelhaven.policy import LanguagePolicy
 
 router = APIRouter(dependencies=[Depends(require_setup_done), Depends(csrf_protect)])
 
@@ -238,3 +239,23 @@ def delete_library(library_id: int, db: DbDep, principal: InteractiveDep) -> Non
         audit.record(
             session, principal.actor, "library.deleted", library.name, {"path": library.path}
         )
+
+
+@router.get("/libraries/{library_id}/policy")
+def get_policy(library_id: int, db: DbDep, _principal: AnyPrincipalDep) -> LanguagePolicy:
+    with db.read() as session:
+        library = _get(session.get(Library, library_id))
+        return LanguagePolicy.model_validate(library.language_policy or {})
+
+
+@router.put("/libraries/{library_id}/policy")
+def put_policy(
+    library_id: int, body: LanguagePolicy, db: DbDep, principal: InteractiveDep
+) -> LanguagePolicy:
+    with db.write() as session:
+        library = _get(session.get(Library, library_id))
+        library.language_policy = body.model_dump()
+        audit.record(
+            session, principal.actor, "library.policy_updated", library.name, body.model_dump()
+        )
+    return body

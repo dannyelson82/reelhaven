@@ -9,7 +9,7 @@ from sqlalchemy import select, text
 from sqlalchemy.exc import IntegrityError, StatementError
 
 from reelhaven import audit, settings_store
-from reelhaven.db import AuditLog, AuthSession, Base, Database, User
+from reelhaven.db import AuditLog, AuthSession, Base, Database, Library, User
 
 
 def test_migrations_match_models(db: Database) -> None:
@@ -132,3 +132,26 @@ def test_app_startup_creates_database(tmp_path: Path) -> None:
     with TestClient(create_app(settings)):
         pass
     assert (tmp_path / "cfg" / "reelhaven.db").is_file()
+
+
+def test_upgrade_with_existing_library(tmp_path: Path) -> None:
+    """Columns added later get sensible values for rows that already exist."""
+    from alembic import command
+
+    from reelhaven.db.engine import alembic_config
+
+    database = Database(tmp_path / "old.db")
+    config = alembic_config(database.engine)
+    command.upgrade(config, "0005")
+    with database.engine.begin() as connection:
+        connection.execute(
+            text(
+                "INSERT INTO libraries (name, type, path, created_at, updated_at) "
+                "VALUES ('Old', 'movies', '/media/Old', '2026-01-01', '2026-01-01')"
+            )
+        )
+    database.migrate()
+    with database.read() as session:
+        library = session.scalars(select(Library)).one()
+        assert library.language_policy == {}
+    database.close()

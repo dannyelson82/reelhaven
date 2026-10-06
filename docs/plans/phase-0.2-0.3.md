@@ -26,3 +26,13 @@ Each chunk is one pull request off `main`; CI must pass before merge.
 | 8 | Dry run | Per-library report: counts, estimated savings, track changes, flags |
 | 9 | Remux pipeline | `jobs`/`job_results`/`recycle_bin` tables, job queue + CPU worker pool, remux command builder (golden tests), verifier, replacer, recycle bin restore/purge, jobs page, apply per file / per library with confirmation, audit |
 | 10 | Wrap-up | Docs, CLAUDE.md, release v0.3.0 |
+
+## Planner decisions (chunk 7)
+- Files flagged *wrong language* or *no wanted audio* are left completely
+  untouched (no subtitle removal either) for the owner to review.
+- If the default audio is untagged, subtitle default flags are left as they are.
+- Dolby Vision files may be remuxed (stream copy keeps the DV metadata); the
+  verifier checks the output still reports Dolby Vision.
+- Subtitle toggles (full / forced / SDH) apply to every wanted language; the
+  first wanted language is the viewer's and drives the default subtitle.
+- Image subtitles (PGS, VobSub) follow the same language rules; never converted.

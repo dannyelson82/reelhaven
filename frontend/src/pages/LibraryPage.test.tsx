@@ -49,6 +49,16 @@ it('lists files with languages and opens stream details', async () => {
       body: { total: 1, items: [file] },
     },
     'GET languages': { body: [{ code: 'fra', name: 'French' }] },
+    'GET files/7/plan': {
+      body: {
+        action: 'remux',
+        tracks: [],
+        flags: ['dolby_vision'],
+        summary: 'Original language: French. Will remove 1 audio track.',
+        details: ['Remove audio: German.'],
+        removed_bytes: 300_000_000,
+      },
+    },
     'GET files/7': {
       body: {
         ...file,
@@ -113,8 +123,15 @@ it('lists files with languages and opens stream details', async () => {
   expect(await screen.findByText('Français')).toBeInTheDocument();
   expect(screen.getByText('forced')).toBeInTheDocument();
   expect(screen.getByText(/2:02:00/)).toBeInTheDocument();
-  expect(screen.getByText(/Original language: French/)).toBeInTheDocument();
   expect(screen.getByText('(Radarr)')).toBeInTheDocument();
+  expect(
+    await screen.findByText('Will remove 1 audio track.', { exact: false }),
+  ).toBeInTheDocument();
+  expect(screen.getByText('Remove audio: German.')).toBeInTheDocument();
+  // The language editor and the plan summary both name the original language.
+  expect(screen.getAllByText(/Original language: French/)).toHaveLength(2);
+  expect(screen.getByText('Dolby Vision')).toBeInTheDocument();
+  expect(screen.getByText('Saves about 300 MB.')).toBeInTheDocument();
 });
 
 it('invites a first scan', async () => {
@@ -127,4 +144,38 @@ it('invites a first scan', async () => {
   });
   render(<App />);
   expect(await screen.findByText(/Click "Scan library"/)).toBeInTheDocument();
+});
+
+it('edits the language policy', async () => {
+  window.location.hash = '#/libraries/1';
+  const policy = {
+    keep_languages: ['eng'],
+    keep_original: true,
+    keep_subtitles_full: true,
+    keep_subtitles_forced: true,
+    keep_subtitles_sdh: true,
+    keep_commentary: true,
+    untagged: 'keep',
+    set_defaults: true,
+    wrong_language_action: 'flag',
+  };
+  const calls = mockApi({
+    'GET auth/state': loggedIn,
+    'GET libraries': { body: [library] },
+    'GET libraries/1/scan': { body: null },
+    'GET libraries/1/files?q=&problems=false&offset=0&limit=50': { body: { total: 0, items: [] } },
+    'GET libraries/1/policy': { body: policy },
+    'GET languages': { body: [{ code: 'eng', name: 'English' }] },
+    'PUT libraries/1/policy': (init) => ({ body: JSON.parse(String(init?.body)) }),
+  });
+  render(<App />);
+  await userEvent.click(await screen.findByRole('button', { name: 'Language policy' }));
+  await userEvent.click(await screen.findByLabelText('Keep commentary tracks'));
+  await userEvent.click(screen.getByRole('button', { name: 'Save' }));
+  expect(await screen.findByText('Language policy saved.')).toBeInTheDocument();
+  const put = calls.find((c) => c.key === 'PUT libraries/1/policy');
+  expect(JSON.parse(String(put?.init?.body))).toMatchObject({
+    keep_commentary: false,
+    keep_languages: ['eng'],
+  });
 });

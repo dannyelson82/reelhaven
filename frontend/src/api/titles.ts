@@ -30,6 +30,8 @@ export function useSetTitleLanguage(libraryId: number) {
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: ['files', libraryId] });
       void queryClient.invalidateQueries({ queryKey: ['file'] });
+      void queryClient.invalidateQueries({ queryKey: ['plan'] });
+      void queryClient.invalidateQueries({ queryKey: ['dry-run', libraryId] });
     },
   });
 }
