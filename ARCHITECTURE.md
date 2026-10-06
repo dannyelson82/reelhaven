@@ -352,10 +352,9 @@ Action per library:
 | `users` | id, username, password_hash, totp_secret (encrypted), totp_enabled, created_at |
 | `sessions` | id (hashed), user_id, expires_at, ip, user_agent |
 | `settings` | key, value (JSON) |
-| `secrets` | name, value (encrypted): API keys for TMDB, Sonarr, Radarr, Plex, Jellyfin |
 | `libraries` | id, name, type, path, profile_id, language_policy (JSON), watch_mode, wrong_language_action, test_run_passed_at |
 | `profiles` | id, name, settings (JSON), source (manual/mimic), mimic_report (JSON) |
-| `integrations` | id, kind, base_url, secret_name, path_mappings (JSON), enabled |
+| `integrations` | id, kind, name, base_url, api_key (encrypted), verify_tls, path_mappings (JSON), enabled |
 | `media_files` | id, library_id, path, size, mtime, fingerprint, probe (JSON), original_language, language_source, status |
 | `jobs` | id, media_file_id, type, plan (JSON), status, device, priority, progress, started_at, finished_at, error |
 | `job_results` | job_id, bytes_before, bytes_after, duration_s, encode_seconds, fps |

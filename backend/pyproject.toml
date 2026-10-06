@@ -7,7 +7,9 @@ requires-python = ">=3.13"
 dependencies = [
     "alembic>=1.20.0",
     "argon2-cffi>=25.1.0",
+    "cryptography>=50.0.2",
     "fastapi>=0.142.2",
+    "httpx>=0.28.1",
     "pycountry>=26.2.16",
     "pydantic-settings>=2.15.0",
     "sqlalchemy>=2.1.3",

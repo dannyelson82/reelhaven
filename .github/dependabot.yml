@@ -20,6 +20,10 @@ updates:
     directory: /frontend
     schedule:
       interval: weekly
+    ignore:
+      # Types must match the Node.js we run (24 LTS), not the newest Node.
+      - dependency-name: "@types/node"
+        update-types: ["version-update:semver-major"]
     groups:
       npm:
         patterns: ["*"]
