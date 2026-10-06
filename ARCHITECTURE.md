@@ -422,7 +422,7 @@ endpoint (unauthenticated, no details) for Docker health checks.
 |---|---|
 | 0.1 Foundation | Project skeleton (backend + frontend), config, logging, SQLite + Alembic, audit log table (ADR-0010), auth (login, sessions, local-address bypass, API key), setup wizard step 1, Dockerfile, CI (lint, test, image build). |
 | 0.2 + 0.3 Library and languages (ADR-0015) | Libraries, scanner, probe, file browser, library view with stream details; language resolver (TMDB, Sonarr, Radarr), language policy, planner for track changes, dry run, `remux` jobs, verifier, replacer, recycle bin. *First release that changes files*, on manual request only (per file, or per library after confirmation). Automatic processing waits for test runs (0.4). |
-| 0.4 Encoding | Device detection, worker pools, profiles, command builders, skip rules, test run, queue UI with live progress. |
+| 0.4 Encoding | Device detection, worker pools, profiles, command builders, skip rules, test run (quality-checked, gates bulk encoding, ADR-0020), queue UI with live progress. |
 | 0.5 Mimic | Sample upload/selection, settings extraction, estimation, profile editor. |
 | 0.6 Automation | Webhooks, folder watcher, scheduled rescans, processing window, notifiers (Plex, Jellyfin, Sonarr, Radarr). |
 | 0.7 Insight and safety | Stats dashboard, review page, wrong-language quarantine + re-search, optional TOTP 2FA, audit log page. |
