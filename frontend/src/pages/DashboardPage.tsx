@@ -5,8 +5,7 @@ export function DashboardPage() {
     <Stack>
       <Title order={2}>Dashboard</Title>
       <Text c="dimmed">
-        Nothing to show yet. Libraries arrive in the next phase; for now you can review your
-        security settings.
+        Nothing to show yet. Start by adding your libraries on the Libraries page.
       </Text>
     </Stack>
   );

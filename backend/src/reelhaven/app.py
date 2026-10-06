@@ -7,7 +7,7 @@ from fastapi import FastAPI
 from fastapi.staticfiles import StaticFiles
 
 from reelhaven import __version__
-from reelhaven.api import auth_routes, security_routes
+from reelhaven.api import auth_routes, library_routes, security_routes
 from reelhaven.auth.network import IPAddress, read_default_gateways
 from reelhaven.auth.throttle import LoginThrottle
 from reelhaven.config import Settings, get_settings
@@ -55,6 +55,7 @@ def create_app(
 
     app.include_router(auth_routes.router, prefix="/api/v1")
     app.include_router(security_routes.router, prefix="/api/v1")
+    app.include_router(library_routes.router, prefix="/api/v1")
 
     @app.get("/healthz", include_in_schema=False)
     def healthz() -> dict[str, str]:

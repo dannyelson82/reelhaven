@@ -1,11 +1,18 @@
 import { AppShell, Burger, Group, Image, Menu, NavLink, Text, UnstyledButton } from '@mantine/core';
 import { useDisclosure } from '@mantine/hooks';
-import { IconChevronDown, IconGauge, IconLogout, IconShieldLock } from '@tabler/icons-react';
+import {
+  IconChevronDown,
+  IconFolders,
+  IconGauge,
+  IconLogout,
+  IconShieldLock,
+} from '@tabler/icons-react';
 import { NavLink as RouterLink, Outlet, useLocation } from 'react-router';
 import { type AuthState, useLogout, useLogoutEverywhere } from '../api/auth';
 
 const NAV = [
   { to: '/', label: 'Dashboard', icon: IconGauge },
+  { to: '/libraries', label: 'Libraries', icon: IconFolders },
   { to: '/settings/security', label: 'Security', icon: IconShieldLock },
 ];
 

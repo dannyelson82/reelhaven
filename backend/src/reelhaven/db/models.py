@@ -3,7 +3,7 @@
 from datetime import datetime
 from typing import Any, ClassVar
 
-from sqlalchemy import JSON, Boolean, ForeignKey, Index, Integer, MetaData, String, Text
+from sqlalchemy import JSON, Boolean, Enum, ForeignKey, Index, Integer, MetaData, String, Text
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column
 
 from reelhaven.db.types import UTCDateTime, utcnow
@@ -71,3 +71,20 @@ class AuditLog(Base):
     action: Mapped[str] = mapped_column(String(64))
     target: Mapped[str | None] = mapped_column(String(512), default=None)
     detail: Mapped[dict[str, Any] | None] = mapped_column(default=None)
+
+
+LIBRARY_TYPES = ("movies", "tv", "other")
+
+
+class Library(Base):
+    __tablename__ = "libraries"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    name: Mapped[str] = mapped_column(String(100), unique=True)
+    type: Mapped[str] = mapped_column(
+        Enum(*LIBRARY_TYPES, name="library_type", native_enum=False, create_constraint=True)
+    )
+    # Absolute, symlink-resolved path inside the media root.
+    path: Mapped[str] = mapped_column(String(4096), unique=True)
+    created_at: Mapped[datetime] = mapped_column(default=utcnow)
+    updated_at: Mapped[datetime] = mapped_column(default=utcnow, onupdate=utcnow)
