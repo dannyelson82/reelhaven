@@ -130,6 +130,13 @@ class ArrClient(ServiceClient):
         )
         self.kind = kind
 
+    def titles(self) -> list[dict[str, Any]]:
+        """All series (Sonarr) or movies (Radarr), with path and original language."""
+        data = self.get_json("/api/v3/series" if self.kind == "sonarr" else "/api/v3/movie")
+        if not isinstance(data, list):
+            raise IntegrationError("bad_response", f"Unexpected answer from {self.kind.title()}")
+        return [item for item in data if isinstance(item, dict)]
+
     def test(self) -> dict[str, str]:
         status = self.get_json("/api/v3/system/status")
         app = str(status.get("appName", "")) if isinstance(status, dict) else ""
@@ -164,3 +171,29 @@ class TmdbClient(ServiceClient):
     def test(self) -> dict[str, str]:
         self.get_json("/3/configuration")
         return {"app": "TMDB", "version": "3"}
+
+    def details(self, kind: Literal["movie", "tv"], tmdb_id: str) -> dict[str, Any]:
+        data = self.get_json(f"/3/{kind}/{int(tmdb_id)}")
+        return data if isinstance(data, dict) else {}
+
+    def find(self, external_id: str, source: Literal["imdb_id", "tvdb_id"]) -> list[dict[str, Any]]:
+        """Movies and series matching an IMDb or TVDB ID."""
+        data = self.get_json(f"/3/find/{external_id}", {"external_source": source})
+        if not isinstance(data, dict):
+            return []
+        results: list[dict[str, Any]] = []
+        for key, kind in (("movie_results", "movie"), ("tv_results", "tv")):
+            for item in data.get(key) or []:
+                if isinstance(item, dict):
+                    results.append({**item, "media_type": kind})
+        return results
+
+    def search(
+        self, kind: Literal["movie", "tv"], query: str, year: int | None
+    ) -> list[dict[str, Any]]:
+        params: dict[str, Any] = {"query": query, "include_adult": "false"}
+        if year is not None:
+            params["year" if kind == "movie" else "first_air_date_year"] = year
+        data = self.get_json(f"/3/search/{kind}", params)
+        results = data.get("results") if isinstance(data, dict) else None
+        return [r for r in results or [] if isinstance(r, dict)]

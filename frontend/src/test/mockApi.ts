@@ -19,7 +19,8 @@ export function mockApi(routes: Record<string, MockResponse | Handler>) {
     if (!route) return new Response(JSON.stringify({ detail: 'not_mocked' }), { status: 404 });
     const res = typeof route === 'function' ? route(init) : route;
     const status = res.status ?? 200;
-    return new Response(status === 204 ? null : JSON.stringify(res.body ?? {}), {
+    const payload = 'body' in res ? res.body : {};
+    return new Response(status === 204 ? null : JSON.stringify(payload), {
       status,
       headers: res.headers,
     });

@@ -16,7 +16,7 @@ from reelhaven.api.deps import (
     csrf_protect,
     require_setup_done,
 )
-from reelhaven.db import Library, MediaFile
+from reelhaven.db import Library, MediaFile, Title
 from reelhaven.media.info import MediaInfo, Stream
 from reelhaven.scanner import Scanner
 
@@ -34,6 +34,9 @@ class ScanStatus(BaseModel):
     moved: int
     removed: int
     unstable: int
+    languages_resolved: int
+    languages_unknown: int
+    language_errors: list[str]
     error: str | None
     started_at: float
     finished_at: float | None
@@ -52,6 +55,9 @@ class FileSummary(BaseModel):
     audio_languages: list[str | None] = []
     subtitle_languages: list[str | None] = []
     probe_error: str | None = None
+    title_id: int | None = None
+    original_language: str | None = None
+    language_source: str | None = None
 
 
 class FileDetail(FileSummary):
@@ -80,14 +86,19 @@ def _library(db: Any, library_id: int) -> Library:
     return library
 
 
-def _summary_fields(row: MediaFile) -> dict[str, Any]:
+def _summary_fields(row: MediaFile, title: Title | None = None) -> dict[str, Any]:
     fields: dict[str, Any] = {
         "id": row.id,
         "relative_path": row.relative_path,
         "size": row.size,
         "status": row.status,
         "probe_error": row.probe_error,
+        "title_id": row.title_id,
     }
+    if title is not None:
+        fields.update(
+            original_language=title.original_language, language_source=title.language_source
+        )
     if row.probe is not None:
         info = MediaInfo.model_validate(row.probe)
         video = info.video
@@ -135,7 +146,11 @@ def list_files(
     limit: int = Query(default=50, ge=1, le=500),
 ) -> FilePage:
     _library(db, library_id)
-    query = select(MediaFile).where(MediaFile.library_id == library_id)
+    query = (
+        select(MediaFile, Title)
+        .outerjoin(Title, Title.id == MediaFile.title_id)
+        .where(MediaFile.library_id == library_id)
+    )
     if q:
         escaped = q.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
         query = query.where(MediaFile.relative_path.ilike(f"%{escaped}%", escape="\\"))
@@ -143,10 +158,10 @@ def list_files(
         query = query.where(MediaFile.status != "ok")
     with db.read() as session:
         total = session.scalar(select(func.count()).select_from(query.subquery())) or 0
-        rows = session.scalars(
+        rows = session.execute(
             query.order_by(MediaFile.relative_path).offset(offset).limit(limit)
         ).all()
-        items = [FileSummary(**_summary_fields(row)) for row in rows]
+        items = [FileSummary(**_summary_fields(row, title)) for row, title in rows]
     return FilePage(total=total, items=items)
 
 
@@ -156,7 +171,8 @@ def get_file(file_id: int, db: DbDep, _principal: AnyPrincipalDep) -> FileDetail
         row = session.get(MediaFile, file_id)
         if row is None:
             raise HTTPException(status.HTTP_404_NOT_FOUND, "file_not_found")
-        fields = _summary_fields(row)
+        title = session.get(Title, row.title_id) if row.title_id else None
+        fields = _summary_fields(row, title)
         detail = FileDetail(**fields, path=row.path, probed_at=row.probed_at)
         if row.probe is not None:
             info = MediaInfo.model_validate(row.probe)

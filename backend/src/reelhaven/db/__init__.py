@@ -9,6 +9,7 @@ from reelhaven.db.models import (
     Library,
     MediaFile,
     Setting,
+    Title,
     User,
 )
 
@@ -21,5 +22,6 @@ __all__ = [
     "Library",
     "MediaFile",
     "Setting",
+    "Title",
     "User",
 ]
