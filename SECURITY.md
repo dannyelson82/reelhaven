@@ -73,7 +73,8 @@ Out of scope: an attacker who already has root on the Unraid host.
 ## File system confinement
 
 - ReelHaven only reads and writes inside paths configured as libraries,
-  `/transcode`, and `/config`.
+  `/transcode`, and `/config`. Its own `.reelhaven/` folders inside each
+  library are never shown by the file browser or scanned as media.
 - Every path from the UI, API or webhooks is resolved with `realpath` and
   rejected if it falls outside an allowed root. **Symlinks are resolved
   before the check**, so a link can't point the app at other host folders.

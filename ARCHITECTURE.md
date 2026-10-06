@@ -99,10 +99,10 @@ workers. This keeps installation a single Unraid template.
 | `/media` | Libraries (user maps one or more folders under here) | `/mnt/user/media` |
 | `/transcode` | Temporary encode output; fast disk recommended | cache pool or appdata subfolder |
 
-The recycle bin and quarantine folders default to hidden folders **on the
-same filesystem as the library** (`/media/.reelhaven/recycle`,
-`/media/.reelhaven/quarantine`) so moves are instant renames, not copies.
-Both are configurable.
+Each library has a hidden `.reelhaven/` folder at its root holding the
+recycle bin (`recycle/`), remux work files (`work/`) and, later, quarantine
+(`quarantine/`). Being on the library's own filesystem, every move is an
+instant rename, never a copy (ADR-0016).
 
 ### 5.2 Environment variables
 
@@ -202,9 +202,12 @@ A new file must pass every check before it can replace the original:
    and the file marked "no gain" so it isn't retried.
 
 ### 6.8 Replacer
-1. Move the original into the recycle bin (rename on the same filesystem).
-2. Move the verified output into the original's place, preserving ownership
-   (PUID/PGID), permissions and mtime-based ordering where sensible.
+1. The verified output already sits in the library's `.reelhaven/work/`
+   (copied there first for GPU encodes), on the same filesystem as the
+   original (ADR-0016).
+2. Move the original into the recycle bin, then rename the output into the
+   original's place, preserving ownership (PUID/PGID) and permissions. Both
+   steps are renames; if the filesystems differ, the replacer refuses.
 3. If the extension changed (e.g. `.mp4` → `.mkv`), the new name keeps the
    same stem; notifiers are told about the rename.
 4. Record before/after sizes, durations and timings for stats.
@@ -301,7 +304,8 @@ Mapping tables live in one module with tests.
 - **Keep languages**: default `English` + `original language`.
 - **Subtitles to keep**: English full, English forced, English SDH (toggle).
 - **Commentary tracks**: keep English commentary (toggle).
-- **Untagged tracks** (`und`): keep (default) or treat as a specific language.
+- **Untagged tracks** (`und` or no tag): keep (default) or treat as a specific
+  language. Untagged audio never triggers wrong-language detection (ADR-0017).
 
 ### 8.2 Track rules
 - Keep audio in the keep-list. **Never remove the last audio track.** If no
@@ -418,8 +422,7 @@ endpoint (unauthenticated, no details) for Docker health checks.
 | Phase | Scope |
 |---|---|
 | 0.1 Foundation | Project skeleton (backend + frontend), config, logging, SQLite + Alembic, audit log table (ADR-0010), auth (login, sessions, local-address bypass, API key), setup wizard step 1, Dockerfile, CI (lint, test, image build). |
-| 0.2 See the library | Libraries, scanner, probe, file browser, library view with stream details. |
-| 0.3 Languages | Language resolver (TMDB, Sonarr, Radarr), language policy, planner for track changes, dry run, `remux` jobs, verifier, replacer, recycle bin. *First release that changes files*, on manual request only. Automatic processing waits for test runs (0.4). |
+| 0.2 + 0.3 Library and languages (ADR-0015) | Libraries, scanner, probe, file browser, library view with stream details; language resolver (TMDB, Sonarr, Radarr), language policy, planner for track changes, dry run, `remux` jobs, verifier, replacer, recycle bin. *First release that changes files*, on manual request only (per file, or per library after confirmation). Automatic processing waits for test runs (0.4). |
 | 0.4 Encoding | Device detection, worker pools, profiles, command builders, skip rules, test run, queue UI with live progress. |
 | 0.5 Mimic | Sample upload/selection, settings extraction, estimation, profile editor. |
 | 0.6 Automation | Webhooks, folder watcher, scheduled rescans, processing window, notifiers (Plex, Jellyfin, Sonarr, Radarr). |
