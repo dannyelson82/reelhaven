@@ -1,7 +1,7 @@
 # Phase 0.2 + 0.3: Library and languages
 
 Planned with the owner on 2026-10-06 (ADR-0015). Decisions: ADRs 0015–0018.
-Release: **v0.3.0**.
+Release: **v0.3.0**. Status: **complete** (2026-10-06), PRs #11–#20.
 
 Goal: add a library and see every file's streams. ReelHaven finds each
 title's original language and shows a dry run of track changes. On request,
