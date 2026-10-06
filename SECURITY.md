@@ -27,7 +27,9 @@ Out of scope: an attacker who already has root on the Unraid host.
 ## Authentication
 
 - **Login required by default.** The first-run wizard creates the admin
-  account. No default credentials ever ship.
+  account. No default credentials ever ship. Until it is done, everything
+  except setup and `/healthz` is blocked, and only one admin can be created
+  (ADR-0013). Finish setup before exposing ReelHaven to the internet.
 - Passwords hashed with **Argon2id**. Minimum length 10; no other complexity
   rules.
 - **Sessions**: random 256-bit IDs, stored hashed server-side. Cookie is
@@ -35,7 +37,7 @@ Out of scope: an attacker who already has root on the Unraid host.
   HTTPS (directly or via a trusted proxy). Idle timeout 7 days (configurable);
   "log out everywhere" button.
 - **Login throttling**: exponential delay per username and per IP after
-  failed attempts; lockout events go to the audit log.
+  failed attempts; lockout events go to the audit log (present from phase 0.1, ADR-0010).
 - **Local-address bypass** (optional, off by default, like Sonarr/Radarr's
   "Disabled for Local Addresses"): requests from private ranges
   (10/8, 172.16/12, 192.168/16, 127/8, fc00::/7, ::1) skip the login page.
@@ -44,13 +46,18 @@ Out of scope: an attacker who already has root on the Unraid host.
     **trusted proxies** list. Otherwise anyone could fake a local address.
   - The UI warns that enabling this together with internet exposure through
     a reverse proxy on the same network effectively disables login.
+  - Requests arriving from the container's **Docker gateway** address never
+    get the bypass, because NAT can make every client look like the gateway
+    (ADR-0012).
 - **Two-factor (TOTP)**: optional, off by default. Any authenticator app.
   Enabling it shows 10 single-use recovery codes (stored hashed). When 2FA is
   on, the local-address bypass cannot be enabled.
 - **API key**: random 32-byte key for webhooks and scripts, sent in the
   `X-Api-Key` header (or `apikey` query parameter for tools that can't set
-  headers). Shown once in full, then masked; rotate with one click. The API
-  key cannot change security settings.
+  headers). Shown once in full, then masked; only a SHA-256 hash is stored
+  (ADR-0011); rotate with one click. The API key cannot change security
+  settings. The `apikey` query parameter is stripped from ReelHaven's request
+  logs; prefer the header.
 
 ## Web protections
 
@@ -80,9 +87,9 @@ Out of scope: an attacker who already has root on the Unraid host.
   never a shell. File paths are passed as single arguments, so names with
   spaces, quotes, `;` or `$()` are harmless.
 - Paths that begin with `-` are prefixed with `./` or passed after `--`
-  where supported, so they can't be read as options. Input paths always use
-  the `file:` protocol prefix so ffmpeg never interprets them as URLs or
-  other protocols.
+  where supported, so they can't be read as options. Input **and output**
+  paths always use the `file:` protocol prefix so ffmpeg never interprets
+  them as URLs or other protocols.
 - Encodes run with a timeout and resource limits; a hung ffmpeg is killed.
 
 ## Secrets

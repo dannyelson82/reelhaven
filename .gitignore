@@ -48,3 +48,4 @@ secret*.json
 .idea/
 .DS_Store
 Thumbs.db
+.dev-config/
