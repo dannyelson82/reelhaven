@@ -7,7 +7,11 @@ import pytest
 from reelhaven.media.probe import ProbeError, ffmpeg_input, probe
 from tests.media_fixtures import FFMPEG, Audio, Spec, Sub, make
 
-pytestmark = pytest.mark.skipif(FFMPEG is None, reason="ffmpeg not installed")
+# Skipped only on machines without ffmpeg. CI installs it, so these tests
+# can never silently disappear there.
+pytestmark = pytest.mark.skipif(
+    FFMPEG is None and not os.environ.get("CI"), reason="ffmpeg not installed"
+)
 
 
 def test_probe_multi_language_file(tmp_path: Path) -> None:
