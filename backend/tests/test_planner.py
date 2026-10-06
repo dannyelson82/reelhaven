@@ -391,3 +391,13 @@ def test_policy_normalises_languages() -> None:
 def test_policy_rejects_bad_values(bad: dict[str, Any]) -> None:
     with pytest.raises(ValueError):
         LanguagePolicy.model_validate(bad)
+
+
+def test_mp4_always_has_a_default_subtitle() -> None:
+    """MP4 enables the first subtitle when none is default; the plan must agree."""
+    info = media(audio(1, "eng", default=True), sub(2, "eng", default=True), sub(3, "fra"))
+    info = info.model_copy(update={"container": "mov,mp4,m4a,3gp,3g2,mj2"})
+    p = plan(info, "eng", DEFAULT)
+    assert defaults(p) == [1, 2]
+    assert not any("Clear default" in d for d in p.details)
+    assert plan(apply(info, p), "eng", DEFAULT).action == "skip"

@@ -1,5 +1,7 @@
 """FastAPI application factory."""
 
+import logging
+import threading
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 
@@ -11,6 +13,7 @@ from reelhaven.api import (
     auth_routes,
     file_routes,
     integration_routes,
+    job_routes,
     library_routes,
     security_routes,
     title_routes,
@@ -20,6 +23,8 @@ from reelhaven.auth.throttle import LoginThrottle
 from reelhaven.config import Settings, get_settings
 from reelhaven.db import Database
 from reelhaven.headers import SecurityHeadersMiddleware
+from reelhaven.jobs.queue import JobQueue
+from reelhaven.jobs.service import purge_expired
 from reelhaven.middleware import RequestLogMiddleware
 from reelhaven.resolver import LanguageResolver
 from reelhaven.scanner import Scanner
@@ -41,7 +46,14 @@ def create_app(
     @asynccontextmanager
     async def lifespan(app: FastAPI) -> AsyncIterator[None]:
         db.migrate()
+        app.state.queue.start()
+        janitor = threading.Thread(
+            target=_janitor, args=(db, app.state.stop), name="janitor", daemon=True
+        )
+        janitor.start()
         yield
+        app.state.stop.set()
+        app.state.queue.stop()
         db.close()
 
     app = FastAPI(
@@ -59,6 +71,8 @@ def create_app(
     app.state.throttle = LoginThrottle()
     app.state.gateways = read_default_gateways() if gateways is None else gateways
     app.state.gateway_seen_at = None
+    app.state.queue = JobQueue(db, settings)
+    app.state.stop = threading.Event()
     app.state.secretbox = SecretBox(settings.config_dir)
     app.state.http_transport = None  # tests inject a fake transport
     app.state.scanner = Scanner(
@@ -78,6 +92,7 @@ def create_app(
     app.include_router(file_routes.router, prefix="/api/v1")
     app.include_router(integration_routes.router, prefix="/api/v1")
     app.include_router(title_routes.router, prefix="/api/v1")
+    app.include_router(job_routes.router, prefix="/api/v1")
 
     @app.get("/healthz", include_in_schema=False)
     def healthz() -> dict[str, str]:
@@ -90,3 +105,13 @@ def create_app(
         app.mount("/", StaticFiles(directory=web_dir, html=True), name="web")
 
     return app
+
+
+def _janitor(db: Database, stop: threading.Event) -> None:
+    """Hourly housekeeping: purge expired recycle bin entries."""
+    while not stop.wait(timeout=60):
+        try:
+            purge_expired(db)
+        except Exception:
+            logging.getLogger(__name__).exception("recycle bin cleanup failed")
+        stop.wait(timeout=3540)

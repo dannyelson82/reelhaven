@@ -15,13 +15,14 @@ function makeQueryClient() {
 export function App() {
   const [queryClient] = useState(makeQueryClient);
   return (
-    <MantineProvider theme={theme} defaultColorScheme="auto">
-      <Notifications />
-      <QueryClientProvider client={queryClient}>
-        <HashRouter>
+    // The router wraps everything, so links also work inside notifications and modals.
+    <HashRouter>
+      <MantineProvider theme={theme} defaultColorScheme="auto">
+        <Notifications />
+        <QueryClientProvider client={queryClient}>
           <AuthGate />
-        </HashRouter>
-      </QueryClientProvider>
-    </MantineProvider>
+        </QueryClientProvider>
+      </MantineProvider>
+    </HashRouter>
   );
 }

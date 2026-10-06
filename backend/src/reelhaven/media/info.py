@@ -30,6 +30,9 @@ class Stream(BaseModel):
     forced: bool = False
     hearing_impaired: bool = False
     commentary: bool = False
+    # Every disposition flag ffprobe reported as set ("default", "forced",
+    # "attached_pic"...), so a remux can preserve them exactly.
+    dispositions: list[str] = []
     bit_rate: int | None = None
     # video
     width: int | None = None
@@ -154,6 +157,7 @@ def parse(probe: dict[str, Any], frame_side_data: list[dict[str, Any]] | None = 
             commentary=bool(disposition.get("comment"))
             or bool(title and _COMMENTARY_TITLE.search(title)),
             bit_rate=_int(raw.get("bit_rate")) or _int(_tag(tags, "bps")),
+            dispositions=sorted(k for k, v in disposition.items() if v),
         )
         if kind == "video":
             stream.width = _int(raw.get("width"))

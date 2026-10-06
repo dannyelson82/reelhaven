@@ -4,8 +4,10 @@ import { useAuthState } from '../api/auth';
 import { errorMessage } from '../api/client';
 import { DashboardPage } from '../pages/DashboardPage';
 import { IntegrationsPage } from '../pages/IntegrationsPage';
+import { JobsPage } from '../pages/JobsPage';
 import { LibrariesPage } from '../pages/LibrariesPage';
 import { LibraryPage } from '../pages/LibraryPage';
+import { RecyclePage } from '../pages/RecyclePage';
 import { LoginPage } from '../pages/LoginPage';
 import { SecurityPage } from '../pages/SecurityPage';
 import { SetupPage } from '../pages/SetupPage';
@@ -40,6 +42,8 @@ export function AuthGate() {
         <Route index element={<DashboardPage />} />
         <Route path="libraries" element={<LibrariesPage />} />
         <Route path="libraries/:id" element={<LibraryPage />} />
+        <Route path="jobs" element={<JobsPage />} />
+        <Route path="recycle" element={<RecyclePage />} />
         <Route path="settings/integrations" element={<IntegrationsPage />} />
         <Route path="settings/security" element={<SecurityPage />} />
         <Route path="*" element={<DashboardPage />} />

@@ -99,6 +99,18 @@ export function errorMessage(error: unknown): string {
       return 'The media folder (/media) is not mounted. Check the container settings.';
     case 'folder_unreadable':
       return "ReelHaven doesn't have permission to read that folder.";
+    case 'plan_changed':
+      return 'The library changed since the dry run. Run it again and check the new numbers.';
+    case 'nothing_to_do':
+      return 'There is nothing to change in this file.';
+    case 'already_queued':
+      return 'This file is already waiting to be processed.';
+    case 'unsupported_container':
+      return "This file type can't be remuxed yet (only MKV, MP4, M4V and MOV).";
+    case 'file_not_readable':
+      return "This file couldn't be read, so it can't be processed.";
+    case 'restore_failed':
+      return "The file couldn't be restored. It may have been moved or deleted outside ReelHaven.";
     case 'validation_error':
       return 'Some of the values are not valid.';
     default:

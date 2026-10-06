@@ -179,3 +179,64 @@ it('edits the language policy', async () => {
     keep_languages: ['eng'],
   });
 });
+
+it('applies a dry run with the confirmed number of files', async () => {
+  window.location.hash = '#/libraries/1';
+  const report = {
+    files: 3,
+    remux: 2,
+    unchanged: 1,
+    unreadable: 0,
+    flags: {},
+    unknown_original: 0,
+    saved_bytes: 1e9,
+    savings_unknown: 0,
+    total: 2,
+    items: [
+      {
+        file_id: 1,
+        relative_path: 'A/a.mkv',
+        size: 1,
+        original_language: 'eng',
+        action: 'remux',
+        flags: [],
+        summary: 's',
+        details: ['Remove audio: French.'],
+        removed_bytes: 5e8,
+      },
+      {
+        file_id: 2,
+        relative_path: 'B/b.mkv',
+        size: 1,
+        original_language: 'eng',
+        action: 'remux',
+        flags: [],
+        summary: 's',
+        details: ['Remove audio: German.'],
+        removed_bytes: 5e8,
+      },
+    ],
+  };
+  const calls = mockApi({
+    'GET auth/state': loggedIn,
+    'GET libraries': { body: [library] },
+    'GET libraries/1/scan': { body: null },
+    'GET libraries/1/files?q=&problems=false&offset=0&limit=50': { body: { total: 0, items: [] } },
+    'GET libraries/1/dry-run?show=changes&offset=0&limit=100': { body: report },
+    'POST libraries/1/apply': { body: { queued: 2 } },
+  });
+  render(<App />);
+  await userEvent.click(await screen.findByRole('tab', { name: 'Dry run' }));
+  await userEvent.click(await screen.findByRole('button', { name: 'Run dry run' }));
+  await userEvent.click(await screen.findByRole('button', { name: 'Apply to 2 files' }));
+  expect(await screen.findByText(/Originals go to the recycle bin/)).toBeInTheDocument();
+  const dialog = await screen.findByRole('dialog');
+  await userEvent.click(
+    Array.from(dialog.querySelectorAll('button')).find(
+      (b) => b.textContent === 'Apply to 2 files',
+    )!,
+  );
+  expect(await screen.findByText(/2 files queued/)).toBeInTheDocument();
+  const post = calls.find((c) => c.key === 'POST libraries/1/apply');
+  expect(JSON.parse(String(post?.init?.body))).toEqual({ expected_count: 2 });
+});

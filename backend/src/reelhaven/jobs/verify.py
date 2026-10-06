@@ -1,0 +1,106 @@
+"""The verifier (ARCHITECTURE.md §6.7): a new file must pass every check
+before it may replace the original."""
+
+import subprocess
+from pathlib import Path
+
+from reelhaven.media.info import MediaInfo
+from reelhaven.media.probe import ProbeError, ffmpeg_input, probe
+
+DECODE_SECONDS = 2.0
+
+
+class VerificationError(Exception):
+    pass
+
+
+def verify_output(
+    output: Path,
+    source_info: MediaInfo,
+    expected: list[tuple[str, str | None, bool | None]],
+    ffmpeg: str,
+    ffprobe: str,
+    timeout_s: float = 300,
+) -> MediaInfo:
+    """Raise VerificationError unless ``output`` is a sound replacement."""
+    try:
+        info = probe(output, ffprobe, timeout_s)
+    except ProbeError as exc:
+        raise VerificationError(f"the new file can't be read: {exc}") from exc
+
+    # 1. Stream layout matches the plan.
+    actual = [(s.kind, s.language, s.default) for s in info.streams]
+    if len(actual) != len(expected):
+        raise VerificationError(f"expected {len(expected)} streams, found {len(actual)}")
+    for position, ((kind, language, default), (a_kind, a_language, a_default)) in enumerate(
+        zip(expected, actual, strict=True)
+    ):
+        if kind != a_kind or language != a_language:
+            raise VerificationError(
+                f"stream {position}: expected {kind} {language}, found {a_kind} {a_language}"
+            )
+        if default is not None and default != a_default:
+            raise VerificationError(f"stream {position}: default flag not set as planned")
+
+    # 2. Video unchanged (a remux must not lose HDR or Dolby Vision).
+    src_video, out_video = source_info.video, info.video
+    if (src_video is None) != (out_video is None):
+        raise VerificationError("the video stream is missing")
+    if src_video is not None and out_video is not None:
+        if (src_video.codec, src_video.width, src_video.height) != (
+            out_video.codec,
+            out_video.width,
+            out_video.height,
+        ):
+            raise VerificationError("the video stream changed")
+        if src_video.hdr != out_video.hdr:
+            raise VerificationError(f"HDR metadata changed ({src_video.hdr} -> {out_video.hdr})")
+
+    # 3. Duration within ±1 s or 0.5 %.
+    if source_info.duration_s and info.duration_s is not None:
+        tolerance = max(1.0, source_info.duration_s * 0.005)
+        if abs(source_info.duration_s - info.duration_s) > tolerance:
+            raise VerificationError(
+                f"duration changed from {source_info.duration_s:.1f}s to {info.duration_s:.1f}s"
+            )
+    elif source_info.duration_s:
+        raise VerificationError("the new file has no duration")
+
+    # 4. Decode test: short segments at the start, middle and end.
+    duration = info.duration_s or 0.0
+    points = sorted({0.0, max(duration / 2 - 1, 0.0), max(duration - DECODE_SECONDS - 1, 0.0)})
+    for start in points:
+        _decode(ffmpeg, output, start, timeout_s)
+    return info
+
+
+def _decode(ffmpeg: str, path: Path, start: float, timeout_s: float) -> None:
+    args = [
+        ffmpeg,
+        "-hide_banner",
+        "-nostdin",
+        "-v",
+        "error",
+        "-ss",
+        f"{start:.3f}",
+        "-i",
+        ffmpeg_input(path),
+        "-t",
+        str(DECODE_SECONDS),
+        "-map",
+        "0:v:0?",
+        "-map",
+        "0:a?",
+        "-f",
+        "null",
+        "-",
+    ]
+    try:
+        result = subprocess.run(  # noqa: S603 - argument list, no shell
+            args, capture_output=True, timeout=timeout_s, check=False
+        )
+    except subprocess.TimeoutExpired as exc:
+        raise VerificationError("decode test timed out") from exc
+    errors = result.stderr.decode("utf-8", "replace").strip()
+    if result.returncode != 0 or errors:
+        raise VerificationError(f"decode test failed at {start:.0f}s: {errors[-500:]}")
