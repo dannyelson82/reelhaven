@@ -10,6 +10,10 @@ export interface Library {
   path: string;
   relative_path: string;
   created_at: string;
+  file_count: number;
+  last_scan_at: string | null;
+  last_scan_error: string | null;
+  scanning: boolean;
 }
 
 export interface BrowseResult {

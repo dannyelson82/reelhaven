@@ -17,6 +17,7 @@ import { useForm } from '@mantine/form';
 import { notifications } from '@mantine/notifications';
 import { IconPlus } from '@tabler/icons-react';
 import { useState } from 'react';
+import { Link } from 'react-router';
 import { errorMessage } from '../api/client';
 import {
   LIBRARY_TYPES,
@@ -59,14 +60,27 @@ export function LibrariesPage() {
           <Group justify="space-between">
             <Stack gap={2}>
               <Group gap="xs">
-                <Text fw={600}>{library.name}</Text>
+                <Text fw={600} component={Link} to={`/libraries/${library.id}`} c="inherit">
+                  {library.name}
+                </Text>
                 <Badge variant="light">{typeLabel(library.type)}</Badge>
               </Group>
               <Code>{library.path}</Code>
+              <Text size="xs" c="dimmed">
+                {library.file_count} files
+                {library.last_scan_at
+                  ? ` · last scanned ${new Date(library.last_scan_at).toLocaleString()}`
+                  : ' · not scanned yet'}
+              </Text>
             </Stack>
-            <Button variant="default" onClick={() => setEditing(library)}>
-              Edit
-            </Button>
+            <Group gap="xs">
+              <Button component={Link} to={`/libraries/${library.id}`} variant="light">
+                Open
+              </Button>
+              <Button variant="default" onClick={() => setEditing(library)}>
+                Edit
+              </Button>
+            </Group>
           </Group>
         </Card>
       ))}

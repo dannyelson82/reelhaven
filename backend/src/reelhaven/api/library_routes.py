@@ -3,11 +3,11 @@
 import os
 from datetime import datetime
 from pathlib import Path
-from typing import Annotated, Literal
+from typing import Annotated, Any, Literal
 
 from fastapi import APIRouter, Depends, HTTPException, Request, status
 from pydantic import BaseModel, Field, field_validator
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.exc import IntegrityError
 
 from reelhaven import audit
@@ -20,7 +20,7 @@ from reelhaven.api.deps import (
 )
 from reelhaven.api.schemas import StrictModel
 from reelhaven.config import Settings
-from reelhaven.db import Library
+from reelhaven.db import Library, MediaFile
 from reelhaven.paths import INTERNAL_DIR, PathNotAllowedError, overlaps, resolve_within
 
 router = APIRouter(dependencies=[Depends(require_setup_done), Depends(csrf_protect)])
@@ -47,6 +47,10 @@ class LibraryOut(BaseModel):
     path: str
     relative_path: str
     created_at: datetime
+    file_count: int = 0
+    last_scan_at: datetime | None = None
+    last_scan_error: str | None = None
+    scanning: bool = False
 
 
 class LibraryCreate(StrictModel):
@@ -85,7 +89,7 @@ class BrowseResult(BaseModel):
     truncated: bool
 
 
-def _out(library: Library, root: Path) -> LibraryOut:
+def _out(library: Library, root: Path, file_count: int = 0, scanning: bool = False) -> LibraryOut:
     path = Path(library.path)
     relative = path.relative_to(root) if path.is_relative_to(root) else path
     return LibraryOut(
@@ -95,7 +99,18 @@ def _out(library: Library, root: Path) -> LibraryOut:
         path=library.path,
         relative_path=str(relative),
         created_at=library.created_at,
+        file_count=file_count,
+        last_scan_at=library.last_scan_at,
+        last_scan_error=library.last_scan_error,
+        scanning=scanning,
     )
+
+
+def _file_counts(session: Any) -> dict[int, int]:
+    rows = session.execute(
+        select(MediaFile.library_id, func.count()).group_by(MediaFile.library_id)
+    ).all()
+    return {library_id: count for library_id, count in rows}
 
 
 def _relative(path: Path, root: Path) -> str:
@@ -138,10 +153,14 @@ def browse(root: MediaRootDep, _principal: InteractiveDep, path: str = "") -> Br
 
 
 @router.get("/libraries")
-def list_libraries(db: DbDep, root: MediaRootDep, _principal: AnyPrincipalDep) -> list[LibraryOut]:
+def list_libraries(
+    request: Request, db: DbDep, root: MediaRootDep, _principal: AnyPrincipalDep
+) -> list[LibraryOut]:
+    scanner = request.app.state.scanner
     with db.read() as session:
         libraries = session.scalars(select(Library).order_by(Library.name)).all()
-    return [_out(lib, root) for lib in libraries]
+        counts = _file_counts(session)
+    return [_out(lib, root, counts.get(lib.id, 0), scanner.is_running(lib.id)) for lib in libraries]
 
 
 @router.post("/libraries", status_code=status.HTTP_201_CREATED)
@@ -180,10 +199,12 @@ def _get(session_library: Library | None) -> Library:
 
 @router.get("/libraries/{library_id}")
 def get_library(
-    library_id: int, db: DbDep, root: MediaRootDep, _principal: AnyPrincipalDep
+    library_id: int, request: Request, db: DbDep, root: MediaRootDep, _principal: AnyPrincipalDep
 ) -> LibraryOut:
     with db.read() as session:
-        return _out(_get(session.get(Library, library_id)), root)
+        library = _get(session.get(Library, library_id))
+        count = _file_counts(session).get(library_id, 0)
+    return _out(library, root, count, request.app.state.scanner.is_running(library_id))
 
 
 @router.patch("/libraries/{library_id}")

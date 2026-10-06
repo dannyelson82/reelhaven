@@ -88,3 +88,32 @@ class Library(Base):
     path: Mapped[str] = mapped_column(String(4096), unique=True)
     created_at: Mapped[datetime] = mapped_column(default=utcnow)
     updated_at: Mapped[datetime] = mapped_column(default=utcnow, onupdate=utcnow)
+    last_scan_at: Mapped[datetime | None] = mapped_column(default=None)
+    last_scan_error: Mapped[str | None] = mapped_column(Text, default=None)
+
+
+FILE_STATUSES = ("ok", "probe_failed")
+
+
+class MediaFile(Base):
+    __tablename__ = "media_files"
+    __table_args__ = (Index("ix_media_files_library_fingerprint", "library_id", "fingerprint"),)
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    library_id: Mapped[int] = mapped_column(
+        ForeignKey("libraries.id", ondelete="CASCADE"), index=True
+    )
+    # Absolute real path; relative_path is shown in the UI.
+    path: Mapped[str] = mapped_column(String(4096), unique=True)
+    relative_path: Mapped[str] = mapped_column(String(4096))
+    size: Mapped[int] = mapped_column(Integer)
+    mtime_ns: Mapped[int] = mapped_column(Integer)
+    fingerprint: Mapped[str] = mapped_column(String(128))
+    status: Mapped[str] = mapped_column(
+        Enum(*FILE_STATUSES, name="media_file_status", native_enum=False, create_constraint=True)
+    )
+    probe: Mapped[dict[str, Any] | None] = mapped_column(default=None)
+    probe_error: Mapped[str | None] = mapped_column(Text, default=None)
+    first_seen_at: Mapped[datetime] = mapped_column(default=utcnow)
+    last_seen_at: Mapped[datetime] = mapped_column(default=utcnow)
+    probed_at: Mapped[datetime | None] = mapped_column(default=None)
