@@ -21,3 +21,10 @@ class ResizeObserverStub {
   disconnect() {}
 }
 window.ResizeObserver = ResizeObserverStub;
+
+// Mantine's autosize Textarea listens for web fonts loading.
+if (!('fonts' in document)) {
+  Object.defineProperty(document, 'fonts', {
+    value: { addEventListener: () => {}, removeEventListener: () => {}, ready: Promise.resolve() },
+  });
+}
