@@ -18,7 +18,7 @@ def settings(tmp_path: Path) -> Settings:
 
 @pytest.fixture
 def client(settings: Settings) -> Iterator[TestClient]:
-    app = create_app(settings, gateways=frozenset())
+    app = create_app(settings, gateways=frozenset(), detect_devices=False)
     with TestClient(app) as test_client:  # runs startup (migrations)
         yield test_client
 

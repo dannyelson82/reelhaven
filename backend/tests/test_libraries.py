@@ -23,7 +23,7 @@ def media(settings: Settings) -> Path:
 
 @pytest.fixture
 def app(settings: Settings, media: Path) -> Iterator[FastAPI]:
-    application = create_app(settings, gateways=frozenset())
+    application = create_app(settings, gateways=frozenset(), detect_devices=False)
     with TestClient(application):
         yield application
 
@@ -196,7 +196,7 @@ def test_mutations_need_csrf(app: FastAPI) -> None:
 
 def test_missing_media_root(settings: Settings, tmp_path: Path) -> None:
     settings = settings.model_copy(update={"media_root": tmp_path / "not-mounted"})
-    application = create_app(settings, gateways=frozenset())
+    application = create_app(settings, gateways=frozenset(), detect_devices=False)
     with TestClient(application):
         admin = admin_client(application)
         assert admin.get(f"{API}/libraries").json()["detail"] == "media_root_missing"

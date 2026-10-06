@@ -125,7 +125,7 @@ def test_remux_refuses_container_change() -> None:
 
 @pytest.fixture
 def app(settings: Settings) -> Iterator[FastAPI]:
-    application = create_app(settings, gateways=frozenset())
+    application = create_app(settings, gateways=frozenset(), detect_devices=False)
     application.state.scanner = Scanner(application.state.db, settings, stable_seconds=0)
     with TestClient(application):
         yield application

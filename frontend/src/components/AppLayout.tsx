@@ -2,6 +2,7 @@ import { AppShell, Burger, Group, Image, Menu, NavLink, Text, UnstyledButton } f
 import { useDisclosure } from '@mantine/hooks';
 import {
   IconChevronDown,
+  IconCpu2,
   IconListCheck,
   IconRecycle,
   IconFolders,
@@ -18,6 +19,7 @@ const NAV = [
   { to: '/libraries', label: 'Libraries', icon: IconFolders },
   { to: '/jobs', label: 'Jobs', icon: IconListCheck },
   { to: '/recycle', label: 'Recycle bin', icon: IconRecycle },
+  { to: '/settings/hardware', label: 'Hardware', icon: IconCpu2 },
   { to: '/settings/integrations', label: 'Integrations', icon: IconPlugConnected },
   { to: '/settings/security', label: 'Security', icon: IconShieldLock },
 ];
