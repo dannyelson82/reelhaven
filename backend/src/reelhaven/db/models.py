@@ -101,6 +101,8 @@ class Library(Base):
     updated_at: Mapped[datetime] = mapped_column(default=utcnow, onupdate=utcnow)
     last_scan_at: Mapped[datetime | None] = mapped_column(default=None)
     last_scan_error: Mapped[str | None] = mapped_column(Text, default=None)
+    # policy.LanguagePolicy as JSON; empty = defaults.
+    language_policy: Mapped[dict[str, Any]] = mapped_column(default=dict)
 
 
 LANGUAGE_SOURCES = ("sonarr", "radarr", "tmdb", "manual", "unknown")

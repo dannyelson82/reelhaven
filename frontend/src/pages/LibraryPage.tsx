@@ -18,7 +18,13 @@ import {
   Title,
 } from '@mantine/core';
 import { useDebouncedValue } from '@mantine/hooks';
-import { IconAlertTriangle, IconLanguage, IconRefresh, IconSearch } from '@tabler/icons-react';
+import {
+  IconAdjustments,
+  IconAlertTriangle,
+  IconLanguage,
+  IconRefresh,
+  IconSearch,
+} from '@tabler/icons-react';
 import { useQueryClient } from '@tanstack/react-query';
 import { useEffect, useState } from 'react';
 import { Link, useParams } from 'react-router';
@@ -39,6 +45,8 @@ import {
   useRefreshLanguages,
   useSetTitleLanguage,
 } from '../api/titles';
+import { PlanView } from '../components/PlanView';
+import { PolicyModal } from '../components/PolicyModal';
 import { HDR_LABELS, formatBytes, formatDuration, languageName, resolutionLabel } from '../format';
 
 const PAGE_SIZE = 50;
@@ -52,6 +60,7 @@ export function LibraryPage() {
   const [problems, setProblems] = useState(false);
   const [page, setPage] = useState(1);
   const [selected, setSelected] = useState<number | null>(null);
+  const [editingPolicy, setEditingPolicy] = useState(false);
 
   const scan = useScanStatus(libraryId, true);
   const scanning = scan.data?.state === 'scanning';
@@ -84,6 +93,13 @@ export function LibraryPage() {
           </Text>
         </Stack>
         <Group gap="xs" align="flex-start">
+          <Button
+            variant="default"
+            leftSection={<IconAdjustments size={16} />}
+            onClick={() => setEditingPolicy(true)}
+          >
+            Language policy
+          </Button>
           <RefreshLanguagesButton libraryId={libraryId} scanning={scanning} />
           <ScanButton libraryId={libraryId} scanning={scanning} />
         </Group>
@@ -158,6 +174,9 @@ export function LibraryPage() {
         </>
       )}
       <FileDrawer libraryId={libraryId} fileId={selected} onClose={() => setSelected(null)} />
+      {editingPolicy && (
+        <PolicyModal libraryId={libraryId} onClose={() => setEditingPolicy(false)} />
+      )}
     </Stack>
   );
 }
@@ -458,6 +477,7 @@ function FileDrawer({
               source={file.data.language_source}
             />
           )}
+          {file.data.status === 'ok' && <PlanView fileId={file.data.id} />}
           {file.data.probe_error && (
             <Alert color="red" title="ffprobe couldn't read this file">
               <Text size="sm" style={{ whiteSpace: 'pre-wrap' }}>

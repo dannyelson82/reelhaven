@@ -382,3 +382,45 @@ def test_titles_api_and_override(app: FastAPI) -> None:
     assert status["state"] == "done"
     assert json.dumps(status)  # serialisable, includes language fields
     assert status["languages_unknown"] == 1
+
+
+def test_policy_and_plan_api(app: FastAPI) -> None:
+    admin = admin_client(app)
+    db: Database = app.state.db
+    lib = add_library(db, "Movies", "movies", "/media/Movies", ["Amélie (2001)/a.mkv"])
+    probe = {
+        "container": "matroska,webm",
+        "duration_s": 100.0,
+        "size_bytes": 1,
+        "bit_rate": None,
+        "streams": [
+            {"index": 0, "kind": "video", "codec": "h264"},
+            {"index": 1, "kind": "audio", "language": "fra", "default": True, "bit_rate": 640000},
+            {"index": 2, "kind": "audio", "language": "deu", "bit_rate": 640000},
+            {"index": 3, "kind": "subtitle", "language": "eng"},
+        ],
+    }
+    with db.write() as session:
+        session.execute(update(MediaFile).values(probe=probe))
+    assign_titles(db, lib)
+    with db.write() as session:
+        session.execute(update(Title).values(original_language="fra", language_source="manual"))
+
+    policy = admin.get(f"{API}/libraries/{lib}/policy").json()
+    assert policy["keep_languages"] == ["eng"]
+    file_id = admin.get(f"{API}/libraries/{lib}/files").json()["items"][0]["id"]
+    result = admin.get(f"{API}/files/{file_id}/plan").json()
+    assert result["action"] == "remux"
+    assert [t["keep"] for t in result["tracks"]] == [True, False, True]
+    assert result["removed_bytes"] == 640000 * 100 // 8
+
+    # A German-speaking viewer keeps the German track.
+    saved = admin.put(
+        f"{API}/libraries/{lib}/policy", json={**policy, "keep_languages": ["German"]}
+    )
+    assert saved.json()["keep_languages"] == ["deu"]
+    result = admin.get(f"{API}/files/{file_id}/plan").json()
+    assert [t["keep"] for t in result["tracks"]] == [True, True, False]
+
+    bad = admin.put(f"{API}/libraries/{lib}/policy", json={**policy, "keep_languages": ["und"]})
+    assert bad.status_code == 422

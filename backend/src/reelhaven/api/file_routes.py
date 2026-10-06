@@ -18,6 +18,8 @@ from reelhaven.api.deps import (
 )
 from reelhaven.db import Library, MediaFile, Title
 from reelhaven.media.info import MediaInfo, Stream
+from reelhaven.planner import Plan, plan
+from reelhaven.policy import LanguagePolicy
 from reelhaven.scanner import Scanner
 
 router = APIRouter(dependencies=[Depends(require_setup_done), Depends(csrf_protect)])
@@ -180,3 +182,19 @@ def get_file(file_id: int, db: DbDep, _principal: AnyPrincipalDep) -> FileDetail
             detail.bit_rate = info.bit_rate
             detail.streams = info.streams
     return detail
+
+
+@router.get("/files/{file_id}/plan")
+def get_plan(file_id: int, db: DbDep, _principal: AnyPrincipalDep) -> Plan:
+    """What ReelHaven would do with this file. Read-only."""
+    with db.read() as session:
+        row = session.get(MediaFile, file_id)
+        if row is None:
+            raise HTTPException(status.HTTP_404_NOT_FOUND, "file_not_found")
+        library = session.get(Library, row.library_id)
+        title = session.get(Title, row.title_id) if row.title_id else None
+        if row.probe is None or library is None:
+            raise HTTPException(status.HTTP_409_CONFLICT, "file_not_readable")
+        info = MediaInfo.model_validate(row.probe)
+        policy = LanguagePolicy.model_validate(library.language_policy or {})
+    return plan(info, title.original_language if title else None, policy)
