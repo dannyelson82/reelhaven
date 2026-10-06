@@ -36,3 +36,13 @@ Each chunk is one pull request off `main`; CI must pass before merge.
 - Subtitle toggles (full / forced / SDH) apply to every wanted language; the
   first wanted language is the viewer's and drives the default subtitle.
 - Image subtitles (PGS, VobSub) follow the same language rules; never converted.
+
+## Remux pipeline decisions (chunk 9)
+- Remux supports MKV, MP4, M4V and MOV in this version; other containers are
+  never queued.
+- MP4/MOV can't store "no default track" (the muxer enables the first one),
+  so the planner plans for that; otherwise every remux would re-plan itself.
+- Restore never deletes: the file currently in place is moved to the recycle
+  bin first ("restore-swap").
+- A library apply must quote the exact number of files from the dry run; if
+  the library changed meanwhile nothing is queued.

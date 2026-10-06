@@ -182,3 +182,71 @@ class Integration(Base):
     enabled: Mapped[bool] = mapped_column(Boolean, default=True)
     created_at: Mapped[datetime] = mapped_column(default=utcnow)
     updated_at: Mapped[datetime] = mapped_column(default=utcnow, onupdate=utcnow)
+
+
+JOB_STATUSES = ("queued", "running", "verifying", "done", "failed", "cancelled")
+
+
+class Job(Base):
+    """One file moving through the pipeline (ARCHITECTURE.md §6.5)."""
+
+    __tablename__ = "jobs"
+    __table_args__ = (Index("ix_jobs_status_priority", "status", "priority", "id"),)
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    library_id: Mapped[int] = mapped_column(
+        ForeignKey("libraries.id", ondelete="CASCADE"), index=True
+    )
+    media_file_id: Mapped[int | None] = mapped_column(
+        ForeignKey("media_files.id", ondelete="SET NULL"), index=True, default=None
+    )
+    type: Mapped[str] = mapped_column(String(16))  # "remux" (phase 0.3), "encode" (0.4)
+    status: Mapped[str] = mapped_column(
+        Enum(*JOB_STATUSES, name="job_status", native_enum=False, create_constraint=True),
+        default="queued",
+    )
+    priority: Mapped[int] = mapped_column(Integer, default=0)
+    # Snapshot taken when the job was created: the file must still match it.
+    source_path: Mapped[str] = mapped_column(String(4096))
+    source_size: Mapped[int] = mapped_column(Integer)
+    source_mtime_ns: Mapped[int] = mapped_column(Integer)
+    plan: Mapped[dict[str, Any]] = mapped_column()
+    probe: Mapped[dict[str, Any]] = mapped_column()
+    progress: Mapped[float] = mapped_column(default=0.0)
+    error: Mapped[str | None] = mapped_column(Text, default=None)
+    requested_by: Mapped[str] = mapped_column(String(128))
+    created_at: Mapped[datetime] = mapped_column(default=utcnow)
+    started_at: Mapped[datetime | None] = mapped_column(default=None)
+    finished_at: Mapped[datetime | None] = mapped_column(default=None)
+
+
+class JobResult(Base):
+    __tablename__ = "job_results"
+
+    job_id: Mapped[int] = mapped_column(ForeignKey("jobs.id", ondelete="CASCADE"), primary_key=True)
+    bytes_before: Mapped[int] = mapped_column(Integer)
+    bytes_after: Mapped[int] = mapped_column(Integer)
+    duration_s: Mapped[float | None] = mapped_column(default=None)
+    process_seconds: Mapped[float] = mapped_column()
+
+
+class RecycleItem(Base):
+    """A replaced original, kept on the library's own disk (ADR-0016)."""
+
+    __tablename__ = "recycle_bin"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    library_id: Mapped[int] = mapped_column(
+        ForeignKey("libraries.id", ondelete="CASCADE"), index=True
+    )
+    job_id: Mapped[int | None] = mapped_column(
+        ForeignKey("jobs.id", ondelete="SET NULL"), default=None
+    )
+    original_path: Mapped[str] = mapped_column(String(4096))
+    stored_path: Mapped[str] = mapped_column(String(4096))
+    size: Mapped[int] = mapped_column(Integer)
+    reason: Mapped[str] = mapped_column(String(64))  # "replaced", "restore-swap"
+    created_at: Mapped[datetime] = mapped_column(default=utcnow)
+    expires_at: Mapped[datetime] = mapped_column(index=True)
+    restored_at: Mapped[datetime | None] = mapped_column(default=None)
+    purged_at: Mapped[datetime | None] = mapped_column(default=None)

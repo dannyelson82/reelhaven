@@ -165,6 +165,15 @@ def plan(info: MediaInfo, original_language: str | None, policy: LanguagePolicy)
                     )
             # Untagged default audio: subtitle defaults are left as they are.
 
+    # MP4/MOV can't store "no default track": the muxer then enables the first
+    # one of that type. Plan for what the file will really contain, otherwise
+    # every remux would plan the same change again.
+    if any(name in info.container for name in ("mp4", "mov")):
+        for group, kept_ids in ((audio, keep_audio), (subtitles, keep_subs)):
+            kept_streams = [s for s in group if s.index in kept_ids]
+            if kept_streams and not any(defaults[s.index] for s in kept_streams):
+                defaults[kept_streams[0].index] = True
+
     # --- assemble ---------------------------------------------------------------------
     tracks: list[TrackPlan] = []
     for stream in [*audio, *subtitles]:

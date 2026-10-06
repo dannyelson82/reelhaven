@@ -2,6 +2,8 @@ import { AppShell, Burger, Group, Image, Menu, NavLink, Text, UnstyledButton } f
 import { useDisclosure } from '@mantine/hooks';
 import {
   IconChevronDown,
+  IconListCheck,
+  IconRecycle,
   IconFolders,
   IconGauge,
   IconLogout,
@@ -14,6 +16,8 @@ import { type AuthState, useLogout, useLogoutEverywhere } from '../api/auth';
 const NAV = [
   { to: '/', label: 'Dashboard', icon: IconGauge },
   { to: '/libraries', label: 'Libraries', icon: IconFolders },
+  { to: '/jobs', label: 'Jobs', icon: IconListCheck },
+  { to: '/recycle', label: 'Recycle bin', icon: IconRecycle },
   { to: '/settings/integrations', label: 'Integrations', icon: IconPlugConnected },
   { to: '/settings/security', label: 'Security', icon: IconShieldLock },
 ];

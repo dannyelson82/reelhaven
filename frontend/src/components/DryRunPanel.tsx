@@ -6,6 +6,7 @@ import {
   Group,
   List,
   Loader,
+  Modal,
   Pagination,
   SegmentedControl,
   SimpleGrid,
@@ -13,7 +14,10 @@ import {
   Table,
   Text,
 } from '@mantine/core';
-import { IconPlayerPlay } from '@tabler/icons-react';
+import { IconPlayerPlay, IconWand } from '@tabler/icons-react';
+import { notifications } from '@mantine/notifications';
+import { Link } from 'react-router';
+import { useApplyLibrary } from '../api/jobs';
 import { useState } from 'react';
 import { errorMessage } from '../api/client';
 import { type DryRunItem, type DryRunShow, useDryRun } from '../api/dryrun';
@@ -43,6 +47,8 @@ export function DryRunPanel({ libraryId }: { libraryId: number }) {
   const [show, setShow] = useState<DryRunShow>('changes');
   const [page, setPage] = useState(1);
   const dryRun = useDryRun(libraryId, show, page, started);
+  const [confirming, setConfirming] = useState(false);
+  const apply = useApplyLibrary();
 
   if (!started) {
     return (
@@ -101,9 +107,20 @@ export function DryRunPanel({ libraryId }: { libraryId: number }) {
             { value: 'all', label: `All (${r.files})` },
           ]}
         />
-        <Button variant="subtle" onClick={() => void dryRun.refetch()} loading={dryRun.isFetching}>
-          Run again
-        </Button>
+        <Group gap="xs">
+          <Button
+            variant="subtle"
+            onClick={() => void dryRun.refetch()}
+            loading={dryRun.isFetching}
+          >
+            Run again
+          </Button>
+          {r.remux > 0 && (
+            <Button leftSection={<IconWand size={16} />} onClick={() => setConfirming(true)}>
+              Apply to {r.remux} {r.remux === 1 ? 'file' : 'files'}
+            </Button>
+          )}
+        </Group>
       </Group>
       {r.items.length === 0 ? (
         <Text c="dimmed" size="sm">
@@ -127,6 +144,48 @@ export function DryRunPanel({ libraryId }: { libraryId: number }) {
           </Table>
         </Table.ScrollContainer>
       )}
+      <Modal opened={confirming} onClose={() => setConfirming(false)} title="Apply the dry run?">
+        <Stack>
+          <Text size="sm">
+            ReelHaven will remux <b>{r.remux}</b> {r.remux === 1 ? 'file' : 'files'}, removing the
+            tracks and fixing the defaults listed in the dry run.
+          </Text>
+          <List size="sm">
+            <List.Item>Each new file is checked before it replaces the original.</List.Item>
+            <List.Item>Originals go to the recycle bin for 14 days and can be restored.</List.Item>
+            <List.Item>Files that need review are not touched.</List.Item>
+          </List>
+          {apply.isError && <Alert color="red">{errorMessage(apply.error)}</Alert>}
+          <Group justify="flex-end">
+            <Button variant="default" onClick={() => setConfirming(false)}>
+              Cancel
+            </Button>
+            <Button
+              loading={apply.isPending}
+              onClick={() =>
+                apply.mutate(
+                  { libraryId, expected: r.remux },
+                  {
+                    onSuccess: (result) => {
+                      setConfirming(false);
+                      notifications.show({
+                        message: (
+                          <>
+                            {result.queued} files queued. Follow them on the{' '}
+                            <Link to="/jobs">Jobs page</Link>.
+                          </>
+                        ),
+                      });
+                    },
+                  },
+                )
+              }
+            >
+              Apply to {r.remux} {r.remux === 1 ? 'file' : 'files'}
+            </Button>
+          </Group>
+        </Stack>
+      </Modal>
       {r.total > 100 && (
         <Pagination total={Math.ceil(r.total / 100)} value={page} onChange={setPage} />
       )}
