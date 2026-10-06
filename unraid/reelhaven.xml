@@ -7,7 +7,7 @@
   <Privileged>false</Privileged>
   <Support>https://github.com/dannyelson82/reelhaven/issues</Support>
   <Project>https://github.com/dannyelson82/reelhaven</Project>
-  <Overview>Automatic, language-aware video library compression. ReelHaven re-encodes your movies and TV with every available GPU (NVIDIA, Intel, AMD), keeps only the audio and subtitle languages you want based on each title's original language, builds compression profiles by mimicking a file you like, and keeps Plex, Jellyfin, Sonarr and Radarr in sync. Originals are verified and kept in a recycle bin before anything is replaced.[br][br]NVIDIA: add --runtime=nvidia to Extra Parameters and set NVIDIA_VISIBLE_DEVICES. Intel/AMD: set the GPU Device to /dev/dri.</Overview>
+  <Overview>Automatic, language-aware video library compression. ReelHaven re-encodes your movies and TV with every available GPU (NVIDIA, Intel, AMD), keeps only the audio and subtitle languages you want based on each title's original language, builds compression profiles by mimicking a file you like, and keeps Plex, Jellyfin, Sonarr and Radarr in sync. Originals are verified and kept in a recycle bin before anything is replaced.[br][br]NVIDIA: add --runtime=nvidia to Extra Parameters and set NVIDIA_VISIBLE_DEVICES. Intel/AMD: set the GPU Device to /dev/dri.[br][br]On first start, open the Web UI and create the admin account before exposing ReelHaven to the internet.</Overview>
   <Category>MediaApp:Video Tools:Utilities</Category>
   <WebUI>http://[IP]:[PORT:7171]/</WebUI>
   <TemplateURL>https://raw.githubusercontent.com/dannyelson82/reelhaven/main/unraid/reelhaven.xml</TemplateURL>

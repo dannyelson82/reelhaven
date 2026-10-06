@@ -11,6 +11,10 @@ Plex, Jellyfin, Sonarr and Radarr in sync.
 > ⚠️ Early development. No releases yet. Do not point it at media you can't
 > afford to lose.
 
+## First start
+Open the web UI (port 7171) and create the admin account **before** exposing
+ReelHaven to the internet: until then, whoever opens it first becomes admin.
+
 ## Planned features
 - One-click compression profiles, or **mimic** a file you like
 - Keep source resolution or cap it; never upscales

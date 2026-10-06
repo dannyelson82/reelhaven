@@ -1,0 +1,17 @@
+# Only what the Dockerfile copies is needed; keep the build context small.
+**/node_modules
+**/.venv
+**/__pycache__
+**/.pytest_cache
+**/.mypy_cache
+**/.ruff_cache
+frontend/dist
+.dev-config
+backend/.dev-config
+.git
+.github
+.claude
+docs
+assets
+*.md
+!backend/README.md
