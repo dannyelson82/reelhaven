@@ -26,7 +26,26 @@ recorded in docs/adr/.
   when they must do something themselves, give exact numbered steps and
   explain what each does. Discuss design before big decisions.
 
-## Commands (fill in during phase 0.1)
-- Backend tests: `TBD`
-- Frontend dev server: `TBD`
-- Lint/format: `TBD`
+## Commands
+Backend (run in `backend/`):
+- Tests: `uv run pytest` (coverage: `uv run pytest --cov=reelhaven`)
+- Lint, format, types: `uv run ruff check . && uv run ruff format --check . && uv run mypy`
+- Auto-format: `uv run ruff format .`
+- Run the server: `uv run python -m reelhaven` (port 7171, config in `./.dev-config`;
+  add `REELHAVEN_WEB_DIR=../frontend/dist` to serve a built UI)
+- New migration after model changes: `uv run python scripts/make_migration.py "what changed"`
+
+Frontend (run in `frontend/`):
+- Tests: `npm test`
+- Lint, format, types: `npm run lint && npm run format:check && npm run typecheck`
+- Auto-format: `npm run format`
+- Build: `npm run build`
+- Dev server with hot reload: `npm run dev` (port 5173, proxies `/api` to 7171)
+
+Viewing the UI from code-server: build the frontend, run the backend with
+`REELHAVEN_WEB_DIR=../frontend/dist`, then open `/proxy/7171/` on the
+code-server address. The UI uses relative paths, so the proxy prefix works.
+
+CI runs all of the above plus an image build and container smoke test
+(`.github/workflows/`). `uv` warns that `VIRTUAL_ENV=/lsiopy` is ignored; that
+comes from the code-server image and is harmless.
