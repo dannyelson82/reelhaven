@@ -1,0 +1,177 @@
+import {
+  Alert,
+  Badge,
+  Button,
+  Card,
+  Group,
+  List,
+  Loader,
+  Pagination,
+  SegmentedControl,
+  SimpleGrid,
+  Stack,
+  Table,
+  Text,
+} from '@mantine/core';
+import { IconPlayerPlay } from '@tabler/icons-react';
+import { useState } from 'react';
+import { errorMessage } from '../api/client';
+import { type DryRunItem, type DryRunShow, useDryRun } from '../api/dryrun';
+import { FLAG_LABELS } from '../api/policy';
+import { formatBytes, languageName } from '../format';
+
+function Stat({ label, value, hint }: { label: string; value: string | number; hint?: string }) {
+  return (
+    <Card withBorder padding="sm">
+      <Text size="xs" c="dimmed" tt="uppercase" fw={600}>
+        {label}
+      </Text>
+      <Text size="xl" fw={700}>
+        {value}
+      </Text>
+      {hint && (
+        <Text size="xs" c="dimmed">
+          {hint}
+        </Text>
+      )}
+    </Card>
+  );
+}
+
+export function DryRunPanel({ libraryId }: { libraryId: number }) {
+  const [started, setStarted] = useState(false);
+  const [show, setShow] = useState<DryRunShow>('changes');
+  const [page, setPage] = useState(1);
+  const dryRun = useDryRun(libraryId, show, page, started);
+
+  if (!started) {
+    return (
+      <Card withBorder>
+        <Stack align="flex-start">
+          <Text size="sm">
+            A dry run works out what ReelHaven would do with every file in this library, using its
+            language policy. <b>Nothing is changed.</b>
+          </Text>
+          <Button leftSection={<IconPlayerPlay size={16} />} onClick={() => setStarted(true)}>
+            Run dry run
+          </Button>
+        </Stack>
+      </Card>
+    );
+  }
+  if (dryRun.isPending) return <Loader />;
+  if (dryRun.isError) return <Alert color="red">{errorMessage(dryRun.error)}</Alert>;
+  const r = dryRun.data;
+  const flagged = (r.flags.wrong_language ?? 0) + (r.flags.no_wanted_audio ?? 0);
+
+  return (
+    <Stack>
+      <SimpleGrid cols={{ base: 2, sm: 4 }}>
+        <Stat label="Files" value={r.files} />
+        <Stat label="Would change" value={r.remux} hint="remux: tracks/defaults only" />
+        <Stat
+          label="Space saved"
+          value={formatBytes(r.saved_bytes)}
+          hint={r.savings_unknown ? `+ ${r.savings_unknown} files with unknown savings` : undefined}
+        />
+        <Stat
+          label="Need review"
+          value={flagged + r.unreadable}
+          hint="wrong language or unreadable"
+        />
+      </SimpleGrid>
+      {r.unknown_original > 0 && (
+        <Alert color="yellow">
+          {r.unknown_original === 1 ? '1 file has' : `${r.unknown_original} files have`} an unknown
+          original language, so only your wanted languages are kept for{' '}
+          {r.unknown_original === 1 ? 'it' : 'them'}. Connect Sonarr/Radarr or set languages by hand
+          to improve this.
+        </Alert>
+      )}
+      <Group justify="space-between">
+        <SegmentedControl
+          value={show}
+          onChange={(value) => {
+            setShow(value as DryRunShow);
+            setPage(1);
+          }}
+          data={[
+            { value: 'changes', label: `Changes (${r.remux})` },
+            { value: 'flagged', label: `Needs review (${flagged + r.unreadable})` },
+            { value: 'all', label: `All (${r.files})` },
+          ]}
+        />
+        <Button variant="subtle" onClick={() => void dryRun.refetch()} loading={dryRun.isFetching}>
+          Run again
+        </Button>
+      </Group>
+      {r.items.length === 0 ? (
+        <Text c="dimmed" size="sm">
+          Nothing here.
+        </Text>
+      ) : (
+        <Table.ScrollContainer minWidth={700}>
+          <Table verticalSpacing="sm">
+            <Table.Thead>
+              <Table.Tr>
+                <Table.Th>File</Table.Th>
+                <Table.Th>Plan</Table.Th>
+                <Table.Th ta="right">Saves</Table.Th>
+              </Table.Tr>
+            </Table.Thead>
+            <Table.Tbody>
+              {r.items.map((item) => (
+                <DryRunRow key={item.file_id} item={item} />
+              ))}
+            </Table.Tbody>
+          </Table>
+        </Table.ScrollContainer>
+      )}
+      {r.total > 100 && (
+        <Pagination total={Math.ceil(r.total / 100)} value={page} onChange={setPage} />
+      )}
+    </Stack>
+  );
+}
+
+function DryRunRow({ item }: { item: DryRunItem }) {
+  return (
+    <Table.Tr>
+      <Table.Td style={{ verticalAlign: 'top' }}>
+        <Text size="sm" fw={500} style={{ wordBreak: 'break-word' }}>
+          {item.relative_path}
+        </Text>
+        <Text size="xs" c="dimmed">
+          Original: {item.original_language ? languageName(item.original_language) : 'unknown'}
+        </Text>
+      </Table.Td>
+      <Table.Td style={{ verticalAlign: 'top' }}>
+        <Group gap={4} mb={4}>
+          {item.flags.map((flag) => (
+            <Badge key={flag} size="sm" color={flag === 'dolby_vision' ? 'grape' : 'orange'}>
+              {FLAG_LABELS[flag] ?? flag}
+            </Badge>
+          ))}
+        </Group>
+        {item.details.length > 0 ? (
+          <List size="sm">
+            {item.details.map((d) => (
+              <List.Item key={d}>{d}</List.Item>
+            ))}
+          </List>
+        ) : (
+          <Text size="sm">{item.summary}</Text>
+        )}
+      </Table.Td>
+      <Table.Td ta="right" style={{ verticalAlign: 'top', whiteSpace: 'nowrap' }}>
+        <Text size="sm">
+          {item.action !== 'remux'
+            ? '–'
+            : item.removed_bytes === null
+              ? '?'
+              : formatBytes(item.removed_bytes)}
+        </Text>
+      </Table.Td>
+    </Table.Tr>
+  );
+}

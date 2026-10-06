@@ -2,7 +2,7 @@
 
 from dataclasses import asdict
 from datetime import datetime
-from typing import Any
+from typing import Any, Literal
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
 from pydantic import BaseModel
@@ -17,6 +17,7 @@ from reelhaven.api.deps import (
     require_setup_done,
 )
 from reelhaven.db import Library, MediaFile, Title
+from reelhaven.dryrun import FilePlan, plan_library, summarise
 from reelhaven.media.info import MediaInfo, Stream
 from reelhaven.planner import Plan, plan
 from reelhaven.policy import LanguagePolicy
@@ -198,3 +199,71 @@ def get_plan(file_id: int, db: DbDep, _principal: AnyPrincipalDep) -> Plan:
         info = MediaInfo.model_validate(row.probe)
         policy = LanguagePolicy.model_validate(library.language_policy or {})
     return plan(info, title.original_language if title else None, policy)
+
+
+class DryRunItem(BaseModel):
+    file_id: int
+    relative_path: str
+    size: int
+    original_language: str | None
+    action: str
+    flags: list[str]
+    summary: str
+    details: list[str]
+    removed_bytes: int | None
+
+
+class DryRunResult(BaseModel):
+    files: int
+    remux: int
+    unchanged: int
+    unreadable: int
+    flags: dict[str, int]
+    unknown_original: int
+    saved_bytes: int
+    savings_unknown: int
+    total: int  # items matching the filter
+    items: list[DryRunItem]
+
+
+@router.get("/libraries/{library_id}/dry-run")
+def dry_run(
+    library_id: int,
+    db: DbDep,
+    _principal: AnyPrincipalDep,
+    show: Literal["changes", "flagged", "all"] = "changes",
+    offset: int = Query(default=0, ge=0),
+    limit: int = Query(default=100, ge=1, le=1000),
+) -> DryRunResult:
+    """What would happen to every file in the library. Changes nothing."""
+    try:
+        plans = plan_library(db, library_id)
+    except LookupError as exc:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "library_not_found") from exc
+    summary = summarise(plans)
+
+    def wanted(item: FilePlan) -> bool:
+        if show == "all":
+            return True
+        if show == "flagged":
+            return item.plan is None or bool(
+                set(item.plan.flags) & {"wrong_language", "no_wanted_audio", "no_audio"}
+            )
+        return item.plan is not None and item.plan.action == "remux"
+
+    selected = [item for item in plans if wanted(item)]
+    items = [
+        DryRunItem(
+            file_id=item.file_id,
+            relative_path=item.relative_path,
+            size=item.size,
+            original_language=item.original_language,
+            action=item.plan.action if item.plan else "unreadable",
+            flags=list(item.plan.flags) if item.plan else ["probe_failed"],
+            summary=item.plan.summary if item.plan else "The file couldn't be read.",
+            details=item.plan.details if item.plan else [],
+            removed_bytes=item.plan.removed_bytes if item.plan else None,
+        )
+        for item in selected[offset : offset + limit]
+    ]
+    return DryRunResult(**asdict(summary), total=len(selected), items=items)
