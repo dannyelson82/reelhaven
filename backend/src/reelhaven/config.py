@@ -24,6 +24,10 @@ class Settings(BaseSettings):
     # Root of all libraries. The container maps media here; in development
     # point it at /projects/reelhaven-testmedia.
     media_root: Path = Path("/media")
+    # Encoder binaries (jellyfin-ffmpeg in the container; any ffmpeg in dev).
+    ffmpeg: str = "ffmpeg"
+    ffprobe: str = "ffprobe"
+    probe_timeout_s: float = Field(default=120, gt=0)
     host: str = "0.0.0.0"  # noqa: S104 - a container must listen on all interfaces
     port: int = Field(default=7171, ge=1, le=65535)
     log_level: LogLevel = "info"
