@@ -7,7 +7,7 @@
   <Privileged>false</Privileged>
   <Support>https://github.com/dannyelson82/reelhaven/issues</Support>
   <Project>https://github.com/dannyelson82/reelhaven</Project>
-  <Overview>Automatic, language-aware video library compression. ReelHaven re-encodes your movies and TV with every available GPU (NVIDIA, Intel, AMD), keeps only the audio and subtitle languages you want based on each title's original language, builds compression profiles by mimicking a file you like, and keeps Plex, Jellyfin, Sonarr and Radarr in sync. Originals are verified and kept in a recycle bin before anything is replaced.[br][br]NVIDIA: add --runtime=nvidia to Extra Parameters and set NVIDIA_VISIBLE_DEVICES. Intel/AMD: set the GPU Device to /dev/dri.[br][br]On first start, open the Web UI and create the admin account before exposing ReelHaven to the internet.</Overview>
+  <Overview>Automatic, language-aware video library compression. ReelHaven re-encodes your movies and TV with every available GPU (NVIDIA, Intel, AMD), keeps only the audio and subtitle languages you want based on each title's original language, builds compression profiles by mimicking a file you like, and keeps Plex, Jellyfin, Sonarr and Radarr in sync. Originals are verified and kept in a recycle bin before anything is replaced.[br][br]NVIDIA: add --runtime=nvidia to Extra Parameters and set NVIDIA_VISIBLE_DEVICES. Intel/AMD: click 'Add another Path, Port, Variable, Label or Device', choose Device and enter /dev/dri.[br][br]On first start, open the Web UI and create the admin account before exposing ReelHaven to the internet.</Overview>
   <Category>MediaApp:Video Tools:Utilities</Category>
   <WebUI>http://[IP]:[PORT:7171]/</WebUI>
   <TemplateURL>https://raw.githubusercontent.com/dannyelson82/reelhaven/main/unraid/reelhaven.xml</TemplateURL>
@@ -19,11 +19,9 @@
   <Config Name="Config" Target="/config" Default="/mnt/user/appdata/reelhaven" Mode="rw" Description="Database, settings, logs and keys." Type="Path" Display="always" Required="true" Mask="false">/mnt/user/appdata/reelhaven</Config>
   <Config Name="Media" Target="/media" Default="/mnt/user/media" Mode="rw" Description="Your media share. Libraries are set up inside ReelHaven as folders under /media." Type="Path" Display="always" Required="true" Mask="false">/mnt/user/media</Config>
   <Config Name="Transcode" Target="/transcode" Default="/mnt/user/appdata/reelhaven/transcode" Mode="rw" Description="Temporary encode output. A fast disk (cache pool) is recommended." Type="Path" Display="always" Required="true" Mask="false">/mnt/user/appdata/reelhaven/transcode</Config>
-  <Config Name="GPU Device (Intel/AMD)" Target="/dev/dri" Default="" Mode="" Description="Set to /dev/dri for Intel QuickSync or AMD. Leave empty otherwise." Type="Device" Display="always" Required="false" Mask="false"></Config>
   <Config Name="NVIDIA_VISIBLE_DEVICES" Target="NVIDIA_VISIBLE_DEVICES" Default="" Mode="" Description="NVIDIA only: 'all' or a GPU UUID. Also add --runtime=nvidia to Extra Parameters." Type="Variable" Display="always" Required="false" Mask="false"></Config>
   <Config Name="NVIDIA_DRIVER_CAPABILITIES" Target="NVIDIA_DRIVER_CAPABILITIES" Default="compute,video,utility" Mode="" Description="NVIDIA only. Leave as is." Type="Variable" Display="advanced" Required="false" Mask="false">compute,video,utility</Config>
   <Config Name="PUID" Target="PUID" Default="99" Mode="" Description="User ID to run as." Type="Variable" Display="advanced" Required="true" Mask="false">99</Config>
   <Config Name="PGID" Target="PGID" Default="100" Mode="" Description="Group ID to run as." Type="Variable" Display="advanced" Required="true" Mask="false">100</Config>
   <Config Name="UMASK" Target="UMASK" Default="022" Mode="" Description="Permissions mask for created files." Type="Variable" Display="advanced" Required="false" Mask="false">022</Config>
-  <Config Name="TZ" Target="TZ" Default="Etc/UTC" Mode="" Description="Timezone, e.g. America/Toronto." Type="Variable" Display="advanced" Required="false" Mask="false">Etc/UTC</Config>
 </Container>
