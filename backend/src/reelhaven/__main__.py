@@ -24,7 +24,7 @@ def main() -> None:
         extra={"config_dir": str(settings.config_dir), "port": settings.port},
     )
     uvicorn.run(
-        create_app(web_dir=settings.web_dir),
+        create_app(settings),
         host=settings.host,
         port=settings.port,
         access_log=False,

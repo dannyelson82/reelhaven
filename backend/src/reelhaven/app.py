@@ -1,30 +1,45 @@
 """FastAPI application factory."""
 
-from pathlib import Path
+from collections.abc import AsyncIterator
+from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
 from fastapi.staticfiles import StaticFiles
 
 from reelhaven import __version__
+from reelhaven.config import Settings, get_settings
+from reelhaven.db import Database
 from reelhaven.middleware import RequestLogMiddleware
 
 
-def create_app(web_dir: Path | None = None) -> FastAPI:
+def create_app(settings: Settings | None = None) -> FastAPI:
     """Build the application.
 
-    ``web_dir`` is the built frontend (``frontend/dist``). When it is missing,
-    only the API is served, which is normal while developing with Vite's
-    dev server.
+    ``settings.web_dir`` is the built frontend (``frontend/dist``). When it is
+    missing, only the API is served, which is normal while developing with
+    Vite's dev server.
     """
+    settings = settings or get_settings()
+    db = Database(settings.config_dir / "reelhaven.db")
+
+    @asynccontextmanager
+    async def lifespan(app: FastAPI) -> AsyncIterator[None]:
+        db.migrate()
+        yield
+        db.close()
+
     app = FastAPI(
         title="ReelHaven",
         version=__version__,
+        lifespan=lifespan,
         # OpenAPI docs are only served to authenticated users (SECURITY.md);
         # they are wired up behind auth in a later chunk.
         docs_url=None,
         redoc_url=None,
         openapi_url=None,
     )
+    app.state.settings = settings
+    app.state.db = db
     app.add_middleware(RequestLogMiddleware)
 
     @app.get("/healthz", include_in_schema=False)
@@ -33,6 +48,7 @@ def create_app(web_dir: Path | None = None) -> FastAPI:
         return {"status": "ok"}
 
     # Mounted last so API routes take precedence over static files.
+    web_dir = settings.web_dir
     if web_dir is not None and (web_dir / "index.html").is_file():
         app.mount("/", StaticFiles(directory=web_dir, html=True), name="web")
 
