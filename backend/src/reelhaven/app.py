@@ -6,6 +6,7 @@ from fastapi import FastAPI
 from fastapi.staticfiles import StaticFiles
 
 from reelhaven import __version__
+from reelhaven.middleware import RequestLogMiddleware
 
 
 def create_app(web_dir: Path | None = None) -> FastAPI:
@@ -24,6 +25,7 @@ def create_app(web_dir: Path | None = None) -> FastAPI:
         redoc_url=None,
         openapi_url=None,
     )
+    app.add_middleware(RequestLogMiddleware)
 
     @app.get("/healthz", include_in_schema=False)
     def healthz() -> dict[str, str]:
