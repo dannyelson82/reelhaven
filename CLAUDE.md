@@ -9,6 +9,9 @@ recorded in docs/adr/.
   propose a new ADR and wait for approval before implementing.
 - Work in roadmap phase order (ARCHITECTURE.md §15). Plan each phase with the
   owner before writing its code.
+- Workflow: one branch and pull request per chunk of a phase; CI must pass;
+  Claude merges (squash) without waiting for review. Phase plans live in
+  `docs/plans/`.
 - Keep changes small, with clear conventional commit messages
   (`feat:`, `fix:`, `docs:`, `test:`, `chore:`). All commits signed.
 - Never commit secrets, real media files, or personal infrastructure details

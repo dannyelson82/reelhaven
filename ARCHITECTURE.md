@@ -78,15 +78,15 @@ workers. This keeps installation a single Unraid template.
 
 | Concern | Choice | ADR |
 |---|---|---|
-| Backend | Python 3.12+, FastAPI, Uvicorn | 0002 |
+| Backend | Python 3.13, FastAPI, Uvicorn | 0002, 0009 |
 | Encoder | jellyfin-ffmpeg (NVENC, QSV, VAAPI, AMF, tone mapping) | 0003 |
 | Database | SQLite (WAL mode) via SQLAlchemy + Alembic migrations | 0004 |
 | Job queue | Built in, persisted in SQLite, one worker pool per device | 0004 |
-| Frontend | React + TypeScript + Vite, served by the backend | 0005 |
+| Frontend | React + TypeScript + Vite + Mantine, served by the backend | 0005, 0014 |
 | Live updates | WebSockets | 0005 |
-| Charts | A React charting library (e.g. Recharts) | 0005 |
+| Charts | @mantine/charts (built on Recharts) | 0014 |
 | Python tooling | uv, ruff, mypy, pytest | 0002 |
-| Image build | GitHub Actions → ghcr.io | 0008 |
+| Image build | GitHub Actions → ghcr.io, Debian 13 base | 0008, 0009 |
 | License | GPL-3.0 | 0001 |
 
 ## 5. Container layout
@@ -403,7 +403,7 @@ endpoint (unauthenticated, no details) for Docker health checks.
 
 ## 14. Build and release
 - Multi-stage Dockerfile: build frontend → build Python wheel → final image
-  on a Debian/Ubuntu base with jellyfin-ffmpeg and the Intel/AMD media
+  on Debian 13 (trixie) slim with jellyfin-ffmpeg and the Intel/AMD media
   drivers.
 - GitHub Actions builds and pushes to `ghcr.io/dannyelson82/reelhaven` on
   tags (`vX.Y.Z`, `latest`) and on `main` (`edge`). Image vulnerability scan
@@ -417,13 +417,13 @@ endpoint (unauthenticated, no details) for Docker health checks.
 
 | Phase | Scope |
 |---|---|
-| 0.1 Foundation | Project skeleton (backend + frontend), config, logging, SQLite + Alembic, auth (login, sessions, local-address bypass, API key), setup wizard step 1, Dockerfile, CI (lint, test, image build). |
+| 0.1 Foundation | Project skeleton (backend + frontend), config, logging, SQLite + Alembic, audit log table (ADR-0010), auth (login, sessions, local-address bypass, API key), setup wizard step 1, Dockerfile, CI (lint, test, image build). |
 | 0.2 See the library | Libraries, scanner, probe, file browser, library view with stream details. |
-| 0.3 Languages | Language resolver (TMDB, Sonarr, Radarr), language policy, planner for track changes, dry run, `remux` jobs, verifier, replacer, recycle bin. *First release that changes files.* |
+| 0.3 Languages | Language resolver (TMDB, Sonarr, Radarr), language policy, planner for track changes, dry run, `remux` jobs, verifier, replacer, recycle bin. *First release that changes files*, on manual request only. Automatic processing waits for test runs (0.4). |
 | 0.4 Encoding | Device detection, worker pools, profiles, command builders, skip rules, test run, queue UI with live progress. |
 | 0.5 Mimic | Sample upload/selection, settings extraction, estimation, profile editor. |
 | 0.6 Automation | Webhooks, folder watcher, scheduled rescans, processing window, notifiers (Plex, Jellyfin, Sonarr, Radarr). |
-| 0.7 Insight and safety | Stats dashboard, review page, wrong-language quarantine + re-search, optional TOTP 2FA, audit log. |
+| 0.7 Insight and safety | Stats dashboard, review page, wrong-language quarantine + re-search, optional TOTP 2FA, audit log page. |
 | 1.0 | Hardening, docs, release checklist, CA submission. |
 
 Language handling ships before encoding on purpose: it's fast (stream copy),
