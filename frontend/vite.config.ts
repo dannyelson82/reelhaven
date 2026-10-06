@@ -11,6 +11,8 @@ export default defineConfig({
   // Relative asset paths so the built UI works behind any path prefix
   // (reverse proxies, code-server's port proxy).
   base: './',
+  // One bundle is fine for a LAN app; split later if it grows much further.
+  build: { chunkSizeWarningLimit: 1500 },
   server: {
     port: 5173,
     proxy: {
