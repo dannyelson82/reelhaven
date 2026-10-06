@@ -13,6 +13,7 @@ import {
   Progress,
   Stack,
   Table,
+  Tabs,
   Text,
   TextInput,
   Title,
@@ -45,6 +46,7 @@ import {
   useRefreshLanguages,
   useSetTitleLanguage,
 } from '../api/titles';
+import { DryRunPanel } from '../components/DryRunPanel';
 import { PlanView } from '../components/PlanView';
 import { PolicyModal } from '../components/PolicyModal';
 import { HDR_LABELS, formatBytes, formatDuration, languageName, resolutionLabel } from '../format';
@@ -112,67 +114,80 @@ export function LibraryPage() {
         </Alert>
       )}
 
-      <Group>
-        <TextInput
-          placeholder="Search file names"
-          leftSection={<IconSearch size={16} />}
-          value={query}
-          onChange={(e) => {
-            setQuery(e.currentTarget.value);
-            setPage(1);
-          }}
-          w={320}
-        />
-        <Checkbox
-          label="Only files that couldn't be read"
-          checked={problems}
-          onChange={(e) => {
-            setProblems(e.currentTarget.checked);
-            setPage(1);
-          }}
-        />
-      </Group>
+      <Tabs defaultValue="files" keepMounted={false}>
+        <Tabs.List mb="md">
+          <Tabs.Tab value="files">Files</Tabs.Tab>
+          <Tabs.Tab value="dry-run">Dry run</Tabs.Tab>
+        </Tabs.List>
+        <Tabs.Panel value="files">
+          <Stack>
+            <Group>
+              <TextInput
+                placeholder="Search file names"
+                leftSection={<IconSearch size={16} />}
+                value={query}
+                onChange={(e) => {
+                  setQuery(e.currentTarget.value);
+                  setPage(1);
+                }}
+                w={320}
+              />
+              <Checkbox
+                label="Only files that couldn't be read"
+                checked={problems}
+                onChange={(e) => {
+                  setProblems(e.currentTarget.checked);
+                  setPage(1);
+                }}
+              />
+            </Group>
 
-      {files.isError && <Alert color="red">{errorMessage(files.error)}</Alert>}
-      {files.data && files.data.total === 0 && !scanning && (
-        <Card withBorder>
-          <Text c="dimmed">
-            {library.file_count === 0
-              ? 'No files yet. Click "Scan library" to find the videos in this folder.'
-              : 'No files match.'}
-          </Text>
-        </Card>
-      )}
-      {files.data && files.data.total > 0 && (
-        <>
-          <Table.ScrollContainer minWidth={760}>
-            <Table highlightOnHover>
-              <Table.Thead>
-                <Table.Tr>
-                  <Table.Th>File</Table.Th>
-                  <Table.Th>Original</Table.Th>
-                  <Table.Th>Video</Table.Th>
-                  <Table.Th>Audio</Table.Th>
-                  <Table.Th>Subtitles</Table.Th>
-                  <Table.Th ta="right">Size</Table.Th>
-                </Table.Tr>
-              </Table.Thead>
-              <Table.Tbody>
-                {files.data.items.map((file) => (
-                  <FileRow key={file.id} file={file} onOpen={() => setSelected(file.id)} />
-                ))}
-              </Table.Tbody>
-            </Table>
-          </Table.ScrollContainer>
-          {files.data.total > PAGE_SIZE && (
-            <Pagination
-              total={Math.ceil(files.data.total / PAGE_SIZE)}
-              value={page}
-              onChange={setPage}
-            />
-          )}
-        </>
-      )}
+            {files.isError && <Alert color="red">{errorMessage(files.error)}</Alert>}
+            {files.data && files.data.total === 0 && !scanning && (
+              <Card withBorder>
+                <Text c="dimmed">
+                  {library.file_count === 0
+                    ? 'No files yet. Click "Scan library" to find the videos in this folder.'
+                    : 'No files match.'}
+                </Text>
+              </Card>
+            )}
+            {files.data && files.data.total > 0 && (
+              <>
+                <Table.ScrollContainer minWidth={760}>
+                  <Table highlightOnHover>
+                    <Table.Thead>
+                      <Table.Tr>
+                        <Table.Th>File</Table.Th>
+                        <Table.Th>Original</Table.Th>
+                        <Table.Th>Video</Table.Th>
+                        <Table.Th>Audio</Table.Th>
+                        <Table.Th>Subtitles</Table.Th>
+                        <Table.Th ta="right">Size</Table.Th>
+                      </Table.Tr>
+                    </Table.Thead>
+                    <Table.Tbody>
+                      {files.data.items.map((file) => (
+                        <FileRow key={file.id} file={file} onOpen={() => setSelected(file.id)} />
+                      ))}
+                    </Table.Tbody>
+                  </Table>
+                </Table.ScrollContainer>
+                {files.data.total > PAGE_SIZE && (
+                  <Pagination
+                    total={Math.ceil(files.data.total / PAGE_SIZE)}
+                    value={page}
+                    onChange={setPage}
+                  />
+                )}
+              </>
+            )}
+          </Stack>
+        </Tabs.Panel>
+        <Tabs.Panel value="dry-run">
+          <DryRunPanel libraryId={libraryId} />
+        </Tabs.Panel>
+      </Tabs>
       <FileDrawer libraryId={libraryId} fileId={selected} onClose={() => setSelected(null)} />
       {editingPolicy && (
         <PolicyModal libraryId={libraryId} onClose={() => setEditingPolicy(false)} />
