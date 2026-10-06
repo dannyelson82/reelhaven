@@ -1,5 +1,7 @@
 # Phase 0.1: Foundation
 
+Status: **complete** (v0.1.0, 2026-10-06). Chunks landed as PRs #1–#8.
+
 Planned with the owner on 2026-10-06. Decisions: ADRs 0009–0014.
 
 Goal: an installable, secure, empty shell of ReelHaven. You log in, and the
