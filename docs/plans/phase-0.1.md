@@ -11,7 +11,7 @@ Each chunk is one branch and pull request; CI must pass before it is merged.
 | # | Chunk | Contents |
 |---|-------|----------|
 | 1 | Backend skeleton | `backend/` uv project, FastAPI app factory, `/healthz`, ruff/mypy/pytest, CI backend job, design ADRs 0009–0014 |
-| 2 | Frontend skeleton | `frontend/` Vite + React + TS + Mantine, ESLint/Prettier/Vitest, CI frontend job, built files served by FastAPI |
+| 2 | Frontend skeleton | `frontend/` Vite + React + TS + Mantine, oxlint/Prettier/Vitest, CI frontend job, built files served by FastAPI |
 | 3 | Config and logging | Settings (env + `/config`), JSON logs to stdout + rotating file, secret-redaction filter, request-log middleware (ADR-0011) |
 | 4 | Database | SQLite WAL, SQLAlchemy 2, Alembic; tables `users`, `sessions`, `settings`, `audit_log` (ADR-0010); single-writer lock |
 | 5 | Authentication | Argon2id, sessions + log out everywhere, login throttling, CSRF double-submit, security headers, API key (ADR-0011), local-address bypass + trusted proxies + gateway guard (ADR-0012), setup gating (ADR-0013) |
