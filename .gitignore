@@ -1,0 +1,50 @@
+# Local notes about a specific setup (never commit)
+LOCAL_NOTES.md
+
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+.mypy_cache/
+.pytest_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+dist/
+build/
+*.egg-info/
+
+# Node
+node_modules/
+frontend/dist/
+
+# Runtime data
+/config/
+/transcode/
+*.db
+*.db-wal
+*.db-shm
+*.log
+
+# Media (never commit video)
+*.mkv
+*.mp4
+*.m4v
+*.avi
+*.mov
+*.webm
+*.m2ts
+# Not *.ts: that's also the TypeScript extension. Don't commit MPEG-TS files.
+
+# Secrets
+.env
+*.key
+secret*.json
+
+# Editors / OS / tools
+.claude/settings.local.json
+.vscode/*
+!.vscode/extensions.json
+.idea/
+.DS_Store
+Thumbs.db
