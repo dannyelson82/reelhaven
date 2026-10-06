@@ -21,6 +21,9 @@ class Settings(BaseSettings):
     # is deliberately a local folder: in code-server, /config is the home dir.
     config_dir: Path = Path(".dev-config")
     web_dir: Path | None = None
+    # Root of all libraries. The container maps media here; in development
+    # point it at /projects/reelhaven-testmedia.
+    media_root: Path = Path("/media")
     host: str = "0.0.0.0"  # noqa: S104 - a container must listen on all interfaces
     port: int = Field(default=7171, ge=1, le=65535)
     log_level: LogLevel = "info"

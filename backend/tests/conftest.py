@@ -11,7 +11,9 @@ from reelhaven.db import Database
 
 @pytest.fixture
 def settings(tmp_path: Path) -> Settings:
-    return Settings(config_dir=tmp_path / "config")
+    media = tmp_path / "media"
+    media.mkdir()
+    return Settings(config_dir=tmp_path / "config", media_root=media)
 
 
 @pytest.fixture

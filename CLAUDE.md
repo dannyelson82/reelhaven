@@ -32,7 +32,8 @@ Backend (run in `backend/`):
 - Lint, format, types: `uv run ruff check . && uv run ruff format --check . && uv run mypy`
 - Auto-format: `uv run ruff format .`
 - Run the server: `uv run python -m reelhaven` (port 7171, config in `./.dev-config`;
-  add `REELHAVEN_WEB_DIR=../frontend/dist` to serve a built UI)
+  add `REELHAVEN_WEB_DIR=../frontend/dist` to serve a built UI and
+  `REELHAVEN_MEDIA_ROOT=/projects/reelhaven-testmedia` for sample media)
 - New migration after model changes: `uv run python scripts/make_migration.py "what changed"`
 
 Frontend (run in `frontend/`):

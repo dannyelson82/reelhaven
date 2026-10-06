@@ -85,6 +85,20 @@ export function errorMessage(error: unknown): string {
       return 'Your page is out of date. Reload and try again.';
     case 'not_authenticated':
       return 'Please log in again.';
+    case 'path_not_allowed':
+      return 'That folder is outside the media folder or not allowed.';
+    case 'not_a_folder':
+      return 'Please choose a folder, not a file.';
+    case 'choose_a_subfolder':
+      return 'Choose a folder inside the media folder, not the media folder itself.';
+    case 'path_overlaps_library':
+      return 'That folder is already part of another library (or contains one).';
+    case 'name_taken':
+      return 'Another library already uses that name.';
+    case 'media_root_missing':
+      return 'The media folder (/media) is not mounted. Check the container settings.';
+    case 'folder_unreadable':
+      return "ReelHaven doesn't have permission to read that folder.";
     case 'validation_error':
       return 'Some of the values are not valid.';
     default:

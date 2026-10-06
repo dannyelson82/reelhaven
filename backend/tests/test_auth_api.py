@@ -13,9 +13,8 @@ from reelhaven.auth.throttle import FREE_ATTEMPTS
 from reelhaven.config import Settings
 from reelhaven.db import AuditLog, AuthSession, Database
 from reelhaven.db.types import utcnow
+from tests.helpers import ADMIN, API, client_at, csrf, do_setup
 
-API = "/api/v1"
-ADMIN = {"username": "Admin", "password": "correct horse battery"}
 GATEWAY = "172.17.0.1"
 
 
@@ -24,20 +23,6 @@ def app(settings: Settings) -> Iterator[FastAPI]:
     application = create_app(settings, gateways=frozenset({ip_address(GATEWAY)}))
     with TestClient(application):  # run startup once (migrations)
         yield application
-
-
-def client_at(app: FastAPI, ip: str = "192.168.1.20") -> TestClient:
-    return TestClient(app, client=(ip, 50000))
-
-
-def csrf(client: TestClient) -> dict[str, str]:
-    token = client.get(f"{API}/auth/state").json()["csrf_token"]
-    return {"X-CSRF-Token": token}
-
-
-def do_setup(client: TestClient) -> None:
-    response = client.post(f"{API}/setup", json=ADMIN, headers=csrf(client))
-    assert response.status_code == 201, response.text
 
 
 def login(client: TestClient, password: str = ADMIN["password"]) -> int:

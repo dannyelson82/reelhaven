@@ -3,6 +3,7 @@ import { Route, Routes } from 'react-router';
 import { useAuthState } from '../api/auth';
 import { errorMessage } from '../api/client';
 import { DashboardPage } from '../pages/DashboardPage';
+import { LibrariesPage } from '../pages/LibrariesPage';
 import { LoginPage } from '../pages/LoginPage';
 import { SecurityPage } from '../pages/SecurityPage';
 import { SetupPage } from '../pages/SetupPage';
@@ -35,6 +36,7 @@ export function AuthGate() {
     <Routes>
       <Route element={<AppLayout auth={auth.data} />}>
         <Route index element={<DashboardPage />} />
+        <Route path="libraries" element={<LibrariesPage />} />
         <Route path="settings/security" element={<SecurityPage />} />
         <Route path="*" element={<DashboardPage />} />
       </Route>

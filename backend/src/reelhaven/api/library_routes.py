@@ -1,0 +1,219 @@
+"""Libraries and the folder browser. Files on disk are never touched here."""
+
+import os
+from datetime import datetime
+from pathlib import Path
+from typing import Annotated, Literal
+
+from fastapi import APIRouter, Depends, HTTPException, Request, status
+from pydantic import BaseModel, Field, field_validator
+from sqlalchemy import select
+from sqlalchemy.exc import IntegrityError
+
+from reelhaven import audit
+from reelhaven.api.deps import (
+    AnyPrincipalDep,
+    DbDep,
+    InteractiveDep,
+    csrf_protect,
+    require_setup_done,
+)
+from reelhaven.api.schemas import StrictModel
+from reelhaven.config import Settings
+from reelhaven.db import Library
+from reelhaven.paths import INTERNAL_DIR, PathNotAllowedError, overlaps, resolve_within
+
+router = APIRouter(dependencies=[Depends(require_setup_done), Depends(csrf_protect)])
+
+LibraryType = Literal["movies", "tv", "other"]
+MAX_BROWSE_ENTRIES = 2000
+
+
+def media_root(request: Request) -> Path:
+    settings: Settings = request.app.state.settings
+    root = settings.media_root
+    if not root.is_dir():
+        raise HTTPException(status.HTTP_503_SERVICE_UNAVAILABLE, "media_root_missing")
+    return root.resolve()
+
+
+MediaRootDep = Annotated[Path, Depends(media_root)]
+
+
+class LibraryOut(BaseModel):
+    id: int
+    name: str
+    type: LibraryType
+    path: str
+    relative_path: str
+    created_at: datetime
+
+
+class LibraryCreate(StrictModel):
+    name: str = Field(min_length=1, max_length=100)
+    type: LibraryType
+    path: str = Field(max_length=4096)
+
+    @field_validator("name")
+    @classmethod
+    def _strip(cls, value: str) -> str:
+        value = value.strip()
+        if not value:
+            raise ValueError("name can't be blank")
+        return value
+
+
+class LibraryUpdate(StrictModel):
+    name: str | None = Field(default=None, min_length=1, max_length=100)
+    type: LibraryType | None = None
+
+    @field_validator("name")
+    @classmethod
+    def _strip(cls, value: str | None) -> str | None:
+        return None if value is None else value.strip() or None
+
+
+class BrowseEntry(BaseModel):
+    name: str
+    path: str  # relative to the media root
+
+
+class BrowseResult(BaseModel):
+    path: str
+    parent: str | None
+    dirs: list[BrowseEntry]
+    truncated: bool
+
+
+def _out(library: Library, root: Path) -> LibraryOut:
+    path = Path(library.path)
+    relative = path.relative_to(root) if path.is_relative_to(root) else path
+    return LibraryOut(
+        id=library.id,
+        name=library.name,
+        type=library.type,  # type: ignore[arg-type]
+        path=library.path,
+        relative_path=str(relative),
+        created_at=library.created_at,
+    )
+
+
+def _relative(path: Path, root: Path) -> str:
+    rel = path.relative_to(root)
+    return "" if rel == Path() else rel.as_posix()
+
+
+@router.get("/browse")
+def browse(root: MediaRootDep, _principal: InteractiveDep, path: str = "") -> BrowseResult:
+    """List sub-folders of a folder inside the media root (folder picker)."""
+    try:
+        folder = resolve_within(root, path)
+    except PathNotAllowedError as exc:
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, "path_not_allowed") from exc
+    if not folder.is_dir():
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, "not_a_folder")
+
+    dirs: list[BrowseEntry] = []
+    truncated = False
+    try:
+        entries = sorted(os.scandir(folder), key=lambda e: e.name.casefold())
+    except OSError as exc:
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, "folder_unreadable") from exc
+    for entry in entries:
+        if entry.name.startswith(".") or entry.name == INTERNAL_DIR:
+            continue
+        try:
+            if not entry.is_dir():
+                continue
+            child = resolve_within(root, Path(entry.path))
+        except (PathNotAllowedError, OSError):
+            continue  # e.g. a symlink pointing outside /media
+        if len(dirs) >= MAX_BROWSE_ENTRIES:
+            truncated = True
+            break
+        dirs.append(BrowseEntry(name=entry.name, path=_relative(child, root)))
+
+    parent = None if folder == root else _relative(folder.parent, root)
+    return BrowseResult(path=_relative(folder, root), parent=parent, dirs=dirs, truncated=truncated)
+
+
+@router.get("/libraries")
+def list_libraries(db: DbDep, root: MediaRootDep, _principal: AnyPrincipalDep) -> list[LibraryOut]:
+    with db.read() as session:
+        libraries = session.scalars(select(Library).order_by(Library.name)).all()
+    return [_out(lib, root) for lib in libraries]
+
+
+@router.post("/libraries", status_code=status.HTTP_201_CREATED)
+def create_library(
+    body: LibraryCreate, db: DbDep, root: MediaRootDep, principal: InteractiveDep
+) -> LibraryOut:
+    try:
+        folder = resolve_within(root, body.path)
+    except PathNotAllowedError as exc:
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, "path_not_allowed") from exc
+    if not folder.is_dir():
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, "not_a_folder")
+    if folder == root:
+        # A library at the root would contain every future library.
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, "choose_a_subfolder")
+
+    with db.write() as session:
+        for other in session.scalars(select(Library)):
+            if overlaps(folder, Path(other.path)):
+                raise HTTPException(status.HTTP_409_CONFLICT, "path_overlaps_library")
+        library = Library(name=body.name, type=body.type, path=str(folder))
+        session.add(library)
+        try:
+            session.flush()
+        except IntegrityError as exc:
+            raise HTTPException(status.HTTP_409_CONFLICT, "name_taken") from exc
+        audit.record(session, principal.actor, "library.created", body.name, {"path": str(folder)})
+        return _out(library, root)
+
+
+def _get(session_library: Library | None) -> Library:
+    if session_library is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "library_not_found")
+    return session_library
+
+
+@router.get("/libraries/{library_id}")
+def get_library(
+    library_id: int, db: DbDep, root: MediaRootDep, _principal: AnyPrincipalDep
+) -> LibraryOut:
+    with db.read() as session:
+        return _out(_get(session.get(Library, library_id)), root)
+
+
+@router.patch("/libraries/{library_id}")
+def update_library(
+    library_id: int,
+    body: LibraryUpdate,
+    db: DbDep,
+    root: MediaRootDep,
+    principal: InteractiveDep,
+) -> LibraryOut:
+    with db.write() as session:
+        library = _get(session.get(Library, library_id))
+        changes = body.model_dump(exclude_none=True)
+        for key, value in changes.items():
+            setattr(library, key, value)
+        try:
+            session.flush()
+        except IntegrityError as exc:
+            raise HTTPException(status.HTTP_409_CONFLICT, "name_taken") from exc
+        if changes:
+            audit.record(session, principal.actor, "library.updated", library.name, changes)
+        return _out(library, root)
+
+
+@router.delete("/libraries/{library_id}", status_code=status.HTTP_204_NO_CONTENT)
+def delete_library(library_id: int, db: DbDep, principal: InteractiveDep) -> None:
+    """Forget a library. Its files, recycle bin and work folders stay on disk."""
+    with db.write() as session:
+        library = _get(session.get(Library, library_id))
+        session.delete(library)
+        audit.record(
+            session, principal.actor, "library.deleted", library.name, {"path": library.path}
+        )
