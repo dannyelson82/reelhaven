@@ -9,6 +9,7 @@ import {
   Group,
   Loader,
   Pagination,
+  Select,
   Progress,
   Stack,
   Table,
@@ -17,7 +18,7 @@ import {
   Title,
 } from '@mantine/core';
 import { useDebouncedValue } from '@mantine/hooks';
-import { IconAlertTriangle, IconRefresh, IconSearch } from '@tabler/icons-react';
+import { IconAlertTriangle, IconLanguage, IconRefresh, IconSearch } from '@tabler/icons-react';
 import { useQueryClient } from '@tanstack/react-query';
 import { useEffect, useState } from 'react';
 import { Link, useParams } from 'react-router';
@@ -32,6 +33,12 @@ import {
   useStartScan,
 } from '../api/files';
 import { useLibraries } from '../api/libraries';
+import {
+  SOURCE_LABELS,
+  useLanguages,
+  useRefreshLanguages,
+  useSetTitleLanguage,
+} from '../api/titles';
 import { HDR_LABELS, formatBytes, formatDuration, languageName, resolutionLabel } from '../format';
 
 const PAGE_SIZE = 50;
@@ -76,7 +83,10 @@ export function LibraryPage() {
               ` · last scanned ${new Date(library.last_scan_at).toLocaleString()}`}
           </Text>
         </Stack>
-        <ScanButton libraryId={libraryId} scanning={scanning} />
+        <Group gap="xs" align="flex-start">
+          <RefreshLanguagesButton libraryId={libraryId} scanning={scanning} />
+          <ScanButton libraryId={libraryId} scanning={scanning} />
+        </Group>
       </Group>
 
       {scan.data && <ScanPanel status={scan.data} />}
@@ -124,6 +134,7 @@ export function LibraryPage() {
               <Table.Thead>
                 <Table.Tr>
                   <Table.Th>File</Table.Th>
+                  <Table.Th>Original</Table.Th>
                   <Table.Th>Video</Table.Th>
                   <Table.Th>Audio</Table.Th>
                   <Table.Th>Subtitles</Table.Th>
@@ -146,7 +157,7 @@ export function LibraryPage() {
           )}
         </>
       )}
-      <FileDrawer fileId={selected} onClose={() => setSelected(null)} />
+      <FileDrawer libraryId={libraryId} fileId={selected} onClose={() => setSelected(null)} />
     </Stack>
   );
 }
@@ -171,17 +182,34 @@ function ScanButton({ libraryId, scanning }: { libraryId: number; scanning: bool
   );
 }
 
+function RefreshLanguagesButton({ libraryId, scanning }: { libraryId: number; scanning: boolean }) {
+  const refresh = useRefreshLanguages(libraryId);
+  return (
+    <Button
+      variant="default"
+      leftSection={<IconLanguage size={16} />}
+      loading={refresh.isPending}
+      disabled={scanning}
+      onClick={() => refresh.mutate()}
+    >
+      Refresh languages
+    </Button>
+  );
+}
+
 function ScanPanel({ status }: { status: ScanStatus }) {
   if (status.state === 'scanning') {
     const pct = status.to_probe ? (100 * status.probed) / status.to_probe : 0;
+    const label =
+      status.phase === 'listing'
+        ? 'Looking for video files…'
+        : status.phase === 'languages'
+          ? 'Looking up original languages…'
+          : `Reading files: ${status.probed} of ${status.to_probe}`;
     return (
       <Card withBorder>
         <Stack gap="xs">
-          <Text size="sm">
-            {status.phase === 'listing'
-              ? 'Looking for video files…'
-              : `Reading files: ${status.probed} of ${status.to_probe}`}
-          </Text>
+          <Text size="sm">{label}</Text>
           <Progress value={pct} animated={status.phase === 'listing'} />
         </Stack>
       </Card>
@@ -195,17 +223,27 @@ function ScanPanel({ status }: { status: ScanStatus }) {
     );
   }
   const parts = [
-    `${status.found} video files`,
+    status.found > 0 && `${status.found} video files`,
     status.to_probe && `${status.to_probe} read`,
     status.moved && `${status.moved} moved`,
     status.removed && `${status.removed} gone`,
     status.failed && `${status.failed} couldn't be read`,
+    status.languages_resolved && `${status.languages_resolved} original languages found`,
+    status.languages_unknown && `${status.languages_unknown} titles with unknown language`,
   ].filter(Boolean);
   return (
-    <Alert color={status.failed ? 'yellow' : 'teal'} title="Scan finished">
+    <Alert
+      color={status.failed || status.language_errors.length ? 'yellow' : 'teal'}
+      title="Finished"
+    >
       {parts.join(' · ')}
       {status.unstable > 0 &&
         ` · ${status.unstable} still being copied (they'll be picked up by the next scan)`}
+      {status.language_errors.length > 0 && (
+        <Text size="sm" c="red" mt={4}>
+          Language lookup problems: {status.language_errors.join('; ')}
+        </Text>
+      )}
     </Alert>
   );
 }
@@ -242,6 +280,9 @@ function FileRow({ file, onOpen }: { file: FileSummary; onOpen: () => void }) {
         </Text>
       </Table.Td>
       <Table.Td>
+        <OriginalBadge language={file.original_language} source={file.language_source} />
+      </Table.Td>
+      <Table.Td>
         {file.status === 'probe_failed' ? (
           <Badge color="red" leftSection={<IconAlertTriangle size={12} />}>
             Can't read
@@ -272,6 +313,79 @@ function FileRow({ file, onOpen }: { file: FileSummary; onOpen: () => void }) {
         </Text>
       </Table.Td>
     </Table.Tr>
+  );
+}
+
+function OriginalBadge({ language, source }: { language: string | null; source: string | null }) {
+  if (!language) {
+    return (
+      <Badge variant="light" color="gray" tt="none">
+        unknown
+      </Badge>
+    );
+  }
+  return (
+    <Badge
+      variant="light"
+      color="teal"
+      tt="none"
+      title={`From ${SOURCE_LABELS[source ?? ''] ?? source}`}
+    >
+      {languageName(language)}
+    </Badge>
+  );
+}
+
+function OriginalLanguageEditor({
+  libraryId,
+  titleId,
+  language,
+  source,
+}: {
+  libraryId: number;
+  titleId: number;
+  language: string | null;
+  source: string | null;
+}) {
+  const languages = useLanguages();
+  const setLanguage = useSetTitleLanguage(libraryId);
+  return (
+    <Card withBorder>
+      <Stack gap="xs">
+        <Text size="sm" fw={500}>
+          Original language: {language ? languageName(language) : 'unknown'}
+          <Text span size="sm" c="dimmed">
+            {' '}
+            ({SOURCE_LABELS[source ?? 'unknown'] ?? source})
+          </Text>
+        </Text>
+        <Group gap="xs" align="flex-end">
+          <Select
+            label="Change for every file of this title"
+            placeholder="Choose a language"
+            searchable
+            data={(languages.data ?? []).map((l) => ({ value: l.code, label: l.name }))}
+            value={source === 'manual' ? language : null}
+            onChange={(value) => value && setLanguage.mutate({ titleId, language: value })}
+            w={280}
+          />
+          {source === 'manual' && (
+            <Button
+              variant="subtle"
+              onClick={() => setLanguage.mutate({ titleId, language: null })}
+              loading={setLanguage.isPending}
+            >
+              Go back to automatic
+            </Button>
+          )}
+        </Group>
+        {setLanguage.isError && (
+          <Text size="sm" c="red">
+            {errorMessage(setLanguage.error)}
+          </Text>
+        )}
+      </Stack>
+    </Card>
   );
 }
 
@@ -307,7 +421,15 @@ function streamDetails(stream: Stream): string {
   return '';
 }
 
-function FileDrawer({ fileId, onClose }: { fileId: number | null; onClose: () => void }) {
+function FileDrawer({
+  libraryId,
+  fileId,
+  onClose,
+}: {
+  libraryId: number;
+  fileId: number | null;
+  onClose: () => void;
+}) {
   const file = useFile(fileId);
   return (
     <Drawer
@@ -328,6 +450,14 @@ function FileDrawer({ fileId, onClose }: { fileId: number | null; onClose: () =>
             {formatBytes(file.data.size)} · {formatDuration(file.data.duration_s)}
             {file.data.container && ` · ${file.data.container.split(',')[0]}`}
           </Text>
+          {file.data.title_id !== null && (
+            <OriginalLanguageEditor
+              libraryId={libraryId}
+              titleId={file.data.title_id}
+              language={file.data.original_language}
+              source={file.data.language_source}
+            />
+          )}
           {file.data.probe_error && (
             <Alert color="red" title="ffprobe couldn't read this file">
               <Text size="sm" style={{ whiteSpace: 'pre-wrap' }}>

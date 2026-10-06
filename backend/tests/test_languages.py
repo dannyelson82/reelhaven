@@ -25,6 +25,8 @@ from reelhaven.media.languages import display_name, normalise
         ("pt-BR", "por"),
         ("Portuguese (Brazil)", "por"),
         ("en-US", "eng"),
+        ("zh-Hant", "zho"),
+        ("es-419", "spa"),
         ("Spanish (Latino)", "spa"),
         ("Flemish", "nld"),
         ("Persian", "fas"),
@@ -42,6 +44,7 @@ def test_untagged(raw: str | None) -> None:
 
 def test_unknown_values_kept_lowercase() -> None:
     assert normalise("Klingon-ish") == "klingon-ish"
+    assert normalise("not-a-language") == "not-a-language"  # not "not" (Nomatsiguenga)
 
 
 def test_display_name() -> None:

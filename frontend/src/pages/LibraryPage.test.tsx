@@ -29,6 +29,9 @@ const file = {
   audio_languages: ['fra', 'eng'],
   subtitle_languages: ['eng', null],
   probe_error: null,
+  title_id: 2,
+  original_language: 'fra',
+  language_source: 'radarr',
 };
 
 afterEach(() => {
@@ -45,6 +48,7 @@ it('lists files with languages and opens stream details', async () => {
     'GET libraries/1/files?q=&problems=false&offset=0&limit=50': {
       body: { total: 1, items: [file] },
     },
+    'GET languages': { body: [{ code: 'fra', name: 'French' }] },
     'GET files/7': {
       body: {
         ...file,
@@ -99,7 +103,7 @@ it('lists files with languages and opens stream details', async () => {
   });
   render(<App />);
   expect(await screen.findByText('Amélie.mkv')).toBeInTheDocument();
-  expect(screen.getByText('French')).toBeInTheDocument();
+  expect(screen.getAllByText('French')).toHaveLength(2); // original + audio track
   expect(screen.getByText('Untagged')).toBeInTheDocument();
   expect(screen.getByText('HDR10')).toBeInTheDocument();
   expect(screen.getByText('1080p')).toBeInTheDocument();
@@ -109,6 +113,8 @@ it('lists files with languages and opens stream details', async () => {
   expect(await screen.findByText('Français')).toBeInTheDocument();
   expect(screen.getByText('forced')).toBeInTheDocument();
   expect(screen.getByText(/2:02:00/)).toBeInTheDocument();
+  expect(screen.getByText(/Original language: French/)).toBeInTheDocument();
+  expect(screen.getByText('(Radarr)')).toBeInTheDocument();
 });
 
 it('invites a first scan', async () => {

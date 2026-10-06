@@ -5,9 +5,12 @@ Files, Sonarr/Radarr and TMDB describe languages differently: ``fre``,
 ISO 639-3 / 639-2/T code (``fra``) before any comparison.
 """
 
+import re
 from functools import lru_cache
 
 import pycountry
+
+_LANGUAGE_TAG = re.compile(r"^([a-z]{2,3})-(?:[a-z]{2}|[a-z]{4}|\d{3})$")
 
 # Codes meaning "no particular language": treated as untagged.
 UNTAGGED = frozenset({"", "und", "zxx", "mis", "mul", "unk", "unknown", "none", "any"})
@@ -48,10 +51,9 @@ def normalise(code: str | None) -> str | None:
     value = code.strip().lower().replace("_", "-")
     if value in UNTAGGED:
         return None
-    # "en-US", "pt-BR": the region doesn't matter for track selection.
-    base = (
-        value.split("-", 1)[0] if "-" in value and len(value.split("-", 1)[0]) in (2, 3) else value
-    )
+    # "en-US", "pt-BR", "zh-Hant", "es-419": region/script don't matter here.
+    tagged = _LANGUAGE_TAG.match(value)
+    base = tagged.group(1) if tagged else value
     if base in _ALIASES:
         return _ALIASES[base] or None
     if value in _ALIASES:

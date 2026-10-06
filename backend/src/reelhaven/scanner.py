@@ -11,9 +11,11 @@ import os
 import re
 import threading
 import time
+from collections.abc import Callable
 from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass, field
 from pathlib import Path
+from typing import Protocol
 
 from sqlalchemy import delete, select
 
@@ -24,6 +26,13 @@ from reelhaven.media.probe import ProbeError, probe
 from reelhaven.paths import INTERNAL_DIR, PathNotAllowedError, resolve_within
 
 logger = logging.getLogger(__name__)
+
+
+class LanguageSummary(Protocol):
+    resolved: int
+    unknown: int
+    errors: list[str]
+
 
 VIDEO_EXTENSIONS = frozenset(
     {".mkv", ".mp4", ".m4v", ".avi", ".mov", ".ts", ".m2ts", ".webm", ".wmv", ".mpg", ".mpeg"}
@@ -125,7 +134,7 @@ def walk(root: Path, stable_seconds: float, now: float) -> tuple[list[Found], in
 class ScanProgress:
     library_id: int
     state: str = "scanning"  # scanning | done | error
-    phase: str = "listing"  # listing | probing | saving
+    phase: str = "listing"  # listing | probing | saving | languages
     found: int = 0
     to_probe: int = 0
     probed: int = 0
@@ -134,6 +143,9 @@ class ScanProgress:
     moved: int = 0
     removed: int = 0
     unstable: int = 0
+    languages_resolved: int = 0
+    languages_unknown: int = 0
+    language_errors: list[str] = field(default_factory=list)
     error: str | None = None
     started_at: float = field(default_factory=time.time)
     finished_at: float | None = None
@@ -142,8 +154,15 @@ class ScanProgress:
 class Scanner:
     """Runs one background scan per library at a time."""
 
-    def __init__(self, db: Database, settings: Settings, stable_seconds: float = 120) -> None:
+    def __init__(
+        self,
+        db: Database,
+        settings: Settings,
+        stable_seconds: float = 120,
+        resolve_languages: Callable[[int, bool], "LanguageSummary"] | None = None,
+    ) -> None:
         self._db = db
+        self._resolve_languages = resolve_languages
         self._settings = settings
         self._stable_seconds = stable_seconds
         self._lock = threading.Lock()
@@ -159,15 +178,18 @@ class Scanner:
             thread = self._threads.get(library_id)
             return thread is not None and thread.is_alive()
 
-    def start(self, library_id: int) -> bool:
-        """Start a scan; returns False if one is already running for this library."""
+    def start(self, library_id: int, languages_only: bool = False) -> bool:
+        """Start a scan (or only a language refresh); False if one is already running."""
         with self._lock:
             thread = self._threads.get(library_id)
             if thread is not None and thread.is_alive():
                 return False
             self._progress[library_id] = ScanProgress(library_id)
             thread = threading.Thread(
-                target=self._run, args=(library_id,), name=f"scan-{library_id}", daemon=True
+                target=self._run,
+                args=(library_id, languages_only),
+                name=f"scan-{library_id}",
+                daemon=True,
             )
             self._threads[library_id] = thread
             thread.start()
@@ -178,10 +200,12 @@ class Scanner:
         if thread is not None:
             thread.join(timeout)
 
-    def _run(self, library_id: int) -> None:
+    def _run(self, library_id: int, languages_only: bool = False) -> None:
         progress = self._progress[library_id]
         try:
-            self.scan(library_id, progress)
+            if not languages_only:
+                self.scan(library_id, progress)
+            self.languages(library_id, progress, force=languages_only)
             progress.state = "done"
             error = None
         except Exception as exc:
@@ -194,6 +218,21 @@ class Scanner:
             if library is not None:
                 library.last_scan_at = utcnow()
                 library.last_scan_error = error
+
+    def languages(self, library_id: int, progress: ScanProgress, force: bool = False) -> None:
+        """Work out each title's original language (never fails the scan)."""
+        if self._resolve_languages is None:
+            return
+        progress.phase = "languages"
+        try:
+            summary = self._resolve_languages(library_id, force)
+        except Exception as exc:
+            logger.exception("language resolution failed", extra={"library_id": library_id})
+            progress.language_errors.append(str(exc)[:300])
+            return
+        progress.languages_resolved = summary.resolved
+        progress.languages_unknown = summary.unknown
+        progress.language_errors.extend(summary.errors)
 
     def scan(self, library_id: int, progress: ScanProgress) -> None:
         with self._db.read() as session:

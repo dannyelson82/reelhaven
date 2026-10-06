@@ -3,7 +3,18 @@
 from datetime import datetime
 from typing import Any, ClassVar
 
-from sqlalchemy import JSON, Boolean, Enum, ForeignKey, Index, Integer, MetaData, String, Text
+from sqlalchemy import (
+    JSON,
+    Boolean,
+    Enum,
+    ForeignKey,
+    Index,
+    Integer,
+    MetaData,
+    String,
+    Text,
+    UniqueConstraint,
+)
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column
 
 from reelhaven.db.types import UTCDateTime, utcnow
@@ -92,6 +103,33 @@ class Library(Base):
     last_scan_error: Mapped[str | None] = mapped_column(Text, default=None)
 
 
+LANGUAGE_SOURCES = ("sonarr", "radarr", "tmdb", "manual", "unknown")
+
+
+class Title(Base):
+    """A movie or series folder, with its original production language (ADR-0007)."""
+
+    __tablename__ = "titles"
+    __table_args__ = (UniqueConstraint("library_id", "folder"),)
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    library_id: Mapped[int] = mapped_column(
+        ForeignKey("libraries.id", ondelete="CASCADE"), index=True
+    )
+    # Relative to the library root; "" for files directly in the root.
+    folder: Mapped[str] = mapped_column(String(4096))
+    name: Mapped[str] = mapped_column(String(512))
+    year: Mapped[int | None] = mapped_column(Integer, default=None)
+    original_language: Mapped[str | None] = mapped_column(String(32), default=None)
+    language_source: Mapped[str] = mapped_column(
+        Enum(*LANGUAGE_SOURCES, name="language_source", native_enum=False, create_constraint=True),
+        default="unknown",
+    )
+    # Where the answer came from, e.g. "Sonarr: Breaking Bad" or "TMDB movie 603".
+    source_detail: Mapped[str | None] = mapped_column(String(512), default=None)
+    resolved_at: Mapped[datetime | None] = mapped_column(default=None)
+
+
 FILE_STATUSES = ("ok", "probe_failed")
 
 
@@ -106,6 +144,10 @@ class MediaFile(Base):
     # Absolute real path; relative_path is shown in the UI.
     path: Mapped[str] = mapped_column(String(4096), unique=True)
     relative_path: Mapped[str] = mapped_column(String(4096))
+    # The title (movie or series) folder this file belongs to; see titles.py.
+    title_id: Mapped[int | None] = mapped_column(
+        ForeignKey("titles.id", ondelete="SET NULL"), index=True, default=None
+    )
     size: Mapped[int] = mapped_column(Integer)
     mtime_ns: Mapped[int] = mapped_column(Integer)
     fingerprint: Mapped[str] = mapped_column(String(128))

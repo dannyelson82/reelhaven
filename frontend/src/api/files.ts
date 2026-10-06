@@ -3,7 +3,7 @@ import { api } from './client';
 
 export interface ScanStatus {
   state: 'scanning' | 'done' | 'error';
-  phase: 'listing' | 'probing' | 'saving';
+  phase: 'listing' | 'probing' | 'saving' | 'languages';
   found: number;
   to_probe: number;
   probed: number;
@@ -12,6 +12,9 @@ export interface ScanStatus {
   moved: number;
   removed: number;
   unstable: number;
+  languages_resolved: number;
+  languages_unknown: number;
+  language_errors: string[];
   error: string | null;
   started_at: number;
   finished_at: number | null;
@@ -30,6 +33,9 @@ export interface FileSummary {
   audio_languages: (string | null)[];
   subtitle_languages: (string | null)[];
   probe_error: string | null;
+  title_id: number | null;
+  original_language: string | null;
+  language_source: string | null;
 }
 
 export interface Stream {

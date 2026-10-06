@@ -13,6 +13,7 @@ from reelhaven.api import (
     integration_routes,
     library_routes,
     security_routes,
+    title_routes,
 )
 from reelhaven.auth.network import IPAddress, read_default_gateways
 from reelhaven.auth.throttle import LoginThrottle
@@ -20,6 +21,7 @@ from reelhaven.config import Settings, get_settings
 from reelhaven.db import Database
 from reelhaven.headers import SecurityHeadersMiddleware
 from reelhaven.middleware import RequestLogMiddleware
+from reelhaven.resolver import LanguageResolver
 from reelhaven.scanner import Scanner
 from reelhaven.secretbox import SecretBox
 
@@ -57,9 +59,15 @@ def create_app(
     app.state.throttle = LoginThrottle()
     app.state.gateways = read_default_gateways() if gateways is None else gateways
     app.state.gateway_seen_at = None
-    app.state.scanner = Scanner(db, settings)
     app.state.secretbox = SecretBox(settings.config_dir)
     app.state.http_transport = None  # tests inject a fake transport
+    app.state.scanner = Scanner(
+        db,
+        settings,
+        resolve_languages=lambda library_id, force: LanguageResolver(
+            db, app.state.secretbox, app.state.http_transport
+        ).resolve_library(library_id, force),
+    )
     # Last added runs first: log every request, including header-only responses.
     app.add_middleware(SecurityHeadersMiddleware)
     app.add_middleware(RequestLogMiddleware)
@@ -69,6 +77,7 @@ def create_app(
     app.include_router(library_routes.router, prefix="/api/v1")
     app.include_router(file_routes.router, prefix="/api/v1")
     app.include_router(integration_routes.router, prefix="/api/v1")
+    app.include_router(title_routes.router, prefix="/api/v1")
 
     @app.get("/healthz", include_in_schema=False)
     def healthz() -> dict[str, str]:
