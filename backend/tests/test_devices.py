@@ -1,4 +1,5 @@
 import os
+import shutil
 from pathlib import Path
 
 import pytest
@@ -12,6 +13,7 @@ from reelhaven.devices import (
     DeviceRegistry,
     detect_dri,
     detect_nvidia,
+    first_error,
     probe_device,
     trial_encode_command,
 )
@@ -37,9 +39,9 @@ AMD = Device(
 
 
 def test_detect_nvidia_parses_nvidia_smi() -> None:
-    def fake(args: list[str], timeout: float) -> tuple[int, str]:
+    def fake(args: list[str], timeout: float) -> tuple[int, str, str]:
         assert args[1:] == ["--query-gpu=index,name", "--format=csv,noheader"]
-        return 0, "0, NVIDIA GeForce RTX 3060\n1, Quadro P2000\n"
+        return 0, "0, NVIDIA GeForce RTX 3060\n1, Quadro P2000\n", ""
 
     devices = detect_nvidia(run=fake)
     assert [(d.id, d.name, d.index) for d in devices] == [
@@ -49,7 +51,7 @@ def test_detect_nvidia_parses_nvidia_smi() -> None:
 
 
 def test_no_nvidia() -> None:
-    assert detect_nvidia(run=lambda args, timeout: (127, "not found")) == []
+    assert detect_nvidia(run=lambda args, timeout: (127, "", "not found")) == []
 
 
 def test_detect_dri_by_vendor(tmp_path: Path) -> None:
@@ -122,8 +124,8 @@ def test_gpu_trial_encode_commands() -> None:
 
 
 def test_probe_records_failures() -> None:
-    def fake(args: list[str], timeout: float) -> tuple[int, str]:
-        return (0, "") if "hevc_nvenc" in args else (1, "No capable devices found")
+    def fake(args: list[str], timeout: float) -> tuple[int, str, str]:
+        return (0, "", "") if "hevc_nvenc" in args else (1, "", "No capable devices found")
 
     report = probe_device(NVIDIA, "ffmpeg", run=fake)
     assert report.supports("hevc", False) and report.supports("hevc", True)
@@ -143,11 +145,11 @@ def test_devices_api(settings: Settings) -> None:
     app: FastAPI = create_app(settings, gateways=frozenset(), detect_devices=False)
     calls: list[list[str]] = []
 
-    def fake(args: list[str], timeout: float) -> tuple[int, str]:
+    def fake(args: list[str], timeout: float) -> tuple[int, str, str]:
         calls.append(args)
         if args[0] == "nvidia-smi":
-            return 0, "0, RTX 3060\n"
-        return 0, ""
+            return 0, "0, RTX 3060\n", ""
+        return 0, "", ""
 
     app.state.devices = DeviceRegistry("ffmpeg", run=fake, dev=settings.config_dir / "no-dri")
     with TestClient(app):
@@ -173,3 +175,34 @@ def test_devices_api(settings: Settings) -> None:
         bad = {**new, "devices": {"nvidia:0": {"enabled": True, "concurrency": 50}}}
         assert admin.put(f"{API}/devices/settings", json=bad).status_code == 422
         assert admin.post(f"{API}/devices/detect").status_code == 202
+
+
+def test_detect_nvidia_reads_real_output(tmp_path: Path) -> None:
+    """Through a real subprocess: the GPU list is on stdout, warnings on stderr."""
+    smi = tmp_path / "nvidia-smi"
+    smi.write_text(
+        "#!/bin/sh\necho '0, NVIDIA GeForce RTX 3060'\necho 'a warning' >&2\n", encoding="utf-8"
+    )
+    smi.chmod(0o755)
+    assert [d.id for d in detect_nvidia(str(smi))] == ["nvidia:0"]
+
+
+@pytest.mark.skipif(shutil.which("nvidia-smi") is None or FFMPEG is None, reason="no NVIDIA GPU")
+def test_nvidia_really_works() -> None:
+    """Only where a GPU exists (the owner's dev container, not CI)."""
+    devices = detect_nvidia()
+    assert devices
+    report = probe_device(devices[0], FFMPEG or "ffmpeg")
+    for codec, ten_bit in (("hevc", False), ("hevc", True), ("h264", False)):
+        assert report.supports(codec, ten_bit), [r for r in report.results if not r.ok]
+
+
+def test_first_error_is_the_cause() -> None:
+    stderr = (
+        "[av1_nvenc @ 0x562bcfa2ef00] No capable devices found\n"
+        "[vost#0:0/av1_nvenc @ 0x5629] [enc:av1_nvenc @ 0x5628] Error while opening encoder\n"
+        "[out#0/null @ 0x562bcfa2e580] Nothing was written into output file\n"
+    )
+    assert first_error(stderr) == "No capable devices found"
+    assert first_error("\n  \n") == ""
+    assert first_error("plain message") == "plain message"
