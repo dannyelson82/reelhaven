@@ -24,12 +24,14 @@ from reelhaven.api.schemas import StrictModel
 from reelhaven.db import Job, JobResult, Library, MediaFile, RecycleItem
 from reelhaven.db.types import utcnow
 from reelhaven.dryrun import plan_library
+from reelhaven.encode_planner import profile_fingerprint
 from reelhaven.jobs.queue import JobQueue
 from reelhaven.jobs.replace import ReplaceError
 from reelhaven.jobs.service import (
     NotApplicableError,
     check_applicable,
     create_jobs,
+    library_profile,
     purge_item,
     restore_item,
 )
@@ -61,6 +63,10 @@ class JobOut(BaseModel):
     bytes_before: int | None = None
     bytes_after: int | None = None
     process_seconds: float | None = None
+    outcome: str | None = None
+    device: str | None = None
+    fps: float | None = None
+    speed: float | None = None
 
 
 class JobPage(BaseModel):
@@ -117,6 +123,10 @@ def _job_out(job: Job, library: Library | None, result: JobResult | None) -> Job
         bytes_before=result.bytes_before if result else None,
         bytes_after=result.bytes_after if result else None,
         process_seconds=result.process_seconds if result else None,
+        outcome=result.outcome if result else None,
+        device=job.device,
+        fps=job.fps or (result.fps if result else None),
+        speed=job.speed,
     )
 
 
@@ -155,12 +165,20 @@ def apply_library(
         plans = plan_library(db, library_id)
     except LookupError as exc:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "library_not_found") from exc
-    changes = sum(1 for p in plans if p.plan is not None and p.plan.action == "remux")
+    changes = sum(1 for p in plans if p.plan is not None and p.plan.action in ("remux", "encode"))
     if changes != body.expected_count:
         raise HTTPException(status.HTTP_409_CONFLICT, "plan_changed")
+    encodes = any(p.plan is not None and p.plan.action == "encode" for p in plans)
     with db.write() as session:
         library = session.get(Library, library_id)
         assert library is not None  # noqa: S101
+        profile = library_profile(session, library)
+        if encodes and (
+            profile is None or library.test_run_profile != profile_fingerprint(profile)
+        ):
+            # ADR-0020: a whole library is only encoded after a passed test run
+            # with its current profile.
+            raise HTTPException(status.HTTP_409_CONFLICT, "test_run_required")
         jobs = create_jobs(session, library, plans, principal.actor)
         audit.record(session, principal.actor, "library.apply", library.name, {"queued": len(jobs)})
     _queue(request).notify()

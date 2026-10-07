@@ -81,7 +81,7 @@ def create_app(
     app.state.gateways = read_default_gateways() if gateways is None else gateways
     app.state.gateway_seen_at = None
     app.state.devices = DeviceRegistry(settings.ffmpeg)
-    app.state.queue = JobQueue(db, settings)
+    app.state.queue = JobQueue(db, settings, app.state.devices)
     app.state.stop = threading.Event()
     app.state.secretbox = SecretBox(settings.config_dir)
     app.state.http_transport = None  # tests inject a fake transport

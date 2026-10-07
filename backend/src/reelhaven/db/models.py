@@ -107,6 +107,10 @@ class Library(Base):
     profile_id: Mapped[int | None] = mapped_column(
         ForeignKey("profiles.id", ondelete="SET NULL"), default=None
     )
+    # Fingerprint of the profile a test run passed with (ADR-0020); bulk encoding
+    # is allowed only while it matches the library's current profile.
+    test_run_profile: Mapped[str | None] = mapped_column(String(32), default=None)
+    test_run_at: Mapped[datetime | None] = mapped_column(default=None)
 
 
 LANGUAGE_SOURCES = ("sonarr", "radarr", "tmdb", "manual", "unknown")
@@ -165,6 +169,8 @@ class MediaFile(Base):
     first_seen_at: Mapped[datetime] = mapped_column(default=utcnow)
     last_seen_at: Mapped[datetime] = mapped_column(default=utcnow)
     probed_at: Mapped[datetime | None] = mapped_column(default=None)
+    # Profile fingerprint whose encode didn't save enough; not tried again with it.
+    no_gain_profile: Mapped[str | None] = mapped_column(String(32), default=None)
 
 
 INTEGRATION_KINDS = ("sonarr", "radarr", "tmdb")
@@ -217,6 +223,11 @@ class Job(Base):
     plan: Mapped[dict[str, Any]] = mapped_column()
     probe: Mapped[dict[str, Any]] = mapped_column()
     progress: Mapped[float] = mapped_column(default=0.0)
+    # Encode jobs: the profile snapshot, the device that runs it and live speed.
+    profile: Mapped[dict[str, Any] | None] = mapped_column(default=None)
+    device: Mapped[str | None] = mapped_column(String(128), default=None)
+    fps: Mapped[float | None] = mapped_column(default=None)
+    speed: Mapped[float | None] = mapped_column(default=None)
     error: Mapped[str | None] = mapped_column(Text, default=None)
     requested_by: Mapped[str] = mapped_column(String(128))
     created_at: Mapped[datetime] = mapped_column(default=utcnow)
@@ -232,6 +243,9 @@ class JobResult(Base):
     bytes_after: Mapped[int] = mapped_column(Integer)
     duration_s: Mapped[float | None] = mapped_column(default=None)
     process_seconds: Mapped[float] = mapped_column()
+    outcome: Mapped[str] = mapped_column(String(16), default="replaced")  # replaced | no_gain
+    device: Mapped[str | None] = mapped_column(String(128), default=None)
+    fps: Mapped[float | None] = mapped_column(default=None)
 
 
 class RecycleItem(Base):

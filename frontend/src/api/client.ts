@@ -111,6 +111,8 @@ export function errorMessage(error: unknown): string {
       return "This file couldn't be read, so it can't be processed.";
     case 'restore_failed':
       return "The file couldn't be restored. It may have been moved or deleted outside ReelHaven.";
+    case 'test_run_required':
+      return 'Re-encoding a whole library needs a test run with its current profile first (Test run tab). You can still re-encode single files.';
     case 'validation_error':
       return 'Some of the values are not valid.';
     default:

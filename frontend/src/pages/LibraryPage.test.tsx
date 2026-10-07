@@ -184,6 +184,7 @@ it('applies a dry run with the confirmed number of files', async () => {
   window.location.hash = '#/libraries/1';
   const report = {
     files: 3,
+    encode: 0,
     remux: 2,
     unchanged: 1,
     unreadable: 0,

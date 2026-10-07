@@ -24,6 +24,8 @@ class Settings(BaseSettings):
     # Root of all libraries. The container maps media here; in development
     # point it at /projects/reelhaven-testmedia.
     media_root: Path = Path("/media")
+    # Scratch space for encodes (fast disk). The container sets /transcode.
+    transcode_dir: Path = Path(".dev-transcode")
     # Encoder binaries (jellyfin-ffmpeg in the container; any ffmpeg in dev).
     ffmpeg: str = "ffmpeg"
     ffprobe: str = "ffprobe"

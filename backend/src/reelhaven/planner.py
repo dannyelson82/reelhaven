@@ -311,12 +311,13 @@ def plan_file(
     original_language: str | None,
     policy: LanguagePolicy,
     profile: ProfileSettings | None,
+    no_gain_profile: str | None = None,
 ) -> Plan:
     """Language changes (§8) plus the video decision (§7.4), done in one pass."""
     result = plan(info, original_language, policy)
     if profile is None:
         return result
-    video = plan_video(info, profile)
+    video = plan_video(info, profile, no_gain_profile)
     result.video = video
     if info.video is not None and info.video.hdr == "hdr10plus":
         result.flags.append("hdr10plus")

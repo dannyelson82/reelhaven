@@ -65,6 +65,7 @@ COPY docker/entrypoint.sh /usr/local/bin/entrypoint.sh
 
 ENV PATH=/app/venv/bin:/usr/lib/jellyfin-ffmpeg:${PATH} \
     REELHAVEN_CONFIG_DIR=/config \
+    REELHAVEN_TRANSCODE_DIR=/transcode \
     REELHAVEN_WEB_DIR=/app/web \
     REELHAVEN_PORT=7171 \
     PUID=99 PGID=100 UMASK=022 TZ=Etc/UTC \
