@@ -12,6 +12,9 @@ recorded in docs/adr/.
 - Workflow: one branch and pull request per chunk of a phase; CI must pass;
   Claude merges (squash) without waiting for review. Phase plans live in
   `docs/plans/`.
+- Document every user-facing feature or change in `docs/guide/` (plain-language
+  user guide, rules in `docs/guide/README.md`) in the same pull request. These
+  pages will become the in-app Guide section.
 - Keep changes small, with clear conventional commit messages
   (`feat:`, `fix:`, `docs:`, `test:`, `chore:`). All commits signed.
 - Never commit secrets, real media files, or personal infrastructure details

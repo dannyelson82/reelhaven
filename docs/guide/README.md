@@ -23,3 +23,11 @@ developers.
   ```
 
 - Link to other pages by file name, e.g. `[Profiles](profiles.md)`.
+
+## Loading the pages in the app
+
+`frontend/src/guide.test.ts` loads every page the way the app will, with
+Vite's `import.meta.glob(..., { query: '?raw' })`, and checks front matter
+and links on every CI run. `vite.config.ts` allows reading this one folder.
+When the Guide page is built, the Dockerfile's frontend stage must also copy
+`docs/guide/`.

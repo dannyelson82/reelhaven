@@ -36,7 +36,7 @@ plan. **Run again** refreshes it after you change a setting.
 A file isn't re-encoded when it wouldn't help, for example when:
 
 - the estimated saving is below the profile's minimum (10 %),
-- it's already HEVC/AV1 at a low bitrate,
+- it's already in the profile's codec at a low bitrate,
 - it was already encoded by ReelHaven with this profile,
 - an earlier encode with this profile didn't save enough,
 - it's **Dolby Vision** or **HDR10+** (re-encoding would break or lose
@@ -54,6 +54,13 @@ queued on the [Jobs](jobs.md) page.
 - If the library changed since you looked, nothing is queued and you're asked
   to look again.
 
+## Before the test run is approved
+
 Re-encoding a whole library needs an approved **[test run](test-run.md)**
-with the current profile first. Track-only changes don't need one, and single
-files can always be applied from their details.
+with the current profile first. Until then the button reads **Apply track
+changes to N files**: it applies the files that only need track changes, and
+the files waiting to be re-encoded get their track changes when they're
+re-encoded later.
+
+Single files can always be applied from their details (**Apply to this
+file**), including re-encodes.
