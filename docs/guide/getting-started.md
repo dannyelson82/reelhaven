@@ -55,5 +55,5 @@ mode** to **Automatic**: see [Automatic processing](automation.md).
 
 ## Coming later
 
-Folder watching, Sonarr/Radarr webhooks and the statistics dashboard arrive in
+Sonarr/Radarr webhooks and the statistics dashboard arrive in
 later versions.

@@ -38,6 +38,7 @@ from reelhaven.profiles import ensure_builtin_profiles
 from reelhaven.resolver import LanguageResolver
 from reelhaven.scanner import Scanner
 from reelhaven.secretbox import SecretBox
+from reelhaven.watcher import FolderWatcher
 
 
 def create_app(
@@ -62,6 +63,7 @@ def create_app(
             app.state.devices.detect_in_background()
         app.state.queue.start()
         app.state.automation.start()
+        app.state.watcher.start()
         janitor = threading.Thread(
             target=_janitor, args=(db, app.state.stop), name="janitor", daemon=True
         )
@@ -69,6 +71,7 @@ def create_app(
         yield
         app.state.stop.set()
         app.state.automation.stop()
+        app.state.watcher.stop()
         app.state.queue.stop()
         db.close()
 
@@ -95,6 +98,9 @@ def create_app(
         db,
         start_scan=lambda library_id: app.state.scanner.start(library_id),
         notify_queue=lambda: app.state.queue.notify(),
+    )
+    app.state.watcher = FolderWatcher(
+        db, start_scan=lambda library_id: app.state.scanner.start(library_id)
     )
     db.on_change(Job, app.state.live.changed)
     app.state.stop = threading.Event()
