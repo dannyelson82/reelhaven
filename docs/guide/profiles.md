@@ -53,5 +53,5 @@ Always true, whatever the profile:
   the real result is checked again after encoding (see [Jobs](jobs.md)).
 
 Which encoder does the work (NVIDIA, Intel, AMD or CPU) is set on the
-[Hardware](hardware.md) page. ReelHaven translates the quality level into each
-encoder's own setting.
+[Hardware](hardware.md) page. The NVIDIA and Intel settings were measured so that a quality level
+looks the same as on the CPU (AMD isn't measured yet).

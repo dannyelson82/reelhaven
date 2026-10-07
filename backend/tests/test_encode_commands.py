@@ -54,7 +54,9 @@ def test_quality_is_monotonic(family: str, codec: str) -> None:
 
 def test_quality_examples() -> None:
     assert quality_value("cpu", "hevc", 6) == 24
-    assert quality_value("nvenc", "hevc", 6) == 24  # 23.5 + 1 rounded
+    assert quality_value("nvenc", "hevc", 6) == 29  # calibrated: same XPSNR as x265 -crf 24
+    assert quality_value("qsv", "hevc", 6) == 21
+    assert quality_value("vaapi", "hevc", 6) == 24  # AMD: not calibrated yet
     assert quality_value("cpu", "av1", 6) == 34
     with pytest.raises(ValueError):
         quality_value("cpu", "hevc", 0)
@@ -195,7 +197,7 @@ def test_nvenc_hdr_4k_to_1080p_golden() -> None:
         "-rc",
         "vbr",
         "-cq",
-        "24",
+        "29",
         "-b:v",
         "0",
         "-spatial_aq",
@@ -249,7 +251,7 @@ def test_qsv_and_vaapi_commands() -> None:
         "-preset",
         "medium",
         "-global_quality",
-        "24",
+        "21",
     ]
     vaapi = encode_command(
         "ffmpeg", AMD, Path("/m/a.mkv"), Path("/w/a.mkv"), info, p, ProfileSettings(codec="av1")
