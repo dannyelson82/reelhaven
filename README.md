@@ -8,37 +8,42 @@ ReelHaven automatically compresses your video library on Unraid using every
 GPU you have, keeps only the audio and subtitle languages you want, and keeps
 Plex, Jellyfin, Sonarr and Radarr in sync.
 
-> ⚠️ Early development (v0.3). It can now change files, but only when you
-> ask it to, and every original goes to a recycle bin first. Try it on a copy
-> or a small library before trusting it with media you can't afford to lose.
+> ⚠️ Early development (v0.4). It re-encodes and changes files only when you
+> ask it to, checks every result, and keeps every original in a recycle bin
+> first. Try it on a copy or a small library before trusting it with media
+> you can't afford to lose.
 
-## What works today (v0.3)
-- Libraries: scan your folders and see every file's audio and subtitle tracks
-- Original language of each title from Sonarr, Radarr or TMDB (or set by hand)
-- Language policy per library, and a **dry run** showing exactly what would change
-- **Apply** per file or per library: tracks are removed and defaults fixed by a
-  fast remux (no re-encoding), each result is verified before it replaces the
-  original, and originals stay in a 14-day recycle bin with one-click restore
+## What works today (v0.4)
+- **Libraries**: scan your folders and see every file's video, audio and
+  subtitle tracks
+- **Languages**: original language of each title from Sonarr, Radarr or TMDB
+  (or set by hand), a language policy per library, and removal of unwanted
+  audio and subtitle tracks
+- **GPU encoding**: NVIDIA NVENC, Intel Quick Sync and AMD, detected with a
+  real test encode; compression profiles (HEVC, AV1, H.264), calibrated so a
+  quality level looks the same on NVIDIA, Intel and the CPU; files that wouldn't benefit
+  (or would be harmed, like Dolby Vision) are skipped
+- **Dry run** showing exactly what would change, and a quality-checked
+  **test run** (sizes, XPSNR/SSIM, side-by-side stills) that you approve
+  before a whole library is re-encoded
+- **Apply** per file or per library; every result is verified before it
+  replaces the original, and originals stay in a 14-day recycle bin with
+  one-click restore
+- **Live progress** for every job (fps, speed, time left)
 
 ## First start
 Open the web UI (port 7171) and create the admin account **before** exposing
 ReelHaven to the internet: until then, whoever opens it first becomes admin.
 
 ## Planned features
-- One-click compression profiles, or **mimic** a file you like
-- Keep source resolution or cap it; never upscales
-- Multi-GPU encoding: NVIDIA NVENC, Intel QuickSync, AMD
-- Detects each title's **original language** (Sonarr, Radarr, TMDB) and
-  strips unwanted audio and subtitle tracks; English forced subtitles as
-  default for English audio
+- **Mimic** a file you like to build a compression profile
 - Finds files that arrived in the wrong language and can quarantine and
   re-download them
 - Watches folders and Sonarr/Radarr imports to process new files automatically
-- Dry run and test run modes before anything is changed
-- Recycle bin for every replaced file
 - Stats: files processed, space saved, per-GPU performance
 
 ## Documentation
+- [User guide](docs/guide/)
 - [Architecture](ARCHITECTURE.md)
 - [Security](SECURITY.md)
 - [Decision records](docs/adr/)
