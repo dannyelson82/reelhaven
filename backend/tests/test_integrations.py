@@ -234,7 +234,7 @@ def test_tmdb_url_is_fixed(app: FastAPI) -> None:
     "overrides",
     [
         {"base_url": "not a url"},
-        {"kind": "plex"},
+        {"kind": "emby"},
         {"api_key": ""},
         {"path_mappings": [{"remote": "tv", "local": "/media"}]},
         {"secret": "x"},
