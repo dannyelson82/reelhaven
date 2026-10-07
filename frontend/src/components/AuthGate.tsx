@@ -13,6 +13,7 @@ import { RecyclePage } from '../pages/RecyclePage';
 import { LoginPage } from '../pages/LoginPage';
 import { SecurityPage } from '../pages/SecurityPage';
 import { SetupPage } from '../pages/SetupPage';
+import { WizardPage } from '../wizard/WizardPage';
 import { AppLayout } from './AppLayout';
 
 /** Shows setup, login or the app depending on the server's auth state. */
@@ -44,6 +45,7 @@ export function AuthGate() {
         <Route index element={<DashboardPage />} />
         <Route path="libraries" element={<LibrariesPage />} />
         <Route path="libraries/:id" element={<LibraryPage />} />
+        <Route path="wizard" element={<WizardPage />} />
         <Route path="profiles" element={<ProfilesPage />} />
         <Route path="jobs" element={<JobsPage />} />
         <Route path="recycle" element={<RecyclePage />} />

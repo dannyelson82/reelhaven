@@ -4,6 +4,7 @@ import { api, json } from './client';
 export interface LanguageOption {
   code: string;
   name: string;
+  alpha2?: string | null;
 }
 
 export const SOURCE_LABELS: Record<string, string> = {

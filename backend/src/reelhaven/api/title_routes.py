@@ -41,6 +41,7 @@ class TitlePage(BaseModel):
 class LanguageOption(BaseModel):
     code: str
     name: str
+    alpha2: str | None = None  # e.g. "en", to match the browser's language
 
 
 class LanguageOverride(StrictModel):
@@ -52,7 +53,7 @@ class LanguageOverride(StrictModel):
 def _languages() -> list[LanguageOption]:
     """Every language with a two-letter ISO code: the ones media actually uses."""
     options = [
-        LanguageOption(code=lang.alpha_3, name=lang.name)
+        LanguageOption(code=lang.alpha_3, name=lang.name, alpha2=lang.alpha_2)
         for lang in pycountry.languages
         if hasattr(lang, "alpha_2")
     ]
