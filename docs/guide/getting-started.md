@@ -62,7 +62,7 @@ If you prefer to do it yourself, or want to understand what the wizard does:
 Once you're happy with a library's dry run and test run, set its **Watch
 mode** to **Automatic**: see [Automatic processing](automation.md).
 
-## Coming later
+## See what you've saved
 
-The statistics dashboard arrives in a
-later version.
+The [Dashboard](jobs.md#space-saved) shows the space saved since you installed
+ReelHaven, this week and this month, with weekly and monthly charts.
