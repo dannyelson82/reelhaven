@@ -16,6 +16,7 @@ from reelhaven.api import (
     integration_routes,
     job_routes,
     library_routes,
+    live_routes,
     profile_routes,
     security_routes,
     test_run_routes,
@@ -24,11 +25,12 @@ from reelhaven.api import (
 from reelhaven.auth.network import IPAddress, read_default_gateways
 from reelhaven.auth.throttle import LoginThrottle
 from reelhaven.config import Settings, get_settings
-from reelhaven.db import Database
+from reelhaven.db import Database, Job
 from reelhaven.devices import DeviceRegistry
 from reelhaven.headers import SecurityHeadersMiddleware
 from reelhaven.jobs.queue import JobQueue
 from reelhaven.jobs.service import purge_expired
+from reelhaven.live import ChangeFeed
 from reelhaven.middleware import RequestLogMiddleware
 from reelhaven.profiles import ensure_builtin_profiles
 from reelhaven.resolver import LanguageResolver
@@ -83,6 +85,8 @@ def create_app(
     app.state.gateway_seen_at = None
     app.state.devices = DeviceRegistry(settings.ffmpeg)
     app.state.queue = JobQueue(db, settings, app.state.devices)
+    app.state.live = ChangeFeed()
+    db.on_change(Job, app.state.live.changed)
     app.state.stop = threading.Event()
     app.state.secretbox = SecretBox(settings.config_dir)
     app.state.http_transport = None  # tests inject a fake transport
@@ -107,6 +111,7 @@ def create_app(
     app.include_router(device_routes.router, prefix="/api/v1")
     app.include_router(profile_routes.router, prefix="/api/v1")
     app.include_router(test_run_routes.router, prefix="/api/v1")
+    app.include_router(live_routes.router, prefix="/api/v1")
 
     @app.get("/healthz", include_in_schema=False)
     def healthz() -> dict[str, str]:

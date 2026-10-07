@@ -23,7 +23,8 @@ import {
   useJobs,
   useRetryJob,
 } from '../api/jobs';
-import { formatBytes } from '../format';
+import { useLiveJobs, withLive } from '../api/live';
+import { formatBytes, formatTimeLeft } from '../format';
 
 const STATUS: Record<Job['status'], { label: string; color: string }> = {
   queued: { label: 'Waiting', color: 'gray' },
@@ -38,7 +39,8 @@ export function JobsPage() {
   const [filter, setFilter] = useState<JobFilter>('all');
   const [page, setPage] = useState(1);
   const jobs = useJobs(filter, page);
-  const counts = jobs.data?.counts ?? {};
+  const live = useLiveJobs();
+  const counts = live?.counts ?? jobs.data?.counts ?? {};
   const active = (counts.queued ?? 0) + (counts.running ?? 0) + (counts.verifying ?? 0);
   const failed = (counts.failed ?? 0) + (counts.cancelled ?? 0);
 
@@ -69,7 +71,7 @@ export function JobsPage() {
         </Card>
       )}
       {jobs.data?.items.map((job) => (
-        <JobCard key={job.id} job={job} />
+        <JobCard key={job.id} job={withLive(job, live)} />
       ))}
       {jobs.data && jobs.data.total > 50 && (
         <Pagination total={Math.ceil(jobs.data.total / 50)} value={page} onChange={setPage} />
@@ -110,6 +112,7 @@ function JobCard({ job }: { job: Job }) {
                 {job.type === 'encode' && job.device && ` · ${job.device}`}
                 {job.fps !== null && ` · ${job.fps.toFixed(0)} fps`}
                 {job.speed !== null && ` · ${job.speed.toFixed(1)}× real time`}
+                {job.eta_seconds !== null && ` · ${formatTimeLeft(job.eta_seconds)} left`}
               </Text>
             )}
           </Stack>

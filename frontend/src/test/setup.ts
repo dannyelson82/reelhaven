@@ -1,5 +1,6 @@
 import '@testing-library/jest-dom/vitest';
 import { configure } from '@testing-library/react';
+import { FakeSocket } from './fakeSocket';
 
 // CI machines are slower than a dev box and Mantine animates menus and modals;
 // the 1 s default made tests fail there at random.
@@ -33,3 +34,9 @@ if (!('fonts' in document)) {
     value: { addEventListener: () => {}, removeEventListener: () => {}, ready: Promise.resolve() },
   });
 }
+
+// Live job updates: a fake socket instead of a real connection.
+window.WebSocket = FakeSocket as unknown as typeof WebSocket;
+afterEach(() => {
+  FakeSocket.instances = [];
+});

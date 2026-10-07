@@ -49,3 +49,11 @@ export const HDR_LABELS: Record<string, string> = {
   hlg: 'HLG',
   dolby_vision: 'Dolby Vision',
 };
+
+/** A rough time left: "under a minute", "12 min", "1 h 05 min". */
+export function formatTimeLeft(seconds: number): string {
+  if (seconds < 60) return 'under a minute';
+  const minutes = Math.round(seconds / 60);
+  if (minutes < 60) return `${minutes} min`;
+  return `${Math.floor(minutes / 60)} h ${String(minutes % 60).padStart(2, '0')} min`;
+}

@@ -1,4 +1,14 @@
-import { AppShell, Burger, Group, Image, Menu, NavLink, Text, UnstyledButton } from '@mantine/core';
+import {
+  AppShell,
+  Badge,
+  Burger,
+  Group,
+  Image,
+  Menu,
+  NavLink,
+  Text,
+  UnstyledButton,
+} from '@mantine/core';
 import { useDisclosure } from '@mantine/hooks';
 import {
   IconChevronDown,
@@ -14,6 +24,7 @@ import {
 } from '@tabler/icons-react';
 import { NavLink as RouterLink, Outlet, useLocation } from 'react-router';
 import { type AuthState, useLogout, useLogoutEverywhere } from '../api/auth';
+import { useLiveConnection, useLiveJobs } from '../api/live';
 
 const NAV = [
   { to: '/', label: 'Dashboard', icon: IconGauge },
@@ -31,6 +42,10 @@ export function AppLayout({ auth }: { auth: AuthState }) {
   const location = useLocation();
   const logout = useLogout();
   const logoutEverywhere = useLogoutEverywhere();
+  // SECURITY.md: the socket needs a real session; the local-network bypass polls instead.
+  useLiveConnection(auth.method === 'session');
+  const live = useLiveJobs();
+  const busy = live ? (live.counts.queued ?? 0) + live.active.length : 0;
 
   return (
     <AppShell
@@ -80,6 +95,13 @@ export function AppLayout({ auth }: { auth: AuthState }) {
             to={to}
             label={label}
             leftSection={<Icon size={18} />}
+            rightSection={
+              to === '/jobs' && busy > 0 ? (
+                <Badge size="sm" variant="light" aria-label={`${busy} jobs in progress`}>
+                  {busy}
+                </Badge>
+              ) : undefined
+            }
             active={to === '/' ? location.pathname === '/' : location.pathname.startsWith(to)}
             onClick={close}
           />

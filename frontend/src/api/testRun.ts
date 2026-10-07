@@ -1,5 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { api, json } from './client';
+import { liveConnected } from './live';
 
 export const MAX_SAMPLES = 5;
 
@@ -53,10 +54,12 @@ export interface TestRunState {
 }
 
 export function useTestRun(libraryId: number) {
+  const queryClient = useQueryClient();
   return useQuery({
     queryKey: ['test-run', libraryId],
     queryFn: () => api<TestRunState>(`libraries/${libraryId}/test-run`),
-    refetchInterval: (q) => (q.state.data?.run?.status === 'running' ? 1500 : false),
+    refetchInterval: (q) =>
+      q.state.data?.run?.status !== 'running' ? false : liveConnected(queryClient) ? 15000 : 1500,
   });
 }
 

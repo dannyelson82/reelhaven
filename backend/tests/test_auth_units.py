@@ -172,3 +172,31 @@ def test_tokens_are_random_and_hashed() -> None:
     assert len(tokens.hash_token(a)) == 64
     assert tokens.tokens_equal("x", "x")
     assert not tokens.tokens_equal("x", "y")
+
+
+def test_same_origin() -> None:
+    def ok(
+        origin: str | None, host: str | None, peer: str = "192.168.1.5", fwd: str | None = None
+    ) -> bool:
+        return network.same_origin(
+            origin, host, peer, fwd, network.parse_networks(["172.17.0.0/16"])
+        )
+
+    assert ok("http://tower:7171", "tower:7171")
+    assert ok("http://Tower:7171", "tower:7171")
+    assert ok("https://reelhaven.example", "reelhaven.example:443")  # default port
+    assert ok("http://[::1]:7171", "[::1]:7171")
+    assert not ok("http://evil.example", "tower:7171")
+    assert not ok("http://tower:7172", "tower:7171")
+    assert not ok("https://tower:7171", "tower:7171:443")
+    assert not ok(None, "tower:7171")
+    assert not ok("null", "tower:7171")  # sandboxed iframes, file:// pages
+    assert not ok("ftp://tower:7171", "tower:7171")
+    assert not ok("http://tower:7171/path", "tower:7171")
+    assert not ok("http://tower:notaport", "tower:notaport")
+    assert not ok("http://tower:7171", None)
+    # Behind a trusted proxy that rewrites Host, X-Forwarded-Host counts...
+    proxied = "https://reelhaven.example"
+    assert ok(proxied, "172.17.0.1:7171", peer="172.17.0.2", fwd="reelhaven.example")
+    # ...but not from anyone else.
+    assert not ok(proxied, "tower:7171", peer="192.168.1.5", fwd="reelhaven.example")
