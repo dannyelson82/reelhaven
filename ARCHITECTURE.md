@@ -181,8 +181,9 @@ audio: original language is English, keep-list is English").
   (consumer NVIDIA cards cap simultaneous encode sessions; default 2 per GPU).
 - `remux` jobs run in a separate CPU pool so they never wait behind encodes.
 - Optional CPU encode pool (off by default, it's slow).
-- Scheduling: highest priority first, then oldest. Global pause/resume, and
-  an optional **processing window** (e.g. only 01:00–07:00).
+- Scheduling: highest priority first, then oldest. Global pause/resume. An
+  optional **processing window** (e.g. only 01:00–07:00) is a later option
+  (ADR-0025).
 - Progress parsed from ffmpeg `-progress` output and pushed to the UI.
 
 ### 6.6 Command builder
@@ -221,7 +222,7 @@ After a successful replace (or quarantine):
   the new size, codec and filename. For wrong-language quarantine, optionally
   mark the release failed/blocklisted and trigger a new search.
 - **Plex**: partial scan of the affected folder only.
-- **Jellyfin**: notify media updated for the affected path.
+- **Jellyfin**: notify media updated for the affected path (later; ADR-0025).
 
 Notifications are batched (default 60 s window) to avoid hammering servers
 during a big library run. Each integration has a **path mapping** setting,
@@ -239,8 +240,8 @@ Three ways a file enters the queue:
 3. **Scheduled rescan**: full library scan on a schedule (default daily) to
    catch anything missed.
 
-Each library chooses its watch mode: off, watch, or watch + process
-automatically.
+Each library chooses its watch mode: off, watch, or automatic (backlog
+included, ADR-0025).
 
 ### 6.11 Stats
 Recorded per job and aggregated per library and overall: files processed,
@@ -423,7 +424,7 @@ endpoint (unauthenticated, no details) for Docker health checks.
 | 0.2 + 0.3 Library and languages (ADR-0015) | Libraries, scanner, probe, file browser, library view with stream details; language resolver (TMDB, Sonarr, Radarr), language policy, planner for track changes, dry run, `remux` jobs, verifier, replacer, recycle bin. *First release that changes files*, on manual request only (per file, or per library after confirmation). Automatic processing waits for test runs (0.4). |
 | 0.4 Encoding | Device detection, worker pools, profiles, command builders, skip rules, test run (quality-checked, gates bulk encoding, ADR-0020), queue UI with live progress. |
 | 0.5 Mimic | Sample selection from libraries (ADR-0022), settings extraction, estimation, audio re-encoding and audio-only jobs (ADR-0023), profile editor. |
-| 0.6 Automation | Webhooks, folder watcher, scheduled rescans, processing window, notifiers (Plex, Jellyfin, Sonarr, Radarr). |
+| 0.6 Automation | Watch modes and automatic processing (ADR-0025), webhooks, folder watcher, scheduled rescans, notifiers (Plex, Sonarr, Radarr). |
 | 0.7 Insight and safety | Stats dashboard, review page, wrong-language quarantine + re-search, optional TOTP 2FA, audit log page. |
 | 1.0 | Hardening, docs, release checklist, CA submission. |
 
