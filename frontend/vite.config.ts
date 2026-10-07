@@ -15,6 +15,8 @@ export default defineConfig({
   build: { chunkSizeWarningLimit: 1500 },
   server: {
     port: 5173,
+    // The user guide (docs/guide) lives outside the frontend folder; allow just that.
+    fs: { allow: ['.', '../docs/guide'] },
     proxy: {
       '/api': { target: backend, ws: true },
       '/healthz': backend,
