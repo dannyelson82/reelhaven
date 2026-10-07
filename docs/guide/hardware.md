@@ -48,6 +48,11 @@ When several devices can do a job, ReelHaven prefers NVIDIA, then Intel, then
 AMD, then the CPU. A device is only given jobs whose format it passed the test
 for.
 
+GPUs are much faster than the CPU, but at the same quality their files are
+somewhat larger: in our measurements about 15 % for NVIDIA and up to 55 % for
+older Intel graphics (UHD 630). The quality looks the same; you just save a
+little less space.
+
 ## Check that your GPUs really work
 
 Do this once after setting up the container, and again after changing
