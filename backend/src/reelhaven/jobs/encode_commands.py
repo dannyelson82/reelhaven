@@ -7,6 +7,7 @@ the command and tells the verifier what to expect.
 from dataclasses import dataclass
 from pathlib import Path
 
+from reelhaven.encode_planner import encode_marker
 from reelhaven.encoders import (
     Codec,
     Device,
@@ -24,7 +25,6 @@ from reelhaven.planner import Plan
 from reelhaven.profiles import ProfileSettings
 from reelhaven.quality import quality_value
 
-ENCODE_MARKER = "encode-1"
 _MP4_FAMILY = {"mp4", "mov"}
 _LOSSLESS_AUDIO = {"truehd", "flac", "alac", "mlp"}
 _OBJECT_AUDIO_HINTS = ("atmos", "dts:x", "dts-x", "joc")
@@ -225,7 +225,7 @@ def encode_command(
             )
             args += [f"-disposition:{out_index}", "+".join(flags) if flags else "0"]
 
-    args += ["-metadata", f"{MARKER_TAG}={ENCODE_MARKER}"]
+    args += ["-metadata", f"{MARKER_TAG}={encode_marker(profile)}"]
     if fmt in _MP4_FAMILY:
         args += ["-movflags", "+faststart+use_metadata_tags"]
     args += ["-f", fmt, ffmpeg_input(output)]

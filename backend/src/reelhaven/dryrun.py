@@ -5,10 +5,11 @@ from dataclasses import dataclass
 
 from sqlalchemy import select
 
-from reelhaven.db import Database, Library, MediaFile, Title
+from reelhaven.db import Database, Library, MediaFile, Profile, Title
 from reelhaven.media.info import MediaInfo
-from reelhaven.planner import Plan, plan
+from reelhaven.planner import Plan, plan_file
 from reelhaven.policy import LanguagePolicy
+from reelhaven.profiles import ProfileSettings
 
 
 @dataclass
@@ -26,6 +27,8 @@ def plan_library(db: Database, library_id: int) -> list[FilePlan]:
         if library is None:
             raise LookupError("library_not_found")
         policy = LanguagePolicy.model_validate(library.language_policy or {})
+        profile_row = session.get(Profile, library.profile_id) if library.profile_id else None
+        profile = ProfileSettings.model_validate(profile_row.settings) if profile_row else None
         rows = session.execute(
             select(MediaFile, Title)
             .outerjoin(Title, Title.id == MediaFile.title_id)
@@ -38,7 +41,7 @@ def plan_library(db: Database, library_id: int) -> list[FilePlan]:
             file_plan = None
             if media_file.status == "ok" and media_file.probe is not None:
                 info = MediaInfo.model_validate(media_file.probe)
-                file_plan = plan(info, original, policy)
+                file_plan = plan_file(info, original, policy, profile)
             result.append(
                 FilePlan(
                     media_file.id, media_file.relative_path, media_file.size, original, file_plan
@@ -50,6 +53,7 @@ def plan_library(db: Database, library_id: int) -> list[FilePlan]:
 @dataclass
 class DryRunSummary:
     files: int
+    encode: int
     remux: int
     unchanged: int
     unreadable: int
@@ -61,7 +65,7 @@ class DryRunSummary:
 
 def summarise(plans: list[FilePlan]) -> DryRunSummary:
     flags: Counter[str] = Counter()
-    remux = unchanged = unreadable = unknown = saved = savings_unknown = 0
+    encode = remux = unchanged = unreadable = unknown = saved = savings_unknown = 0
     for item in plans:
         if item.original_language is None:
             unknown += 1
@@ -69,7 +73,14 @@ def summarise(plans: list[FilePlan]) -> DryRunSummary:
             unreadable += 1
             continue
         flags.update(item.plan.flags)
-        if item.plan.action == "remux":
+        video = item.plan.video
+        if item.plan.action == "encode" and video is not None:
+            encode += 1
+            if video.bytes_after_estimate is None or video.bytes_before is None:
+                savings_unknown += 1
+            else:
+                saved += video.bytes_before - video.bytes_after_estimate
+        elif item.plan.action == "remux":
             remux += 1
             if item.plan.removed_bytes is None:
                 savings_unknown += 1
@@ -79,6 +90,7 @@ def summarise(plans: list[FilePlan]) -> DryRunSummary:
             unchanged += 1
     return DryRunSummary(
         files=len(plans),
+        encode=encode,
         remux=remux,
         unchanged=unchanged,
         unreadable=unreadable,
