@@ -20,6 +20,7 @@ export interface Profile {
   builtin: boolean;
   settings: ProfileSettings;
   source: string;
+  mimic: MimicSaved | null;
   used_by: string[];
   updated_at: string;
 }
@@ -79,11 +80,20 @@ function useProfileMutation<TBody, TResult>(request: (body: TBody) => Promise<TR
 }
 
 export const useSaveProfile = () =>
-  useProfileMutation(({ id, ...body }: { id?: number; name: string; settings: ProfileSettings }) =>
-    api<Profile>(id ? `profiles/${id}` : 'profiles', {
-      method: id ? 'PUT' : 'POST',
-      body: json(body),
-    }),
+  useProfileMutation(
+    ({
+      id,
+      ...body
+    }: {
+      id?: number;
+      name: string;
+      settings: ProfileSettings;
+      mimic?: MimicSaved | null;
+    }) =>
+      api<Profile>(id ? `profiles/${id}` : 'profiles', {
+        method: id ? 'PUT' : 'POST',
+        body: json(body),
+      }),
   );
 
 export const useDeleteProfile = () =>
@@ -100,3 +110,29 @@ export const useSetLibraryProfile = (libraryId: number) =>
   useProfileMutation((profileId: number | null) =>
     api(`libraries/${libraryId}/profile`, { method: 'PUT', body: json({ profile_id: profileId }) }),
   );
+
+// --- mimic (ARCHITECTURE.md §7.2) -----------------------------------------------------------
+
+export type FieldSource = 'read' | 'estimated' | 'default';
+
+export interface MimicSaved {
+  file: string;
+  sources: Record<string, FieldSource>;
+  notes: string[];
+}
+
+export interface MimicReport {
+  settings: ProfileSettings;
+  sources: Record<string, FieldSource>;
+  notes: string[];
+  sample: Record<string, string | number | null>;
+}
+
+export function useMimic(fileId: number | null) {
+  return useQuery({
+    queryKey: ['mimic', fileId],
+    queryFn: () => api<{ file: string; report: MimicReport }>(`files/${fileId}/mimic`),
+    enabled: fileId !== null,
+    staleTime: Infinity,
+  });
+}

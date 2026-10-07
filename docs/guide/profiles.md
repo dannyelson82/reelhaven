@@ -9,6 +9,8 @@ summary: Choose how video is re-encoded, per library.
 A **profile** decides how video is re-encoded. Each library uses one profile,
 or none.
 
+To build a profile from a file you like, see [Mimic a file](mimic.md).
+
 ## Choose a profile for a library
 
 At the top of a library page, pick the profile from the drop-down:

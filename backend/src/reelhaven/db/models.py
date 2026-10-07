@@ -285,6 +285,8 @@ class Profile(Base):
     builtin: Mapped[bool] = mapped_column(Boolean, default=False)
     settings: Mapped[dict[str, Any]] = mapped_column()  # profiles.ProfileSettings
     source: Mapped[str] = mapped_column(String(16), default="manual")  # manual | mimic (0.5)
+    # Mimic: the sample file and what was read or estimated (api.profile_routes.MimicSaved).
+    mimic: Mapped[dict[str, Any] | None] = mapped_column(default=None)
     created_at: Mapped[datetime] = mapped_column(default=utcnow)
     updated_at: Mapped[datetime] = mapped_column(default=utcnow, onupdate=utcnow)
 

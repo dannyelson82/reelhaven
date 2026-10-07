@@ -1,7 +1,9 @@
 """Scanning and browsing the files of a library. Read-only on disk."""
 
+import os
 from dataclasses import asdict
 from datetime import datetime
+from pathlib import Path
 from typing import Any, Literal
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
@@ -16,9 +18,13 @@ from reelhaven.api.deps import (
     csrf_protect,
     require_setup_done,
 )
+from reelhaven.config import Settings
 from reelhaven.db import Library, MediaFile, Profile, Title
 from reelhaven.dryrun import FilePlan, plan_library, summarise
+from reelhaven.media.encoder_info import read_encoder_tag, read_settings_string
 from reelhaven.media.info import MediaInfo, Stream
+from reelhaven.media.probe import ProbeError
+from reelhaven.mimic import MimicReport, analyse
 from reelhaven.planner import Plan, plan_file
 from reelhaven.policy import LanguagePolicy
 from reelhaven.profiles import ProfileSettings
@@ -203,6 +209,42 @@ def get_plan(file_id: int, db: DbDep, _principal: AnyPrincipalDep) -> Plan:
         profile = ProfileSettings.model_validate(profile_row.settings) if profile_row else None
         no_gain = row.no_gain_profile
     return plan_file(info, title.original_language if title else None, policy, profile, no_gain)
+
+
+class MimicOut(BaseModel):
+    file: str  # relative to its library
+    report: MimicReport
+
+
+@router.get("/files/{file_id}/mimic")
+def mimic_file(file_id: int, request: Request, db: DbDep, _principal: AnyPrincipalDep) -> MimicOut:
+    """Read a sample file and suggest a profile that reproduces it (ADR-0022). Read-only."""
+    with db.read() as session:
+        row = session.get(MediaFile, file_id)
+        library = session.get(Library, row.library_id) if row else None
+        if row is None or library is None:
+            raise HTTPException(status.HTTP_404_NOT_FOUND, "file_not_found")
+        if row.probe is None:
+            raise HTTPException(status.HTTP_409_CONFLICT, "file_not_readable")
+        info = MediaInfo.model_validate(row.probe)
+        stored, root, relative = row.path, library.path, row.relative_path
+    # The path comes from the database: check it is still inside the library.
+    real_root = os.path.realpath(root)
+    real = os.path.realpath(stored)
+    if not real.startswith(real_root + os.sep) or not Path(real).is_file():
+        raise HTTPException(status.HTTP_409_CONFLICT, "file_not_readable")
+    settings: Settings = request.app.state.settings
+    codec = info.video.codec if info.video else None
+    text = read_settings_string(settings.ffmpeg, Path(real), codec)
+    try:
+        tag = read_encoder_tag(Path(real), settings.ffprobe)
+    except ProbeError:
+        tag = None
+    try:
+        report = analyse(info, text, tag)
+    except ValueError as exc:
+        raise HTTPException(status.HTTP_409_CONFLICT, "no_video") from exc
+    return MimicOut(file=relative, report=report)
 
 
 class DryRunItem(BaseModel):
