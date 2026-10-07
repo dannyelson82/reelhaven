@@ -1,7 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { api, json } from './client';
 
-export type IntegrationKind = 'sonarr' | 'radarr' | 'tmdb';
+export type IntegrationKind = 'sonarr' | 'radarr' | 'tmdb' | 'plex';
 
 export interface PathMapping {
   remote: string;
@@ -17,6 +17,7 @@ export interface Integration {
   path_mappings: PathMapping[];
   enabled: boolean;
   api_key_hint: string;
+  last_notify?: { at: string; ok: boolean; message: string } | null;
 }
 
 export interface IntegrationForm {
@@ -41,6 +42,7 @@ export const KIND_LABELS: Record<IntegrationKind, string> = {
   sonarr: 'Sonarr',
   radarr: 'Radarr',
   tmdb: 'TMDB',
+  plex: 'Plex',
 };
 
 const KEY = ['integrations'] as const;

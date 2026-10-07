@@ -182,7 +182,7 @@ class MediaFile(Base):
     no_gain_profile: Mapped[str | None] = mapped_column(String(32), default=None)
 
 
-INTEGRATION_KINDS = ("sonarr", "radarr", "tmdb")
+INTEGRATION_KINDS = ("sonarr", "radarr", "tmdb", "plex")
 
 
 class Integration(Base):

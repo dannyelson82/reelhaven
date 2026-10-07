@@ -14,6 +14,10 @@ in (see [Languages](languages.md)). Add them on the **Integrations** page.
 | **Sonarr** | Original language of each series | Sonarr → Settings → General → Security |
 | **Radarr** | Original language of each movie | Radarr → Settings → General → Security |
 | **TMDB** | Fallback for titles Sonarr/Radarr don't manage | Free key: themoviedb.org → Settings → API |
+| **Plex** | Scans the folders ReelHaven changed | Plex Web: open any movie → ⋯ → **Get Info** → **View XML**; the address ends with `X-Plex-Token=…` |
+
+Sonarr and Radarr are also told to rescan the series or movies whose files
+ReelHaven replaced (see *Keeping apps up to date* below).
 
 ## Add Sonarr or Radarr
 
@@ -35,6 +39,25 @@ Then open each library and click **Refresh languages**.
 - API keys are stored encrypted and never shown again after saving. To keep
   the saved key while editing, leave the field empty.
 - Switch an integration **Enabled** off to pause it without deleting it.
+
+## Add Plex
+
+1. Click **Add Plex**.
+2. **Address**: your Plex server, e.g. `http://192.168.1.10:32400`.
+3. **Plex token**: see the table above for where to find it.
+4. **Path mappings**: needed when Plex sees your files at a different path
+   than ReelHaven, e.g. Plex uses `/data/tv` where ReelHaven uses
+   `/media/TV`.
+5. Click **Test connection**, then **Save**.
+
+## Keeping apps up to date
+
+About a minute after ReelHaven replaces files, it tells every enabled Plex,
+Sonarr and Radarr integration: Plex scans just the changed folders, and
+Sonarr/Radarr rescan the affected series or movies so they show the new size
+and codec. A whole season finishing is one update, not twenty. Each
+integration's card shows the last update it was sent; *no series matched* or
+*no folder matched* usually means a path mapping is missing.
 
 ## Webhooks: hear about new files straight away
 

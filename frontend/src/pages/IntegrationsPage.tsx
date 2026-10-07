@@ -35,10 +35,11 @@ import {
 
 const HELP: Record<IntegrationKind, string> = {
   sonarr:
-    'Gives the original language of each series. API key: Sonarr → Settings → General → Security.',
+    'Gives the original language of each series, and rescans series ReelHaven changes. API key: Sonarr → Settings → General → Security.',
   radarr:
-    'Gives the original language of each movie. API key: Radarr → Settings → General → Security.',
+    'Gives the original language of each movie, and rescans movies ReelHaven changes. API key: Radarr → Settings → General → Security.',
   tmdb: "Fallback for files Sonarr/Radarr don't manage. Free key: themoviedb.org → Settings → API.",
+  plex: 'Scans just the folders ReelHaven changes. Token: in Plex Web open any movie → ⋯ → Get Info → View XML; the address ends with X-Plex-Token=….',
 };
 
 export function IntegrationsPage() {
@@ -84,10 +85,17 @@ export function IntegrationsPage() {
               </Group>
               <Code>{integration.base_url}</Code>
               <Text size="xs" c="dimmed">
-                API key {integration.api_key_hint || 'missing (re-enter it)'}
+                {integration.kind === 'plex' ? 'Token' : 'API key'}{' '}
+                {integration.api_key_hint || 'missing (re-enter it)'}
                 {integration.path_mappings.length > 0 &&
                   ` · ${integration.path_mappings.length} path mapping(s)`}
               </Text>
+              {integration.last_notify && (
+                <Text size="xs" c={integration.last_notify.ok ? 'dimmed' : 'red'}>
+                  Last update sent {new Date(integration.last_notify.at).toLocaleString()}:{' '}
+                  {integration.last_notify.message}
+                </Text>
+              )}
             </Stack>
             <Button variant="default" onClick={() => setEditing(integration)}>
               Edit
@@ -172,13 +180,17 @@ function IntegrationModal({
           {!isTmdb && (
             <TextInput
               label="Address"
-              placeholder="http://192.168.1.10:8989"
+              placeholder={
+                kind === 'plex' ? 'http://192.168.1.10:32400' : 'http://192.168.1.10:8989'
+              }
               description="Include the URL base if you set one, e.g. http://host:8989/sonarr"
               {...form.getInputProps('base_url')}
             />
           )}
           <PasswordInput
-            label={isTmdb ? 'API key or read access token' : 'API key'}
+            label={
+              isTmdb ? 'API key or read access token' : kind === 'plex' ? 'Plex token' : 'API key'
+            }
             placeholder={existing ? `Saved (${existing.api_key_hint}); leave empty to keep it` : ''}
             autoComplete="off"
             {...form.getInputProps('api_key')}

@@ -7,17 +7,18 @@ from pydantic import BaseModel, Field, field_validator
 from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
 
-from reelhaven import audit
+from reelhaven import audit, settings_store
 from reelhaven.api.deps import DbDep, InteractiveDep, csrf_protect, require_setup_done
 from reelhaven.api.schemas import StrictModel
 from reelhaven.db import Integration
 from reelhaven.integrations.clients import TMDB_URL, IntegrationError, validate_base_url
 from reelhaven.integrations.service import as_dict, make_client
+from reelhaven.notify import NotifyStatus, status_key
 from reelhaven.secretbox import SecretBox, SecretBoxError
 
 router = APIRouter(dependencies=[Depends(require_setup_done), Depends(csrf_protect)])
 
-Kind = Literal["sonarr", "radarr", "tmdb"]
+Kind = Literal["sonarr", "radarr", "tmdb", "plex"]
 
 
 def get_box(request: Request) -> SecretBox:
@@ -50,6 +51,7 @@ class IntegrationOut(BaseModel):
     path_mappings: list[PathMapping]
     enabled: bool
     api_key_hint: str
+    last_notify: NotifyStatus | None = None  # Plex, Sonarr, Radarr (ADR-0025)
 
 
 class IntegrationCreate(StrictModel):
@@ -107,7 +109,12 @@ def _get(session: object, integration_id: int) -> Integration:
 def list_integrations(db: DbDep, box: BoxDep, _principal: InteractiveDep) -> list[IntegrationOut]:
     with db.read() as session:
         rows = session.scalars(select(Integration).order_by(Integration.kind, Integration.name))
-        return [IntegrationOut(**as_dict(row, box)) for row in rows]
+        out = []
+        for row in rows:
+            raw = settings_store.get(session, status_key(row.id))
+            last = NotifyStatus.model_validate(raw) if raw else None
+            out.append(IntegrationOut(**as_dict(row, box), last_notify=last))
+        return out
 
 
 @router.post("/integrations", status_code=status.HTTP_201_CREATED)

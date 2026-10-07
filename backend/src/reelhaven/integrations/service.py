@@ -5,7 +5,7 @@ from typing import Any
 import httpx
 
 from reelhaven.db import Integration
-from reelhaven.integrations.clients import TMDB_URL, ArrClient, TmdbClient
+from reelhaven.integrations.clients import TMDB_URL, ArrClient, PlexClient, TmdbClient
 from reelhaven.secretbox import SecretBox
 
 
@@ -15,17 +15,19 @@ def make_client(
     api_key: str,
     verify_tls: bool,
     transport: httpx.BaseTransport | None = None,
-) -> ArrClient | TmdbClient:
+) -> ArrClient | TmdbClient | PlexClient:
     if kind in ("sonarr", "radarr"):
         return ArrClient(kind, base_url, api_key, verify_tls=verify_tls, transport=transport)  # type: ignore[arg-type]
     if kind == "tmdb":
         return TmdbClient(api_key, base_url=base_url or TMDB_URL, transport=transport)
+    if kind == "plex":
+        return PlexClient(base_url, api_key, verify_tls=verify_tls, transport=transport)
     raise ValueError(f"unknown integration kind: {kind}")
 
 
 def client_for(
     integration: Integration, box: SecretBox, transport: httpx.BaseTransport | None = None
-) -> ArrClient | TmdbClient:
+) -> ArrClient | TmdbClient | PlexClient:
     return make_client(
         integration.kind,
         integration.base_url,
