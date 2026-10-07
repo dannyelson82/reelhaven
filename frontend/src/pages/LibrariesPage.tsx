@@ -1,5 +1,6 @@
 import {
   Alert,
+  Anchor,
   Badge,
   Button,
   Card,
@@ -44,9 +45,14 @@ export function LibrariesPage() {
     <Stack maw={900}>
       <Group justify="space-between">
         <Title order={2}>Libraries</Title>
-        <Button leftSection={<IconPlus size={16} />} onClick={() => setAdding(true)}>
-          Add library
-        </Button>
+        <Group gap="xs">
+          <Anchor component="button" size="sm" c="dimmed" onClick={() => setAdding(true)}>
+            Add without the wizard
+          </Anchor>
+          <Button leftSection={<IconPlus size={16} />} component={Link} to="/wizard">
+            Add library
+          </Button>
+        </Group>
       </Group>
       {libraries.isPending && <Loader />}
       {libraries.isError && <Alert color="red">{errorMessage(libraries.error)}</Alert>}

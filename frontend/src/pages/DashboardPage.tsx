@@ -1,15 +1,38 @@
-import { Anchor, Card, Group, Progress, Stack, Text, Title } from '@mantine/core';
-import { Link } from 'react-router';
+import { Anchor, Button, Card, Group, Progress, Stack, Text, Title } from '@mantine/core';
+import { IconWand } from '@tabler/icons-react';
+import { Link, Navigate } from 'react-router';
 import { useJobs } from '../api/jobs';
+import { useLibraries } from '../api/libraries';
+import { useOnboarding } from '../api/wizard';
 import { useLiveJobs, withLive } from '../api/live';
 import { PausedBanner } from '../components/PauseControls';
 import { formatTimeLeft } from '../format';
 
 export function DashboardPage() {
+  const libraries = useLibraries();
+  const onboarding = useOnboarding();
+  const empty = libraries.data?.length === 0;
+  // First visit after setup: open the wizard once (ADR-0026).
+  if (empty && onboarding.data && !onboarding.data.wizard_seen)
+    return <Navigate to="/wizard" replace />;
   return (
     <Stack maw={960}>
       <Title order={2}>Dashboard</Title>
       <PausedBanner />
+      {empty && (
+        <Card withBorder padding="lg">
+          <Stack align="flex-start">
+            <Title order={4}>Welcome to ReelHaven</Title>
+            <Text>
+              The setup wizard walks you through making a library smaller, step by step, and then
+              keeps it that way automatically.
+            </Text>
+            <Button component={Link} to="/wizard" leftSection={<IconWand size={16} />}>
+              Set up your first library
+            </Button>
+          </Stack>
+        </Card>
+      )}
       <ActiveJobs />
     </Stack>
   );

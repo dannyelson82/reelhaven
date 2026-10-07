@@ -11,10 +11,14 @@ A **library** is a folder of videos under `/media`, for example
 
 ## Add a library
 
-1. Go to **Libraries** and click **Add library**.
-2. Enter a **Name**, choose the **Type** (*Movies*, *TV shows* or *Other
-   videos*) and pick the **Folder**.
-3. Click **Add library**. Adding a library doesn't change any files.
+1. Go to **Libraries** and click **Add library**. This opens the
+   [setup wizard](setup-wizard.md), which also sets up languages, compression
+   and automatic processing. To only add the library, use **Add without the
+   wizard** instead.
+2. Without the wizard: enter a **Name**, choose the **Type** (*Movies*, *TV
+   shows* or *Other videos*), pick the **Folder** and click **Add library**.
+
+Adding a library doesn't change any files.
 
 **Edit** lets you rename a library or change its type. **Remove library**
 makes ReelHaven forget it; your files stay exactly where they are.

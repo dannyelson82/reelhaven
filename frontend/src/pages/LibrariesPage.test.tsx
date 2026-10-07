@@ -49,7 +49,7 @@ describe('libraries', () => {
       },
     });
     render(<App />);
-    await userEvent.click(await screen.findByRole('button', { name: 'Add library' }));
+    await userEvent.click(await screen.findByRole('button', { name: 'Add without the wizard' }));
     await userEvent.type(await screen.findByLabelText('Name'), 'Films');
     fireEvent.click(await screen.findByText('Film Folder'));
     expect(await screen.findByText('/media/Film Folder')).toBeInTheDocument();
@@ -73,7 +73,7 @@ describe('libraries', () => {
       'GET browse?path=': { body: { path: '', parent: null, truncated: false, dirs: [] } },
     });
     render(<App />);
-    await userEvent.click(await screen.findByRole('button', { name: 'Add library' }));
+    await userEvent.click(await screen.findByRole('button', { name: 'Add without the wizard' }));
     await userEvent.type(await screen.findByLabelText('Name'), 'Films');
     const dialog = screen.getByRole('dialog');
     await userEvent.click(
@@ -94,7 +94,7 @@ describe('libraries', () => {
       'POST libraries': { status: 409, body: { detail: 'path_overlaps_library' } },
     });
     render(<App />);
-    await userEvent.click(await screen.findByRole('button', { name: 'Add library' }));
+    await userEvent.click(await screen.findByRole('button', { name: 'Add without the wizard' }));
     await userEvent.type(await screen.findByLabelText('Name'), 'Shows');
     fireEvent.click(await screen.findByText('TV'));
     const dialog = screen.getByRole('dialog');

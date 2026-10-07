@@ -25,6 +25,7 @@ import {
   IconLanguage,
   IconRefresh,
   IconSearch,
+  IconWand,
 } from '@tabler/icons-react';
 import { useQueryClient } from '@tanstack/react-query';
 import { useEffect, useState } from 'react';
@@ -109,6 +110,14 @@ export function LibraryPage() {
           </Button>
           <RefreshLanguagesButton libraryId={libraryId} scanning={scanning} />
           <ScanButton libraryId={libraryId} scanning={scanning} />
+          <Button
+            component={Link}
+            to={`/wizard?library=${libraryId}`}
+            variant="light"
+            leftSection={<IconWand size={16} />}
+          >
+            Set up automatic compression
+          </Button>
         </Group>
       </Group>
 

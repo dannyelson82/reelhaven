@@ -87,3 +87,14 @@ export function profileName(base: string, choice: AudioChoice, taken: string[]):
     if (!taken.includes(`${name} (${n})`)) return `${name} (${n})`;
   }
 }
+
+/** Whether any enabled device passed the test encode for this format. */
+export function canEncode(
+  devices: { enabled: boolean; results: { codec: string; ten_bit: boolean; ok: boolean }[] }[],
+  codec: string,
+  tenBit: boolean,
+): boolean {
+  return devices.some(
+    (d) => d.enabled && d.results.some((r) => r.ok && r.codec === codec && r.ten_bit === tenBit),
+  );
+}

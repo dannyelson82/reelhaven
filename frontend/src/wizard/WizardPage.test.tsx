@@ -56,13 +56,64 @@ const PROFILES = [
   updated_at: '',
 }));
 
+const sample = (id: number, file: string) => ({
+  id,
+  file,
+  media_file_id: id,
+  status: 'done',
+  error: null,
+  progress: 1,
+  job_id: id + 100,
+  job_status: 'done',
+  fps: 90,
+  result: {
+    bytes_before: 20e9,
+    bytes_after: 6e9,
+    savings_percent: 70,
+    min_savings_percent: 10,
+    xpsnr: 38,
+    ssim: 0.98,
+    rating: 'Very good',
+    frame_times: [600],
+    codec: 'hevc',
+    height_before: 1080,
+    height_after: 1080,
+    bit_depth: 10,
+    hdr: 'sdr',
+    device: 'nvidia:0',
+    fps: 90,
+    seconds: 300,
+  },
+});
+const DONE_RUN = {
+  id: 3,
+  status: 'done',
+  profile: {},
+  profile_is_current: true,
+  samples: [sample(5, 'Show/S01E01.mkv'), sample(6, 'Show/S01E02.mkv')],
+  created_at: '',
+  finished_at: '',
+  approved_by: null,
+  approved_at: null,
+};
+const DRY = {
+  unchanged: 0,
+  unreadable: 0,
+  flags: {},
+  unknown_original: 0,
+  savings_unknown: 0,
+  total: 0,
+  items: [],
+};
+
 afterEach(() => {
   vi.unstubAllGlobals();
   vi.restoreAllMocks();
   window.location.hash = '';
 });
 
-it('walks a new library through folder, scan and languages', async () => {
+it('walks a new library from folder to automatic', async () => {
+  let testRun: unknown = null;
   vi.spyOn(navigator, 'languages', 'get').mockReturnValue(['de-DE', 'en']);
   window.location.hash = '#/wizard';
   const calls = mockApi({
@@ -89,6 +140,25 @@ it('walks a new library through folder, scan and languages', async () => {
     },
     'GET libraries/4/policy': { body: policy },
     'PUT libraries/4/policy': (init) => ({ body: JSON.parse(String(init?.body)) }),
+    'GET libraries/4/test-run': () => ({ body: { samples: 1, run: testRun } }),
+    'POST libraries/4/test-run': () => {
+      testRun = DONE_RUN;
+      return { status: 201, body: DONE_RUN };
+    },
+    'POST test-runs/3/approve': () => {
+      testRun = { ...DONE_RUN, status: 'approved' };
+      return { body: testRun };
+    },
+    'GET devices': {
+      body: { devices: [], settings: {}, detected_at: null, detecting: false },
+    },
+    'GET libraries/4/profile': { body: { profile_id: 9 } },
+    'GET libraries/4/dry-run?show=changes&offset=0&limit=100': {
+      body: { ...DRY, files: 12, encode: 10, remux: 2, saved_bytes: 50e9 },
+    },
+    'PATCH libraries/4': { body: { ...library, watch_mode: 'automatic' } },
+    'GET onboarding': { body: { wizard_seen: false, server_steps_done: false } },
+    'PUT onboarding': (init) => ({ body: JSON.parse(String(init?.body)) }),
     'GET profiles': { body: PROFILES },
     'POST libraries/4/estimate': (init) => {
       const { profiles } = JSON.parse(String(init?.body)) as {
@@ -158,7 +228,8 @@ it('walks a new library through folder, scan and languages', async () => {
   expect(screen.getByText('About 11.0 GB more')).toBeInTheDocument(); // stereo
   await userEvent.click(screen.getByRole('button', { name: /Shrink big audio tracks/ }));
   await userEvent.click(screen.getByRole('button', { name: 'Next' }));
-  expect(await screen.findByText(/a test run and going automatic/)).toBeInTheDocument();
+  // Try it: a 2-file test run starts by itself; approving moves on.
+  expect(await screen.findByText(/tries your choice on 2 of your files/)).toBeInTheDocument();
   const newProfile = calls.find((c) => c.key === 'POST profiles');
   expect(JSON.parse(String(newProfile?.init?.body))).toMatchObject({
     name: 'Small, smaller audio',
@@ -166,6 +237,25 @@ it('walks a new library through folder, scan and languages', async () => {
   });
   const assigned = calls.find((c) => c.key === 'PUT libraries/4/profile');
   expect(JSON.parse(String(assigned?.init?.body))).toEqual({ profile_id: 9 });
+
+  const startRun = calls.find((c) => c.key === 'POST libraries/4/test-run');
+  expect(JSON.parse(String(startRun?.init?.body))).toEqual({ samples: 2 });
+  expect(await screen.findAllByText('20.0 GB → 6.0 GB (70% smaller)')).toHaveLength(2);
+  expect(screen.getAllByRole('img', { name: 'Original' })).toHaveLength(2);
+  await userEvent.click(screen.getByRole('button', { name: 'Looks good' }));
+  expect(calls.some((c) => c.key === 'POST test-runs/3/approve')).toBe(true);
+
+  // Go automatic.
+  expect(await screen.findByText('12 files need work, saving about 50.0 GB.')).toBeInTheDocument();
+  await userEvent.click(screen.getByRole('button', { name: 'Start' }));
+  const patch = calls.find((c) => c.key === 'PATCH libraries/4');
+  expect(JSON.parse(String(patch?.init?.body))).toEqual({ watch_mode: 'automatic' });
+  expect(await screen.findByText('TV Shows is set up.')).toBeInTheDocument();
+  expect(screen.getByRole('link', { name: 'See the progress' })).toHaveAttribute('href', '#/jobs');
+  expect(JSON.parse(String(calls.find((c) => c.key === 'PUT onboarding')?.init?.body))).toEqual({
+    wizard_seen: true,
+    server_steps_done: false,
+  });
 });
 
 it('skips the audio step when video is not re-encoded', async () => {
@@ -178,6 +268,10 @@ it('skips the audio step when video is not re-encoded', async () => {
       body: { library_bytes: 1e9, results: {} },
     },
     'PUT libraries/4/profile': { body: { profile_id: null } },
+    'GET libraries/4/dry-run?show=changes&offset=0&limit=100': {
+      body: { ...DRY, files: 3, encode: 0, remux: 2, saved_bytes: 1e9 },
+    },
+    'GET onboarding': { body: { wizard_seen: true, server_steps_done: true } },
   });
   render(<App />);
   await userEvent.click(await screen.findByRole('button', { name: 'More options' }));
@@ -186,8 +280,10 @@ it('skips the audio step when video is not re-encoded', async () => {
     await screen.findByRole('option', { name: /Don't re-encode video/, hidden: true }),
   );
   await userEvent.click(screen.getByRole('button', { name: 'Next' }));
-  expect(await screen.findByText(/a test run and going automatic/)).toBeInTheDocument();
+  expect(await screen.findByText(/Last step/)).toBeInTheDocument(); // no audio, no test run
+  expect(await screen.findByText('2 files need work, saving about 1.0 GB.')).toBeInTheDocument();
   const assigned = calls.find((c) => c.key === 'PUT libraries/4/profile');
   expect(JSON.parse(String(assigned?.init?.body))).toEqual({ profile_id: null });
+  expect(screen.queryByText('Try it')).not.toBeInTheDocument();
   expect(screen.queryByText('Audio')).not.toBeInTheDocument(); // not in the stepper
 });
