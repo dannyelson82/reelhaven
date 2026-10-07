@@ -239,5 +239,63 @@ it('applies a dry run with the confirmed number of files', async () => {
   );
   expect(await screen.findByText(/2 files queued/)).toBeInTheDocument();
   const post = calls.find((c) => c.key === 'POST libraries/1/apply');
-  expect(JSON.parse(String(post?.init?.body))).toEqual({ expected_count: 2 });
+  expect(JSON.parse(String(post?.init?.body))).toEqual({
+    expected_count: 2,
+    only_track_changes: false,
+  });
+});
+
+it('applies only track changes until a test run is approved', async () => {
+  window.location.hash = '#/libraries/1';
+  const item = {
+    size: 1,
+    original_language: 'eng',
+    flags: [],
+    summary: 's',
+    removed_bytes: 5e8,
+    savings_percent: 40,
+  };
+  const report = {
+    files: 2,
+    encode: 1,
+    remux: 1,
+    unchanged: 0,
+    unreadable: 0,
+    flags: {},
+    unknown_original: 0,
+    saved_bytes: 1e9,
+    savings_unknown: 0,
+    total: 2,
+    items: [
+      { ...item, file_id: 1, relative_path: 'A/a.mkv', action: 'encode', details: ['HEVC'] },
+      { ...item, file_id: 2, relative_path: 'B/b.mkv', action: 'remux', details: ['Tracks'] },
+    ],
+  };
+  const calls = mockApi({
+    'GET auth/state': loggedIn,
+    'GET libraries': { body: [library] },
+    'GET libraries/1/scan': { body: null },
+    'GET libraries/1/files?q=&problems=false&offset=0&limit=50': { body: { total: 0, items: [] } },
+    'GET libraries/1/test-run': { body: { samples: 1, run: null } },
+    'GET libraries/1/dry-run?show=changes&offset=0&limit=100': { body: report },
+    'POST libraries/1/apply': { body: { queued: 1 } },
+  });
+  render(<App />);
+  await userEvent.click(await screen.findByRole('tab', { name: 'Dry run' }));
+  await userEvent.click(await screen.findByRole('button', { name: 'Run dry run' }));
+  expect(await screen.findByText(/Until then you can apply the track changes/)).toBeInTheDocument();
+  await userEvent.click(screen.getByRole('button', { name: 'Apply track changes to 1 file' }));
+  const dialog = await screen.findByRole('dialog');
+  expect(dialog).toHaveTextContent(/wait for an approved test run/);
+  await userEvent.click(
+    Array.from(dialog.querySelectorAll('button')).find(
+      (b) => b.textContent === 'Apply track changes to 1 file',
+    )!,
+  );
+  expect(await screen.findByText(/1 file queued/)).toBeInTheDocument();
+  const post = calls.find((c) => c.key === 'POST libraries/1/apply');
+  expect(JSON.parse(String(post?.init?.body))).toEqual({
+    expected_count: 1,
+    only_track_changes: true,
+  });
 });

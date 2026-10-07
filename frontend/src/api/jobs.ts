@@ -81,11 +81,20 @@ export const useApplyFile = () =>
   useJobMutation((fileId: number) => api<Job>(`files/${fileId}/apply`, { method: 'POST' }));
 
 export const useApplyLibrary = () =>
-  useJobMutation(({ libraryId, expected }: { libraryId: number; expected: number }) =>
-    api<{ queued: number }>(`libraries/${libraryId}/apply`, {
-      method: 'POST',
-      body: json({ expected_count: expected }),
-    }),
+  useJobMutation(
+    ({
+      libraryId,
+      expected,
+      onlyTrackChanges = false,
+    }: {
+      libraryId: number;
+      expected: number;
+      onlyTrackChanges?: boolean;
+    }) =>
+      api<{ queued: number }>(`libraries/${libraryId}/apply`, {
+        method: 'POST',
+        body: json({ expected_count: expected, only_track_changes: onlyTrackChanges }),
+      }),
   );
 
 export const useCancelJob = () =>
