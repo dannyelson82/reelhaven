@@ -2,6 +2,7 @@
 before it may replace the original."""
 
 import subprocess
+from dataclasses import dataclass
 from pathlib import Path
 
 from reelhaven.media.info import MediaInfo
@@ -14,6 +15,14 @@ class VerificationError(Exception):
     pass
 
 
+@dataclass(frozen=True)
+class ExpectedVideo:
+    """For encodes: what the new video stream must be. Remuxes pass None (unchanged)."""
+
+    codec: str
+    height: int  # the planned output height (source height when not scaled)
+
+
 def verify_output(
     output: Path,
     source_info: MediaInfo,
@@ -21,6 +30,7 @@ def verify_output(
     ffmpeg: str,
     ffprobe: str,
     timeout_s: float = 300,
+    expected_video: ExpectedVideo | None = None,
 ) -> MediaInfo:
     """Raise VerificationError unless ``output`` is a sound replacement."""
     try:
@@ -47,12 +57,18 @@ def verify_output(
     if (src_video is None) != (out_video is None):
         raise VerificationError("the video stream is missing")
     if src_video is not None and out_video is not None:
-        if (src_video.codec, src_video.width, src_video.height) != (
-            out_video.codec,
-            out_video.width,
-            out_video.height,
-        ):
-            raise VerificationError("the video stream changed")
+        if expected_video is None:
+            if (src_video.codec, src_video.width, src_video.height) != (
+                out_video.codec,
+                out_video.width,
+                out_video.height,
+            ):
+                raise VerificationError("the video stream changed")
+        elif (out_video.codec, out_video.height) != (expected_video.codec, expected_video.height):
+            raise VerificationError(
+                f"expected {expected_video.codec} {expected_video.height}p video, "
+                f"found {out_video.codec} {out_video.height}p"
+            )
         if src_video.hdr != out_video.hdr:
             raise VerificationError(f"HDR metadata changed ({src_video.hdr} -> {out_video.hdr})")
 
