@@ -1,5 +1,5 @@
 import type { Profile, ProfileSettings } from '../api/profiles';
-import { findProfile, profileName, withAudio } from './choices';
+import { canEncode, findProfile, profileName, withAudio } from './choices';
 
 const balanced: ProfileSettings = {
   codec: 'hevc',
@@ -60,4 +60,14 @@ it('names new profiles readably and uniquely', () => {
     'Balanced, stereo audio (2)',
   );
   expect(profileName('Small', 'keep', ['Small'])).toBe('Small (2)');
+});
+
+it('knows whether anything can encode', () => {
+  const gpu = { enabled: true, results: [{ codec: 'hevc', ten_bit: true, ok: true }] };
+  const off = { ...gpu, enabled: false };
+  const cpu = { enabled: false, results: [{ codec: 'av1', ten_bit: true, ok: true }] };
+  expect(canEncode([gpu], 'hevc', true)).toBe(true);
+  expect(canEncode([off, cpu], 'hevc', true)).toBe(false);
+  expect(canEncode([gpu], 'hevc', false)).toBe(false);
+  expect(canEncode([gpu, { ...cpu, enabled: true }], 'av1', true)).toBe(true);
 });

@@ -32,7 +32,16 @@ To let ReelHaven use your graphics card(s), see [Hardware](hardware.md).
    short sentence works well.
 3. Do this before exposing ReelHaven to the internet.
 
-## The safe way to start
+## The easy way: the setup wizard
+
+After you create your account, the [setup wizard](setup-wizard.md) opens and
+walks you through your first library: folder, languages, size and quality,
+audio, a short test, and switching on automatic processing. Use **Add
+library** for the next ones.
+
+## The same steps by hand
+
+If you prefer to do it yourself, or want to understand what the wizard does:
 
 1. **Add a library** on the [Libraries](libraries.md) page (for example your
    Movies folder) and click **Scan library**.

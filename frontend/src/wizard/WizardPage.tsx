@@ -1,7 +1,10 @@
 // The setup wizard (ADR-0026): from a folder to automatic compression, one step at a time.
-import { Card, Stack, Stepper, Text, Title } from '@mantine/core';
+import { Card, Stack, Stepper, Title } from '@mantine/core';
+import { useEffect } from 'react';
 import { useSearchParams } from 'react-router';
+import { useOnboarding, useSaveOnboarding } from '../api/wizard';
 import { FolderStep, LanguagesStep, ScanStep, type StepProps } from './LibrarySteps';
+import { AutomaticStep, DoneStep, TryStep } from './FinishSteps';
 import { AudioStep, QualityStep } from './QualitySteps';
 
 interface Step {
@@ -9,12 +12,6 @@ interface Step {
   label: string;
   component: (props: StepProps) => React.ReactNode;
 }
-
-const COMING_NEXT: Step = {
-  key: 'next',
-  label: 'Try it',
-  component: () => <Text>The next steps (a test run and going automatic) come next.</Text>,
-};
 
 /** The steps for this run: a new library starts at the folder. */
 function wizardSteps(newLibrary: boolean, reencode: boolean): Step[] {
@@ -25,12 +22,24 @@ function wizardSteps(newLibrary: boolean, reencode: boolean): Step[] {
     { key: 'quality', label: 'Size and quality', component: QualityStep },
     // Audio conversion needs a profile: skipped when the video isn't re-encoded.
     ...(reencode ? [{ key: 'audio', label: 'Audio', component: AudioStep }] : []),
-    COMING_NEXT,
+    // Nothing to try when the video isn't re-encoded.
+    ...(reencode ? [{ key: 'try', label: 'Try it', component: TryStep }] : []),
+    { key: 'automatic', label: 'Go automatic', component: AutomaticStep },
+    { key: 'done', label: 'Done', component: DoneStep },
   ];
 }
 
 export function WizardPage() {
   const [params, setParams] = useSearchParams();
+  const onboarding = useOnboarding();
+  const saveOnboarding = useSaveOnboarding();
+  const seen = onboarding.data?.wizard_seen;
+  useEffect(() => {
+    // The Dashboard opens the wizard by itself only until it has been shown once.
+    if (onboarding.data && !seen && !saveOnboarding.isPending) {
+      saveOnboarding.mutate({ ...onboarding.data, wizard_seen: true });
+    }
+  }, [onboarding.data, seen, saveOnboarding]);
   const library = params.get('library');
   const libraryId = library ? Number(library) : null;
   // A library that existed before the wizard opened skips the folder step.
