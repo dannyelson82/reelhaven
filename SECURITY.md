@@ -79,8 +79,8 @@ Out of scope: an attacker who already has root on the Unraid host.
   rejected if it falls outside an allowed root. **Symlinks are resolved
   before the check**, so a link can't point the app at other host folders.
 - File browser endpoints apply the same rule.
-- Uploaded mimic samples: max 64 MiB, written to a temp folder with a
-  random name, deleted after probing, never served back.
+- Mimic samples are chosen from library files only; there is no upload
+  endpoint (ADR-0022).
 
 ## Process execution
 

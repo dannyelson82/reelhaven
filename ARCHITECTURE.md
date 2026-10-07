@@ -259,19 +259,15 @@ dashboard with totals, trends over time and per-GPU performance.
 - **HDR**: preserve HDR10/HLG metadata when the encoder supports it;
   otherwise skip the file. **Dolby Vision files are skipped by default**
   (re-encoding breaks DV); optional tone-map to SDR is a later feature.
-- **Audio**: per track, *copy* (default) or *transcode* to E-AC-3, AAC or Opus
+- **Audio**: *copy* (default) or *transcode* to E-AC-3, AAC or Opus (ADR-0023)
   at channel-aware bitrates. Object audio (TrueHD Atmos, E-AC-3 JOC) is
   always copied. Optional "add a stereo AAC compatibility track."
 - **Container**: MKV (default) or MP4.
 - **Skip rules**: see 7.4.
 
 ### 7.2 Mimic
-1. User picks a sample file: drag-and-drop in the browser **or** choose one
-   from a mapped library via the file browser.
-   - Drag-and-drop uploads only the **first 64 MiB** (sliced client-side), which
-     contains the stream headers and encoder settings for MKV and
-     faststart MP4. If probing that chunk fails (e.g. MP4 with its index at
-     the end), the UI asks the user to pick the file from the library instead.
+1. User picks a sample file from a library via the file browser (ADR-0022;
+   no upload).
 2. ffprobe reads codecs, profile, level, resolution, bit depth, HDR, audio
    codecs, channels and bitrates.
 3. **Encoder settings extraction**: x264/x265 embed their full settings
@@ -425,7 +421,7 @@ endpoint (unauthenticated, no details) for Docker health checks.
 | 0.1 Foundation | Project skeleton (backend + frontend), config, logging, SQLite + Alembic, audit log table (ADR-0010), auth (login, sessions, local-address bypass, API key), setup wizard step 1, Dockerfile, CI (lint, test, image build). |
 | 0.2 + 0.3 Library and languages (ADR-0015) | Libraries, scanner, probe, file browser, library view with stream details; language resolver (TMDB, Sonarr, Radarr), language policy, planner for track changes, dry run, `remux` jobs, verifier, replacer, recycle bin. *First release that changes files*, on manual request only (per file, or per library after confirmation). Automatic processing waits for test runs (0.4). |
 | 0.4 Encoding | Device detection, worker pools, profiles, command builders, skip rules, test run (quality-checked, gates bulk encoding, ADR-0020), queue UI with live progress. |
-| 0.5 Mimic | Sample upload/selection, settings extraction, estimation, profile editor. |
+| 0.5 Mimic | Sample selection from libraries (ADR-0022), settings extraction, estimation, audio re-encoding and audio-only jobs (ADR-0023), profile editor. |
 | 0.6 Automation | Webhooks, folder watcher, scheduled rescans, processing window, notifiers (Plex, Jellyfin, Sonarr, Radarr). |
 | 0.7 Insight and safety | Stats dashboard, review page, wrong-language quarantine + re-search, optional TOTP 2FA, audit log page. |
 | 1.0 | Hardening, docs, release checklist, CA submission. |
