@@ -6,6 +6,7 @@ import { useLibraries } from '../api/libraries';
 import { useOnboarding } from '../api/wizard';
 import { useLiveJobs, withLive } from '../api/live';
 import { PausedBanner } from '../components/PauseControls';
+import { SavingsCard } from '../components/SavingsCard';
 import { formatTimeLeft } from '../format';
 
 export function DashboardPage() {
@@ -34,6 +35,7 @@ export function DashboardPage() {
         </Card>
       )}
       <ActiveJobs />
+      <SavingsCard />
     </Stack>
   );
 }
