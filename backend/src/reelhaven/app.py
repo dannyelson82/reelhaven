@@ -22,6 +22,7 @@ from reelhaven.api import (
     security_routes,
     test_run_routes,
     title_routes,
+    webhook_routes,
 )
 from reelhaven.auth.network import IPAddress, read_default_gateways
 from reelhaven.auth.throttle import LoginThrottle
@@ -129,6 +130,7 @@ def create_app(
     app.include_router(test_run_routes.router, prefix="/api/v1")
     app.include_router(live_routes.router, prefix="/api/v1")
     app.include_router(automation_routes.router, prefix="/api/v1")
+    app.include_router(webhook_routes.router, prefix="/api/v1")
 
     @app.get("/healthz", include_in_schema=False)
     def healthz() -> dict[str, str]:

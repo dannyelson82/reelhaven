@@ -159,7 +159,7 @@ class FolderWatcher:
                 continue
             try:
                 handle = self._observer.schedule(
-                    _Handler(partial(self._changed, library_id)), path, recursive=True
+                    _Handler(partial(self.changed, library_id)), path, recursive=True
                 )
             except OSError as exc:  # e.g. too many folders for inotify: polling still works
                 logger.warning(
@@ -170,6 +170,7 @@ class FolderWatcher:
             self._watches[library_id] = (path, handle)
         return list(wanted)
 
-    def _changed(self, library_id: int) -> None:
+    def changed(self, library_id: int) -> None:
+        """Files in this library changed (inotify, or a Sonarr/Radarr webhook)."""
         with self._lock:
             self._state.changed(library_id, self._clock())

@@ -20,6 +20,7 @@ import { notifications } from '@mantine/notifications';
 import { IconCheck, IconPlus, IconTrash, IconX } from '@tabler/icons-react';
 import { useState } from 'react';
 import { errorMessage } from '../api/client';
+import { WebhooksCard } from '../components/WebhooksCard';
 import {
   type Integration,
   type IntegrationForm,
@@ -94,6 +95,7 @@ export function IntegrationsPage() {
           </Group>
         </Card>
       ))}
+      <WebhooksCard />
       {editing !== null && (
         <IntegrationModal
           existing={typeof editing === 'string' ? null : editing}

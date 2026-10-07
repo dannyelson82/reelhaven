@@ -43,7 +43,7 @@ reverse proxy.
 
 ## API key
 
-For scripts (and, in a later version, Sonarr/Radarr webhooks). It can't change
+For Sonarr/Radarr [webhooks](integrations.md) and scripts. It can't change
 security settings.
 
 - **Create API key** shows the key **once**. Copy it then; it isn't shown
