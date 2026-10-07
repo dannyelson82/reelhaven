@@ -4,6 +4,7 @@ import {
   IconChevronDown,
   IconCpu2,
   IconListCheck,
+  IconMovie,
   IconRecycle,
   IconFolders,
   IconGauge,
@@ -17,6 +18,7 @@ import { type AuthState, useLogout, useLogoutEverywhere } from '../api/auth';
 const NAV = [
   { to: '/', label: 'Dashboard', icon: IconGauge },
   { to: '/libraries', label: 'Libraries', icon: IconFolders },
+  { to: '/profiles', label: 'Profiles', icon: IconMovie },
   { to: '/jobs', label: 'Jobs', icon: IconListCheck },
   { to: '/recycle', label: 'Recycle bin', icon: IconRecycle },
   { to: '/settings/hardware', label: 'Hardware', icon: IconCpu2 },

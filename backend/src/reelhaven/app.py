@@ -16,6 +16,7 @@ from reelhaven.api import (
     integration_routes,
     job_routes,
     library_routes,
+    profile_routes,
     security_routes,
     title_routes,
 )
@@ -28,6 +29,7 @@ from reelhaven.headers import SecurityHeadersMiddleware
 from reelhaven.jobs.queue import JobQueue
 from reelhaven.jobs.service import purge_expired
 from reelhaven.middleware import RequestLogMiddleware
+from reelhaven.profiles import ensure_builtin_profiles
 from reelhaven.resolver import LanguageResolver
 from reelhaven.scanner import Scanner
 from reelhaven.secretbox import SecretBox
@@ -50,6 +52,7 @@ def create_app(
     @asynccontextmanager
     async def lifespan(app: FastAPI) -> AsyncIterator[None]:
         db.migrate()
+        ensure_builtin_profiles(db)
         if detect_devices:
             app.state.devices.detect_in_background()
         app.state.queue.start()
@@ -101,6 +104,7 @@ def create_app(
     app.include_router(title_routes.router, prefix="/api/v1")
     app.include_router(job_routes.router, prefix="/api/v1")
     app.include_router(device_routes.router, prefix="/api/v1")
+    app.include_router(profile_routes.router, prefix="/api/v1")
 
     @app.get("/healthz", include_in_schema=False)
     def healthz() -> dict[str, str]:

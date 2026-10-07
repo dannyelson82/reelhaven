@@ -8,6 +8,7 @@ import { IntegrationsPage } from '../pages/IntegrationsPage';
 import { JobsPage } from '../pages/JobsPage';
 import { LibrariesPage } from '../pages/LibrariesPage';
 import { LibraryPage } from '../pages/LibraryPage';
+import { ProfilesPage } from '../pages/ProfilesPage';
 import { RecyclePage } from '../pages/RecyclePage';
 import { LoginPage } from '../pages/LoginPage';
 import { SecurityPage } from '../pages/SecurityPage';
@@ -43,6 +44,7 @@ export function AuthGate() {
         <Route index element={<DashboardPage />} />
         <Route path="libraries" element={<LibrariesPage />} />
         <Route path="libraries/:id" element={<LibraryPage />} />
+        <Route path="profiles" element={<ProfilesPage />} />
         <Route path="jobs" element={<JobsPage />} />
         <Route path="recycle" element={<RecyclePage />} />
         <Route path="settings/hardware" element={<HardwarePage />} />
