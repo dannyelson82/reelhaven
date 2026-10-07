@@ -373,7 +373,7 @@ def test_titles_api_and_override(app: FastAPI) -> None:
     assert cleared == {"original_language": None, "language_source": "unknown"}
 
     languages = admin.get(f"{API}/languages").json()
-    assert {"code": "fra", "name": "French"} in languages
+    assert {"code": "fra", "name": "French", "alpha2": "fr"} in languages
     assert all(len(lang["code"]) == 3 for lang in languages)
 
     assert admin.post(f"{API}/libraries/{lib}/languages/refresh").json() == {"started": True}
