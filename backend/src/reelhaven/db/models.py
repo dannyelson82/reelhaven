@@ -223,6 +223,9 @@ class Job(Base):
     plan: Mapped[dict[str, Any]] = mapped_column()
     probe: Mapped[dict[str, Any]] = mapped_column()
     progress: Mapped[float] = mapped_column(default=0.0)
+    test_run_id: Mapped[int | None] = mapped_column(
+        ForeignKey("test_runs.id", ondelete="CASCADE"), default=None
+    )
     # Encode jobs: the profile snapshot, the device that runs it and live speed.
     profile: Mapped[dict[str, Any] | None] = mapped_column(default=None)
     device: Mapped[str | None] = mapped_column(String(128), default=None)
@@ -282,3 +285,35 @@ class Profile(Base):
     source: Mapped[str] = mapped_column(String(16), default="manual")  # manual | mimic (0.5)
     created_at: Mapped[datetime] = mapped_column(default=utcnow)
     updated_at: Mapped[datetime] = mapped_column(default=utcnow, onupdate=utcnow)
+
+
+TEST_RUN_STATUSES = ("running", "done", "failed", "approved")
+
+
+class TestRun(Base):
+    """A one-file trial encode that gates bulk encoding (ADR-0020)."""
+
+    __tablename__ = "test_runs"
+    __test__ = False  # not a pytest test class
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    library_id: Mapped[int] = mapped_column(
+        ForeignKey("libraries.id", ondelete="CASCADE"), index=True
+    )
+    media_file_id: Mapped[int | None] = mapped_column(
+        ForeignKey("media_files.id", ondelete="SET NULL"), default=None
+    )
+    profile: Mapped[dict[str, Any]] = mapped_column()
+    profile_fingerprint: Mapped[str] = mapped_column(String(32))
+    status: Mapped[str] = mapped_column(
+        Enum(*TEST_RUN_STATUSES, name="test_run_status", native_enum=False, create_constraint=True),
+        default="running",
+    )
+    # Sizes, quality measures and frame times, filled in when the encode finishes.
+    result: Mapped[dict[str, Any] | None] = mapped_column(default=None)
+    error: Mapped[str | None] = mapped_column(Text, default=None)
+    requested_by: Mapped[str] = mapped_column(String(128))
+    created_at: Mapped[datetime] = mapped_column(default=utcnow)
+    finished_at: Mapped[datetime | None] = mapped_column(default=None)
+    approved_by: Mapped[str | None] = mapped_column(String(128), default=None)
+    approved_at: Mapped[datetime | None] = mapped_column(default=None)
