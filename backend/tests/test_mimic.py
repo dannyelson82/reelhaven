@@ -95,6 +95,7 @@ def test_x265_sample_is_read() -> None:
     assert (s.codec, s.quality, s.ten_bit, s.max_height) == ("hevc", 8, True, None)
     assert report.sources["quality"] == "read" and report.sources["codec"] == "read"
     assert (s.audio, s.audio_codec, s.audio_kbps_per_channel) == ("convert", "eac3", 107)
+    assert not s.downmix_stereo and "downmix_stereo" not in report.sources  # 5.1 sample
     assert report.sources["audio"] == "read"
     assert "Quality read from its settings: CRF 20." in report.notes
     assert report.sample["encoder"] == "x265"
@@ -156,6 +157,8 @@ def test_aac_stereo_and_ac3() -> None:
     report = analyse(sample(audio=aac), X265)
     s = report.settings
     assert (s.audio, s.audio_codec, s.audio_kbps_per_channel) == ("convert", "aac", 80)
+    assert s.downmix_stereo and report.sources["downmix_stereo"] == "estimated"
+    assert any("downmixed to stereo" in n for n in report.notes)
     ac3 = Stream(index=1, kind="audio", codec="ac3", channels=6, bit_rate=448_000)
     assert analyse(sample(audio=ac3), X265).settings.audio_codec == "eac3"
 

@@ -303,3 +303,45 @@ def test_audio_only_job_copies_the_video(app: FastAPI, settings: Settings) -> No
     assert path.stat().st_size < size_before
     again = admin.get(f"{API}/files/{file_id(admin, lib)}/plan").json()
     assert again["action"] == "skip", again
+
+
+def test_encode_downmixes_to_stereo(app: FastAPI, settings: Settings) -> None:
+    """ADR-0024: surround becomes stereo; no extra stereo track is added on top."""
+    profile = {
+        **FAST,
+        "audio": "convert",
+        "audio_codec": "aac",
+        "downmix_stereo": True,
+        "add_stereo_aac": True,
+    }
+    admin, lib, path = setup(app, settings, profile)
+    path.unlink()
+    surround = Audio("eng", default=True, channels=6, codec="flac")
+    os.utime(make(path, Spec(audio=[surround], size="1280x720", seconds=3,
+                             video_bitrate="12M")), (OLD, OLD))  # fmt: skip
+    admin.post(f"{API}/libraries/{lib}/scan")
+    app.state.scanner.wait(lib, timeout=60)
+    assert admin.post(f"{API}/files/{file_id(admin, lib)}/apply").status_code == 201
+    assert app.state.queue.wait_idle(180)
+    assert last_job(admin)["status"] == "done", last_job(admin)
+    (audio,) = probe(path).of_kind("audio")
+    assert (audio.codec, audio.channels, audio.default) == ("aac", 2, True)
+
+
+def test_audio_only_downmix_includes_atmos(app: FastAPI, settings: Settings) -> None:
+    profile = {**FAST, "audio": "convert", "audio_codec": "opus", "downmix_stereo": True}
+    admin, lib, path = setup(app, settings, profile)
+    path.unlink()
+    atmos = Audio("eng", default=True, channels=6, codec="pcm_s16le", title="English Atmos")
+    os.utime(make(path, Spec(codec="libx265", audio=[atmos], seconds=3)), (OLD, OLD))
+    admin.post(f"{API}/libraries/{lib}/scan")
+    app.state.scanner.wait(lib, timeout=60)
+    plan = admin.get(f"{API}/files/{file_id(admin, lib)}/plan").json()
+    assert plan["action"] == "remux", plan
+    assert admin.post(f"{API}/files/{file_id(admin, lib)}/apply").status_code == 201
+    assert app.state.queue.wait_idle(120)
+    assert last_job(admin)["status"] == "done", last_job(admin)
+    (audio,) = probe(path).of_kind("audio")
+    assert (audio.codec, audio.channels, audio.title) == ("opus", 2, "English Atmos")
+    again = admin.get(f"{API}/files/{file_id(admin, lib)}/plan").json()
+    assert again["action"] == "skip", again

@@ -309,7 +309,11 @@ function ProfileModal({
               </div>
               <NumberInput
                 label="Bitrate per channel (kbit/s)"
-                description={`Stereo ${trackKbps(s, 2)} · 5.1 ${trackKbps(s, 6)} kbit/s`}
+                description={
+                  s.downmix_stereo
+                    ? `Stereo ${trackKbps(s, 2)} kbit/s`
+                    : `Stereo ${trackKbps(s, 2)} · 5.1 ${trackKbps(s, 6)} kbit/s`
+                }
                 placeholder={String(DEFAULT_KBPS_PER_CHANNEL[s.audio_codec])}
                 min={16}
                 max={256}
@@ -323,13 +327,33 @@ function ProfileModal({
               />
             </Group>
           )}
-          <Switch
-            label="Add a stereo AAC track for older devices"
-            {...form.getInputProps('settings.add_stereo_aac', { type: 'checkbox' })}
-          />
+          {s.audio !== 'copy' && (
+            <Switch
+              label={
+                <>
+                  Downmix surround to stereo
+                  <SourceBadge mimic={initial.mimic} field="downmix_stereo" />
+                </>
+              }
+              description="Every 5.1 or 7.1 track, Atmos and DTS:X included, becomes stereo. The smallest files, but the surround sound is gone for good once the original leaves the recycle bin."
+              {...form.getInputProps('settings.downmix_stereo', { type: 'checkbox' })}
+            />
+          )}
+          {s.audio !== 'copy' && s.downmix_stereo && (
+            <Alert color="orange">
+              Only turn this on if every screen and speaker you watch on is stereo.
+            </Alert>
+          )}
+          {!(s.audio !== 'copy' && s.downmix_stereo) && (
+            <Switch
+              label="Add a stereo AAC track for older devices"
+              {...form.getInputProps('settings.add_stereo_aac', { type: 'checkbox' })}
+            />
+          )}
           <Text size="xs" c="dimmed">
-            Atmos and DTS:X audio is always copied unchanged, and audio is never upmixed. Dolby
-            Vision files are skipped.
+            {s.audio !== 'copy' && s.downmix_stereo
+              ? 'Audio is never upmixed. Dolby Vision files are skipped.'
+              : 'Atmos and DTS:X audio is always copied unchanged, and audio is never upmixed. Dolby Vision files are skipped.'}
           </Text>
           {(save.isError || remove.isError) && (
             <Alert color="red">{errorMessage(save.error ?? remove.error)}</Alert>

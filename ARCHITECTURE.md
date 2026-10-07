@@ -259,9 +259,10 @@ dashboard with totals, trends over time and per-GPU performance.
 - **HDR**: preserve HDR10/HLG metadata when the encoder supports it;
   otherwise skip the file. **Dolby Vision files are skipped by default**
   (re-encoding breaks DV); optional tone-map to SDR is a later feature.
-- **Audio**: *copy* (default) or *transcode* to E-AC-3, AAC or Opus (ADR-0023)
-  at channel-aware bitrates. Object audio (TrueHD Atmos, E-AC-3 JOC) is
-  always copied. Optional "add a stereo AAC compatibility track."
+- **Audio**: *copy* (default) or *transcode* to E-AC-3, AAC or Opus at
+  channel-aware bitrates (ADR-0023). Object audio (TrueHD Atmos, E-AC-3 JOC)
+  is copied, unless the profile downmixes surround to stereo (ADR-0024).
+  Optional "add a stereo AAC compatibility track."
 - **Container**: MKV (default) or MP4.
 - **Skip rules**: see 7.4.
 

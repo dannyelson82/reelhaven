@@ -1,6 +1,6 @@
 # 0023: Audio re-encoding in profiles
 
-- Status: accepted
+- Status: accepted (object-audio rule amended by ADR-0024)
 - Date: 2026-10-07
 
 ## Context

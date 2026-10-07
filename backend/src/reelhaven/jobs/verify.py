@@ -31,7 +31,7 @@ def verify_output(
     ffprobe: str,
     timeout_s: float = 300,
     expected_video: ExpectedVideo | None = None,
-    expected_codecs: dict[int, str] | None = None,
+    expected_codecs: dict[int, tuple[str, int | None]] | None = None,
 ) -> MediaInfo:
     """Raise VerificationError unless ``output`` is a sound replacement."""
     try:
@@ -52,10 +52,16 @@ def verify_output(
             )
         if default is not None and default != a_default:
             raise VerificationError(f"stream {position}: default flag not set as planned")
-    for position, codec in (expected_codecs or {}).items():
-        found = info.streams[position].codec
-        if found != codec:
-            raise VerificationError(f"stream {position}: expected {codec} audio, found {found}")
+    for position, (codec, channels) in (expected_codecs or {}).items():
+        found = info.streams[position]
+        if found.codec != codec:
+            raise VerificationError(
+                f"stream {position}: expected {codec} audio, found {found.codec}"
+            )
+        if channels is not None and found.channels != channels:
+            raise VerificationError(
+                f"stream {position}: expected {channels} channels, found {found.channels}"
+            )
 
     # 2. Video unchanged (a remux must not lose HDR or Dolby Vision).
     src_video, out_video = source_info.video, info.video

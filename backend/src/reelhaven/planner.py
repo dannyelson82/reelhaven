@@ -34,6 +34,7 @@ class TrackPlan(BaseModel):
     # Audio conversion (ADR-0023); None = the track is copied.
     convert_codec: AudioCodec | None = None
     convert_kbps: int | None = None
+    convert_channels: int | None = None  # 2 when downmixing (ADR-0024)
 
 
 class Plan(BaseModel):
@@ -328,13 +329,18 @@ def _plan_audio(info: MediaInfo, result: Plan, profile: ProfileSettings) -> int:
         if track.kind != "audio" or not track.keep:
             continue
         stream = _stream(info, track.index)
-        kbps = conversion(
-            stream, profile.audio, profile.audio_codec, profile.audio_kbps_per_channel
+        change = conversion(
+            stream,
+            profile.audio,
+            profile.audio_codec,
+            profile.audio_kbps_per_channel,
+            profile.downmix_stereo,
         )
-        if kbps is None:
+        if change is None:
             continue
-        track.convert_codec, track.convert_kbps = profile.audio_codec, kbps
-        saved += saved_bytes(stream, kbps, info.duration_s or 0.0)
+        track.convert_codec, track.convert_kbps = profile.audio_codec, change.kbps
+        track.convert_channels = change.channels
+        saved += saved_bytes(stream, change.kbps, info.duration_s or 0.0)
     return saved
 
 
@@ -342,7 +348,8 @@ def _conversion_details(info: MediaInfo, result: Plan) -> list[str]:
     return [
         f"Convert audio: {_describe(_stream(info, t.index))} "
         f"({(_stream(info, t.index).codec or '?').upper()}) → "
-        f"{_CODEC_NAMES.get(t.convert_codec or '', t.convert_codec)} {t.convert_kbps} kbit/s."
+        f"{_CODEC_NAMES.get(t.convert_codec or '', t.convert_codec)}"
+        f"{' stereo' if t.convert_channels == 2 else ''} {t.convert_kbps} kbit/s."
         for t in result.tracks
         if t.convert_codec
     ]
