@@ -204,5 +204,11 @@ def test_first_error_is_the_cause() -> None:
         "[out#0/null @ 0x562bcfa2e580] Nothing was written into output file\n"
     )
     assert first_error(stderr) == "No capable devices found"
+    qsv = (
+        "libva info: VA-API version 1.24.0\n"
+        "libva info: va_openDriver() returns 0\n"
+        "[av1_qsv @ 0x55d9217f45c0] This version of runtime doesn't support AV1 encoding\n"
+    )
+    assert first_error(qsv) == "This version of runtime doesn't support AV1 encoding"
     assert first_error("\n  \n") == ""
     assert first_error("plain message") == "plain message"

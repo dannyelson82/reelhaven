@@ -150,7 +150,7 @@ def first_error(stderr: str) -> str:
     """ffmpeg's first error line is the cause; the rest are its consequences."""
     for line in stderr.splitlines():
         text = _PREFIX.sub("", line).strip()
-        if text:
+        if text and not text.startswith("libva info:"):  # VA-API chatter, not an error
             return text[:400]
     return ""
 
