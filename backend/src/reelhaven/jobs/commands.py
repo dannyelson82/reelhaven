@@ -117,6 +117,8 @@ def _audio_conversion_args(
             codec = track.convert_codec
             args += [f"-c:a:{audio_index}", ENCODER[codec], f"-b:a:{audio_index}"]
             args += [f"{track.convert_kbps}k"]
+            if track.convert_channels:
+                args += [f"-ac:a:{audio_index}", str(track.convert_channels)]
             if codec == "opus":
                 args += [f"-mapping_family:a:{audio_index}", "1"]
             if fmt == "matroska":
@@ -127,12 +129,14 @@ def _audio_conversion_args(
     return args
 
 
-def expected_remux_codecs(source: Path, info: MediaInfo, plan: Plan) -> dict[int, str]:
-    """Output position -> codec of every converted audio track, for the verifier."""
-    converts = {t.index: t.convert_codec for t in plan.tracks if t.convert_codec is not None}
-    kept = _kept_streams(info, plan, remux_format(source))
-    return {
-        position: _PROBED_CODEC[converts[stream.index]]
-        for position, (stream, _) in enumerate(kept)
-        if stream.index in converts
-    }
+def expected_remux_codecs(
+    source: Path, info: MediaInfo, plan: Plan
+) -> dict[int, tuple[str, int | None]]:
+    """Output position -> (codec, channels or None) of every converted audio track."""
+    tracks = {t.index: t for t in plan.tracks}
+    out: dict[int, tuple[str, int | None]] = {}
+    for position, (stream, _) in enumerate(_kept_streams(info, plan, remux_format(source))):
+        track = tracks.get(stream.index)
+        if track is not None and track.convert_codec is not None:
+            out[position] = (_PROBED_CODEC[track.convert_codec], track.convert_channels)
+    return out

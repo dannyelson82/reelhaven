@@ -20,6 +20,7 @@ const balanced = {
     audio: 'copy',
     audio_codec: 'eac3',
     audio_kbps_per_channel: null,
+    downmix_stereo: false,
     add_stereo_aac: false,
     min_savings_percent: 10,
   },
@@ -157,5 +158,35 @@ it('mimics a file into a new profile', async () => {
     name: 'Like good',
     settings: { quality: 8, audio: 'convert', audio_kbps_per_channel: 107 },
     mimic: { file: 'Good (2020)/good.mkv', sources: { quality: 'read' } },
+  });
+});
+
+it('turns on downmixing with a warning', async () => {
+  window.location.hash = '#/profiles';
+  const calls = mockApi({
+    'GET auth/state': loggedIn,
+    'GET profiles': { body: [balanced] },
+    'POST profiles': (init) => ({
+      status: 201,
+      body: { ...balanced, id: 4, builtin: false, ...JSON.parse(String(init?.body)) },
+    }),
+  });
+  render(<App />);
+  await userEvent.click(await screen.findByRole('button', { name: 'Copy' }));
+  expect(screen.queryByText(/Downmix surround to stereo/)).not.toBeInTheDocument(); // audio copied
+  await userEvent.click(await screen.findByRole('combobox', { name: 'Audio' }));
+  await userEvent.click(
+    await screen.findByRole('option', { name: /Convert large tracks/, hidden: true }),
+  );
+  await userEvent.click(screen.getByRole('switch', { name: /Downmix surround to stereo/ }));
+  expect(screen.getByText(/every screen and speaker you watch on is stereo/)).toBeInTheDocument();
+  expect(screen.getByText('Stereo 224 kbit/s')).toBeInTheDocument();
+  expect(screen.queryByText(/Add a stereo AAC track/)).not.toBeInTheDocument();
+  await userEvent.click(screen.getByRole('button', { name: 'Save' }));
+  expect(await screen.findAllByText(/saved\./)).not.toHaveLength(0);
+  const post = calls.find((c) => c.key === 'POST profiles');
+  expect(JSON.parse(String(post?.init?.body)).settings).toMatchObject({
+    audio: 'convert',
+    downmix_stereo: true,
   });
 });

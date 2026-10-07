@@ -64,10 +64,22 @@ Which tracks are converted:
   least 1.5 times the target bitrate. For example, with AAC at 384 kbit/s for
   5.1, a 1.5 Mbit/s DTS track is converted but a 448 kbit/s AC-3 track is
   kept, because re-encoding it would save little and cost some quality.
-- **Atmos and DTS:X are always copied**, and tracks are never upmixed. Tracks
+- **Atmos and DTS:X are copied** (unless you downmix, below), and tracks are
+  never upmixed. Tracks
   with more channels than the codec is used for (more than 5.1 for E-AC-3 and
   AAC, 7.1 for Opus) are copied.
 - Language, title, default and forced flags, and track order stay the same.
+
+### Downmix surround to stereo
+
+**Downmix surround to stereo** (off by default) turns every 5.1 or 7.1
+track, **Atmos and DTS:X included**, into stereo in the chosen codec, at twice
+the per-channel bitrate (AAC: 128 kbit/s). It's the smallest option: a
+2-hour film's audio drops from ~3-4 GB (TrueHD) to ~0.14 GB, against ~0.55 GB
+for E-AC-3 5.1. But the surround mix is gone for good once the original
+leaves the [recycle bin](recycle-bin.md), so only use it if every screen and
+speaker you watch on is stereo. With downmixing on, the extra stereo AAC track
+option is hidden: the main track is already stereo.
 
 Audio is converted in the same pass when a file is re-encoded. When the video
 is already efficient, ReelHaven can still convert just the audio: the video is
@@ -77,7 +89,8 @@ audio-only jobs don't need a [test run](test-run.md).
 
 Always true, whatever the profile:
 
-- Atmos and DTS:X audio is copied unchanged.
+- Atmos and DTS:X audio is copied unchanged, unless the profile downmixes to
+  stereo.
 - **Dolby Vision** and **HDR10+** files aren't re-encoded (it would break
   them). HDR10 and HLG are kept as HDR.
 - A file is only re-encoded when the estimated saving is at least 10 %, and

@@ -159,6 +159,7 @@ def analyse(
     audio_mode: Literal["copy", "convert"] = "copy"
     audio_codec: AudioCodec = "eac3"
     per_channel: int | None = None
+    downmix = False
     main = _main_audio(info)
     sources["audio"] = "default"
     if main is not None and not is_lossless(main) and not is_object_audio(main):
@@ -172,6 +173,14 @@ def analyse(
                 f"Audio: {target.upper()} at about {per_channel} kbit/s per channel, like the "
                 "sample; bigger tracks in your library will be converted to match."
             )
+            if channels <= 2:
+                # ADR-0024: a stereo sample suggests stereo; surround is lost, so say so.
+                downmix = True
+                sources["downmix_stereo"] = "estimated"
+                notes.append(
+                    "The sample's audio is stereo, so surround tracks (Atmos too) will be "
+                    "downmixed to stereo. Turn this off to keep surround sound."
+                )
     if sources["audio"] == "default":
         notes.append("Audio is copied unchanged.")
 
@@ -182,6 +191,7 @@ def analyse(
         audio=audio_mode,
         audio_codec=audio_codec,
         audio_kbps_per_channel=per_channel,
+        downmix_stereo=downmix,
     )
     sample = {
         "codec": video.codec,

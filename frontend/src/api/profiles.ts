@@ -10,6 +10,7 @@ export interface ProfileSettings {
   audio: 'copy' | 'compress_lossless' | 'convert';
   audio_codec: AudioCodec;
   audio_kbps_per_channel: number | null;
+  downmix_stereo: boolean;
   add_stereo_aac: boolean;
   min_savings_percent: number;
 }
@@ -48,7 +49,9 @@ export function trackKbps(s: ProfileSettings, channels: number): number {
 
 function describeAudio(s: ProfileSettings): string {
   if (s.audio === 'copy') return 'audio copied';
-  const target = `${AUDIO_CODEC_LABELS[s.audio_codec]} ${trackKbps(s, 6)}k for 5.1`;
+  const target = s.downmix_stereo
+    ? `${AUDIO_CODEC_LABELS[s.audio_codec]} stereo ${trackKbps(s, 2)}k`
+    : `${AUDIO_CODEC_LABELS[s.audio_codec]} ${trackKbps(s, 6)}k for 5.1`;
   return s.audio === 'compress_lossless' ? `lossless audio to ${target}` : `audio to ${target}`;
 }
 

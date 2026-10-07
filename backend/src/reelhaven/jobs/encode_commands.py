@@ -45,6 +45,7 @@ class OutputStream:
     dispositions: tuple[str, ...] = ()
     title: str | None = None
     kbps: int | None = None  # convert-audio: the target bitrate
+    channels: int | None = None  # convert-audio: 2 when downmixing
 
 
 def output_streams(
@@ -68,21 +69,27 @@ def output_streams(
                 )
             )
         elif track is not None and track.keep:
-            kbps = conversion(
-                stream, profile.audio, profile.audio_codec, profile.audio_kbps_per_channel
+            change = conversion(
+                stream,
+                profile.audio,
+                profile.audio_codec,
+                profile.audio_kbps_per_channel,
+                profile.downmix_stereo,
             )
             out.append(
                 OutputStream(
                     stream.kind,
                     stream.index,
-                    "copy" if kbps is None else "convert-audio",
+                    "copy" if change is None else "convert-audio",
                     stream.language,
                     track.default_after,
                     tuple(stream.dispositions),
-                    kbps=kbps,
+                    kbps=change.kbps if change else None,
+                    channels=change.channels if change else None,
                 )
             )
-            if stream.kind == "audio" and track.default_after:
+            # A downmixed default track is already stereo: no extra stereo track.
+            if stream.kind == "audio" and track.default_after and not (change and change.channels):
                 stereo_source = stream
     if profile.add_stereo_aac and stereo_source is not None and (stereo_source.channels or 2) > 2:
         last_audio = max(i for i, s in enumerate(out) if s.kind == "audio")
@@ -185,6 +192,8 @@ def encode_command(
                 f"-b:a:{audio_index}",
                 f"{s.kbps}k",
             ]
+            if s.channels:
+                args += [f"-ac:a:{audio_index}", str(s.channels)]
             if profile.audio_codec == "opus":
                 # Surround Opus needs the Vorbis channel mapping; harmless for stereo.
                 args += [f"-mapping_family:a:{audio_index}", "1"]
@@ -271,12 +280,12 @@ _PROBED_CODEC = {"eac3": "eac3", "aac": "aac", "opus": "opus"}
 
 def expected_codecs(
     source: Path, info: MediaInfo, plan: Plan, profile: ProfileSettings
-) -> dict[int, str]:
-    """Output position -> audio codec, for every track the encode converts or adds."""
-    out: dict[int, str] = {}
+) -> dict[int, tuple[str, int | None]]:
+    """Output position -> (codec, channels or None), for every track converted or added."""
+    out: dict[int, tuple[str, int | None]] = {}
     for position, s in enumerate(output_streams(info, plan, profile, remux_format(source))):
         if s.action == "convert-audio":
-            out[position] = _PROBED_CODEC[profile.audio_codec]
+            out[position] = (_PROBED_CODEC[profile.audio_codec], s.channels)
         elif s.action == "aac-stereo":
-            out[position] = "aac"
+            out[position] = ("aac", 2)
     return out

@@ -1,6 +1,7 @@
 import pytest
 
 from reelhaven.audio_rules import (
+    Conversion,
     conversion,
     is_lossless,
     is_object_audio,
@@ -52,7 +53,7 @@ def test_copy_mode_converts_nothing() -> None:
 
 
 def test_compress_lossless_only_touches_lossless() -> None:
-    assert conversion(a("truehd"), "compress_lossless", "eac3", None) == 640
+    assert kbps(conversion(a("truehd"), "compress_lossless", "eac3", None)) == 640
     assert conversion(a("dts", kbps=1509), "compress_lossless", "eac3", None) is None
 
 
@@ -71,13 +72,43 @@ def test_compress_lossless_only_touches_lossless() -> None:
     ],
 )
 def test_convert_rules(track: Stream, expected: int | None) -> None:
-    assert conversion(track, "convert", "aac", None) == expected
+    assert kbps(conversion(track, "convert", "aac", None)) == expected
 
 
 def test_opus_keeps_7_1() -> None:
-    assert conversion(a("truehd", channels=8), "convert", "opus", None) == 384
+    assert kbps(conversion(a("truehd", channels=8), "convert", "opus", None)) == 384
 
 
 def test_only_audio_streams() -> None:
     video = Stream(index=0, kind="video", codec="hevc")
     assert conversion(video, "convert", "aac", None) is None
+
+
+def kbps(change: Conversion | None) -> int | None:
+    return change.kbps if change else None
+
+
+@pytest.mark.parametrize(
+    "track",
+    [
+        a("truehd"),
+        a("truehd", channels=8, profile="Dolby TrueHD + Dolby Atmos"),  # ADR-0024: Atmos too
+        a("dts", kbps=1509, profile="DTS-HD MA + DTS:X"),
+        a("eac3", kbps=448),  # even a small lossy surround track: stereo was asked for
+    ],
+)
+def test_downmix_turns_surround_into_stereo(track: Stream) -> None:
+    assert conversion(track, "convert", "aac", None, downmix=True) == Conversion(128, 2)
+    assert conversion(track, "compress_lossless", "opus", 64, downmix=True) == Conversion(128, 2)
+
+
+def test_downmix_leaves_stereo_to_the_usual_rules() -> None:
+    small = a("aac", channels=2, kbps=160)
+    assert conversion(small, "convert", "aac", None, downmix=True) is None
+    assert conversion(a("flac", channels=2), "convert", "aac", None, downmix=True) == Conversion(
+        128
+    )
+
+
+def test_downmix_needs_a_converting_profile() -> None:
+    assert conversion(a("truehd"), "copy", "aac", None, downmix=True) is None

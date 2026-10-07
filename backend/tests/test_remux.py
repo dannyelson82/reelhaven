@@ -448,4 +448,8 @@ def test_remux_converts_planned_audio_tracks() -> None:
         "-c:a:1", "libopus", "-b:a:1", "288k", "-mapping_family:a:1", "1",
     ]  # fmt: skip
     assert args[args.index("-metadata:s:2") :][:2] == ["-metadata:s:2", "BPS="]
-    assert expected_remux_codecs(Path("/m/a.mkv"), info, p) == {2: "opus"}
+    assert expected_remux_codecs(Path("/m/a.mkv"), info, p) == {2: ("opus", None)}
+    p.tracks[1].convert_channels = 2
+    args = remux_command("ffmpeg", Path("/m/a.mkv"), Path("/m/w/a.mkv"), info, p)
+    assert args[args.index("-ac:a:1") + 1] == "2"
+    assert expected_remux_codecs(Path("/m/a.mkv"), info, p) == {2: ("opus", 2)}

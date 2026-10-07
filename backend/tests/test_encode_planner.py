@@ -265,3 +265,12 @@ def test_copy_profile_and_review_files_convert_nothing() -> None:
     info.streams[1].language = "spa"  # wrong language: needs review
     p = plan_file(info, "eng", LanguagePolicy(), CONVERT_AAC)
     assert p.action == "skip" and not any(t.convert_codec for t in p.tracks)
+
+
+def test_downmix_is_planned_and_described() -> None:
+    profile = ProfileSettings(audio="convert", audio_codec="aac", downmix_stereo=True)
+    info = with_audio(movie(codec="hevc", video_mbps=2), "truehd", 4000)
+    p = plan_file(info, "eng", LanguagePolicy(), profile)
+    (track,) = [t for t in p.tracks if t.convert_codec]
+    assert (track.convert_kbps, track.convert_channels) == (128, 2)
+    assert "Convert audio: English (TRUEHD) → AAC stereo 128 kbit/s." in p.details

@@ -1,5 +1,6 @@
-"""Which audio tracks a profile converts, and to what (ADR-0023). Pure functions."""
+"""Which audio tracks a profile converts, and to what (ADR-0023, ADR-0024). Pure functions."""
 
+from dataclasses import dataclass
 from typing import Literal
 
 from reelhaven.media.info import Stream
@@ -38,24 +39,34 @@ def target_kbps(codec: AudioCodec, channels: int, per_channel: int | None) -> in
     return min(per * max(channels, 1), _MAX_TRACK_KBPS[codec])
 
 
+@dataclass(frozen=True)
+class Conversion:
+    kbps: int  # target bitrate of the whole track
+    channels: int | None = None  # 2 when downmixing to stereo; None keeps the layout
+
+
 def conversion(
     stream: Stream,
     mode: Literal["copy", "compress_lossless", "convert"],
     codec: AudioCodec,
     per_channel: int | None,
-) -> int | None:
-    """The target bitrate (kbit/s) if this track should be converted, else None (copy)."""
-    if mode == "copy" or stream.kind != "audio" or is_object_audio(stream):
+    downmix: bool = False,
+) -> Conversion | None:
+    """How to convert this track, or None to copy it (ADR-0023, ADR-0024)."""
+    if mode == "copy" or stream.kind != "audio":
         return None
     channels = stream.channels or 2
-    if channels > MAX_CHANNELS[codec]:
+    if downmix and channels > 2:
+        # ADR-0024: the owner asked for stereo; this includes Atmos and DTS:X.
+        return Conversion(target_kbps(codec, 2, per_channel), 2)
+    if is_object_audio(stream) or channels > MAX_CHANNELS[codec]:
         return None
     target = target_kbps(codec, channels, per_channel)
     if is_lossless(stream):
-        return target
+        return Conversion(target)
     lossy_big = stream.bit_rate is not None and stream.bit_rate >= LOSSY_FACTOR * target * 1000
     if mode == "convert" and lossy_big:
-        return target
+        return Conversion(target)
     return None  # lossy and small enough already, or its bitrate is unknown
 
 

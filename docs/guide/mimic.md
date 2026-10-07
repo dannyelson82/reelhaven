@@ -39,6 +39,6 @@ Then choose the profile for a library and check it with a
 | **Video codec** | HEVC, AV1 or H.264, as the sample. Other codecs (e.g. MPEG-2) become HEVC. |
 | **10-bit output** | On when the sample is 10-bit (not for H.264). |
 | **Quality** | Read from x264/x265 settings when present; otherwise estimated from bits per pixel. A sample made by a GPU encoder (NVENC, Quick Sync) is recognised and accounted for: they need more bits for the same quality. |
-| **Audio** | If the sample's main track is compact E-AC-3, AC-3, AAC or Opus, the profile converts big tracks to that codec at the same bitrate per channel (AC-3 becomes E-AC-3). Lossless, Atmos/DTS:X or unknown audio means **Copy every track unchanged**. |
+| **Audio** | If the sample's main track is compact E-AC-3, AC-3, AAC or Opus, the profile converts big tracks to that codec at the same bitrate per channel (AC-3 becomes E-AC-3). Lossless, Atmos/DTS:X or unknown audio means **Copy every track unchanged**. If the sample's audio is stereo, **Downmix surround to stereo** is also suggested (marked *estimated*); turn it off to keep surround. |
 | **Maximum resolution** | Never set: your files keep their resolution. |
 | **Speed** | Not recorded by encoders; **Balanced**. |

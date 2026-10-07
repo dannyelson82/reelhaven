@@ -29,6 +29,8 @@ class ProfileSettings(BaseModel):
     audio_codec: AudioCodec = "eac3"
     # None: the codec's default (audio_rules.DEFAULT_KBPS_PER_CHANNEL).
     audio_kbps_per_channel: int | None = Field(default=None, ge=16, le=256)
+    # ADR-0024: surround tracks (Atmos and DTS:X too) become stereo when converting.
+    downmix_stereo: bool = False
     add_stereo_aac: bool = False
     # Results saving less than this are discarded and the file marked "no gain".
     min_savings_percent: int = Field(default=10, ge=0, le=90)
