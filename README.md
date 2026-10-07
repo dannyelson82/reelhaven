@@ -8,12 +8,12 @@ ReelHaven automatically compresses your video library on Unraid using every
 GPU you have, keeps only the audio and subtitle languages you want, and keeps
 Plex, Jellyfin, Sonarr and Radarr in sync.
 
-> ⚠️ Early development (v0.4). It re-encodes and changes files only when you
+> ⚠️ Early development (v0.5). It re-encodes and changes files only when you
 > ask it to, checks every result, and keeps every original in a recycle bin
 > first. Try it on a copy or a small library before trusting it with media
 > you can't afford to lose.
 
-## What works today (v0.4)
+## What works today (v0.5)
 - **Libraries**: scan your folders and see every file's video, audio and
   subtitle tracks
 - **Languages**: original language of each title from Sonarr, Radarr or TMDB
@@ -23,6 +23,10 @@ Plex, Jellyfin, Sonarr and Radarr in sync.
   real test encode; compression profiles (HEVC, AV1, H.264), calibrated so a
   quality level looks the same on NVIDIA, Intel and the CPU; files that wouldn't benefit
   (or would be harmed, like Dolby Vision) are skipped
+- **Mimic**: pick a file you like and get a profile that reproduces its quality
+  (read from x264/x265 settings, or estimated from the bitrate)
+- **Audio conversion**: shrink lossless or oversized audio to E-AC-3, AAC or
+  Opus, even when the video is already efficient (the video is then copied)
 - **Dry run** showing exactly what would change, and a quality-checked
   **test run** (sizes, XPSNR/SSIM, side-by-side stills) that you approve
   before a whole library is re-encoded
@@ -36,7 +40,6 @@ Open the web UI (port 7171) and create the admin account **before** exposing
 ReelHaven to the internet: until then, whoever opens it first becomes admin.
 
 ## Planned features
-- **Mimic** a file you like to build a compression profile
 - Finds files that arrived in the wrong language and can quarantine and
   re-download them
 - Watches folders and Sonarr/Radarr imports to process new files automatically
