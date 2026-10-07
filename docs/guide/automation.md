@@ -64,6 +64,7 @@ manual or automatic. Jobs that are already running finish. While paused, an
 orange banner on the Jobs page and the Dashboard says so; **Resume** carries on
 where it left off.
 
-## Coming in later updates
+## Plex, Sonarr and Radarr
 
-Telling Plex, Sonarr and Radarr about changed files.
+After files are replaced, Plex, Sonarr and Radarr are told to look again
+(about a minute later, in batches). See [Integrations](integrations.md).

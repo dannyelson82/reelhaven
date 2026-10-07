@@ -35,6 +35,7 @@ from reelhaven.jobs.queue import JobQueue
 from reelhaven.jobs.service import purge_expired
 from reelhaven.live import ChangeFeed
 from reelhaven.middleware import RequestLogMiddleware
+from reelhaven.notify import Notifier
 from reelhaven.profiles import ensure_builtin_profiles
 from reelhaven.resolver import LanguageResolver
 from reelhaven.scanner import Scanner
@@ -65,6 +66,7 @@ def create_app(
         app.state.queue.start()
         app.state.automation.start()
         app.state.watcher.start()
+        app.state.notifier.start()
         janitor = threading.Thread(
             target=_janitor, args=(db, app.state.stop), name="janitor", daemon=True
         )
@@ -73,6 +75,7 @@ def create_app(
         app.state.stop.set()
         app.state.automation.stop()
         app.state.watcher.stop()
+        app.state.notifier.stop()
         app.state.queue.stop()
         db.close()
 
@@ -102,6 +105,11 @@ def create_app(
     )
     app.state.watcher = FolderWatcher(
         db, start_scan=lambda library_id: app.state.scanner.start(library_id)
+    )
+    app.state.notifier = Notifier(
+        db,
+        box=lambda: app.state.secretbox,
+        transport=lambda: app.state.http_transport,
     )
     db.on_change(Job, app.state.live.changed)
     app.state.stop = threading.Event()

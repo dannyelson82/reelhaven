@@ -116,3 +116,37 @@ it('shows how to set up webhooks and what arrived last', async () => {
   expect(await screen.findByText(/Sonarr can reach ReelHaven\./)).toBeInTheDocument();
   expect(screen.getByText('Nothing received yet.')).toBeInTheDocument();
 });
+
+it('adds Plex and shows the last update sent', async () => {
+  window.location.hash = '#/settings/integrations';
+  mockApi({
+    'GET auth/state': state({ authenticated: true, username: 'admin', method: 'session' }),
+    'GET integrations': {
+      body: [
+        {
+          id: 9,
+          kind: 'plex',
+          name: 'Plex',
+          base_url: 'http://10.0.0.5:32400',
+          verify_tls: true,
+          path_mappings: [],
+          enabled: true,
+          api_key_hint: '…3abc',
+          last_notify: {
+            at: '2026-10-07T20:00:00Z',
+            ok: false,
+            message: 'The API key was rejected',
+          },
+        },
+      ],
+    },
+    'GET webhooks': { body: { sonarr: null, radarr: null } },
+  });
+  render(<App />);
+  expect(await screen.findByText(/Token …3abc/)).toBeInTheDocument();
+  expect(screen.getByText(/The API key was rejected/)).toBeInTheDocument();
+  await userEvent.click(screen.getByRole('button', { name: 'Add Plex' }));
+  expect(await screen.findByLabelText('Plex token')).toBeInTheDocument();
+  expect(screen.getByPlaceholderText('http://192.168.1.10:32400')).toBeInTheDocument();
+  expect(screen.getByText(/X-Plex-Token/)).toBeInTheDocument();
+});

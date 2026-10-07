@@ -79,9 +79,15 @@ class ServiceClient:
     def test(self) -> dict[str, str]:
         raise NotImplementedError
 
-    def get_json(self, path: str, params: dict[str, Any] | None = None) -> Any:
+    def _send(
+        self,
+        method: str,
+        path: str,
+        params: dict[str, Any] | None = None,
+        body: Any = None,
+    ) -> httpx.Response:
         try:
-            response = self._client.get(path, params=params)
+            response = self._client.request(method, path, params=params, json=body)
         except httpx.TimeoutException as exc:
             raise IntegrationError("timeout", "The service didn't answer in time") from exc
         except httpx.ConnectError as exc:
@@ -105,12 +111,22 @@ class ServiceClient:
             raise IntegrationError(
                 "bad_response", f"The service answered HTTP {response.status_code}"
             )
+        return response
+
+    @staticmethod
+    def _json(response: httpx.Response) -> Any:
         try:
             return response.json()
         except ValueError as exc:
             raise IntegrationError(
                 "bad_response", "The answer wasn't JSON. Is this the right address?"
             ) from exc
+
+    def get_json(self, path: str, params: dict[str, Any] | None = None) -> Any:
+        return self._json(self._send("GET", path, params))
+
+    def post_json(self, path: str, body: Any) -> Any:
+        return self._json(self._send("POST", path, body=body))
 
 
 class ArrClient(ServiceClient):
@@ -145,6 +161,59 @@ class ArrClient(ServiceClient):
                 "wrong_app", f"That address is {app or 'not'} a {self.kind.title()} server"
             )
         return {"app": app, "version": str(status.get("version", ""))}
+
+    def rescan(self, item_id: int) -> None:
+        """Ask Sonarr/Radarr to re-read one series or movie from disk (ADR-0025)."""
+        name, key = (
+            ("RescanSeries", "seriesId") if self.kind == "sonarr" else ("RescanMovie", "movieId")
+        )
+        self.post_json("/api/v3/command", {"name": name, key: item_id})
+
+
+class PlexClient(ServiceClient):
+    """Plex Media Server, authenticated with an X-Plex-Token."""
+
+    def __init__(
+        self,
+        base_url: str,
+        token: str,
+        *,
+        verify_tls: bool = True,
+        transport: httpx.BaseTransport | None = None,
+    ) -> None:
+        super().__init__(
+            base_url, headers={"X-Plex-Token": token}, verify_tls=verify_tls, transport=transport
+        )
+
+    def test(self) -> dict[str, str]:
+        identity = self.get_json("/identity")
+        container = identity.get("MediaContainer") if isinstance(identity, dict) else None
+        if not isinstance(container, dict) or "machineIdentifier" not in container:
+            raise IntegrationError("wrong_app", "That address is not a Plex server")
+        self.sections()  # /identity is public; this one checks the token
+        return {"app": "Plex", "version": str(container.get("version", ""))}
+
+    def sections(self) -> list[tuple[str, list[str]]]:
+        """(section key, folder paths) of every Plex library."""
+        data = self.get_json("/library/sections")
+        container = data.get("MediaContainer") if isinstance(data, dict) else None
+        if not isinstance(container, dict):
+            raise IntegrationError("bad_response", "Unexpected answer from Plex")
+        out: list[tuple[str, list[str]]] = []
+        for directory in container.get("Directory") or []:
+            if not isinstance(directory, dict) or "key" not in directory:
+                continue
+            paths = [
+                str(loc["path"])
+                for loc in directory.get("Location") or []
+                if isinstance(loc, dict) and isinstance(loc.get("path"), str)
+            ]
+            out.append((str(directory["key"]), paths))
+        return out
+
+    def refresh(self, section: str, folder: str) -> None:
+        """Partial scan: only ``folder`` (as Plex sees it) in one library section."""
+        self._send("GET", f"/library/sections/{section}/refresh", {"path": folder})
 
 
 _TMDB_V3_KEY = re.compile(r"^[0-9a-f]{32}$")
