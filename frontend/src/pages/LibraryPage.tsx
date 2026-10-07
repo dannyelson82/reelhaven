@@ -48,6 +48,7 @@ import {
 } from '../api/titles';
 import { DryRunPanel } from '../components/DryRunPanel';
 import { LibraryProfileSelect } from '../components/LibraryProfileSelect';
+import { WatchModeSelect } from '../components/WatchModeSelect';
 import { PlanView } from '../components/PlanView';
 import { TestRunPanel } from '../components/TestRunPanel';
 import { PolicyModal } from '../components/PolicyModal';
@@ -97,6 +98,7 @@ export function LibraryPage() {
           </Text>
         </Stack>
         <Group gap="xs" align="flex-start">
+          <WatchModeSelect library={library} />
           <LibraryProfileSelect libraryId={libraryId} />
           <Button
             variant="default"

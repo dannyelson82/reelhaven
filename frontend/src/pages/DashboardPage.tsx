@@ -2,12 +2,14 @@ import { Anchor, Card, Group, Progress, Stack, Text, Title } from '@mantine/core
 import { Link } from 'react-router';
 import { useJobs } from '../api/jobs';
 import { useLiveJobs, withLive } from '../api/live';
+import { PausedBanner } from '../components/PauseControls';
 import { formatTimeLeft } from '../format';
 
 export function DashboardPage() {
   return (
     <Stack maw={960}>
       <Title order={2}>Dashboard</Title>
+      <PausedBanner />
       <ActiveJobs />
     </Stack>
   );

@@ -24,6 +24,7 @@ import {
   useRetryJob,
 } from '../api/jobs';
 import { useLiveJobs, withLive } from '../api/live';
+import { PauseButton, PausedBanner } from '../components/PauseControls';
 import { formatBytes, formatTimeLeft } from '../format';
 
 const STATUS: Record<Job['status'], { label: string; color: string }> = {
@@ -46,7 +47,11 @@ export function JobsPage() {
 
   return (
     <Stack maw={960}>
-      <Title order={2}>Jobs</Title>
+      <Group justify="space-between">
+        <Title order={2}>Jobs</Title>
+        <PauseButton />
+      </Group>
+      <PausedBanner />
       <SegmentedControl
         value={filter}
         onChange={(v) => {

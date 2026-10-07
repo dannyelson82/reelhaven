@@ -48,8 +48,12 @@ To let ReelHaven use your graphics card(s), see [Hardware](hardware.md).
    approve it.
 7. **Apply** the dry run and follow progress on the [Jobs](jobs.md) page.
 
+## Let it run on its own
+
+Once you're happy with a library's dry run and test run, set its **Watch
+mode** to **Automatic**: see [Automatic processing](automation.md).
+
 ## Coming later
 
-Automatic processing of new files (folder watching, Sonarr/Radarr webhooks)
-and the statistics dashboard arrive in later versions. For now, processing is
-always started by you.
+Folder watching, Sonarr/Radarr webhooks and the statistics dashboard arrive in
+later versions.

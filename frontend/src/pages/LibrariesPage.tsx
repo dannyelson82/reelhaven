@@ -8,7 +8,9 @@ import {
   Loader,
   Modal,
   SegmentedControl,
+  Select,
   Stack,
+  Switch,
   Text,
   TextInput,
   Title,
@@ -18,6 +20,7 @@ import { notifications } from '@mantine/notifications';
 import { IconPlus } from '@tabler/icons-react';
 import { useState } from 'react';
 import { Link } from 'react-router';
+import { useAutomation, useSaveAutomation } from '../api/automation';
 import { errorMessage } from '../api/client';
 import {
   LIBRARY_TYPES,
@@ -64,6 +67,14 @@ export function LibrariesPage() {
                   {library.name}
                 </Text>
                 <Badge variant="light">{typeLabel(library.type)}</Badge>
+                {library.watch_mode !== 'off' && (
+                  <Badge
+                    variant="light"
+                    color={library.watch_mode === 'automatic' ? 'teal' : 'blue'}
+                  >
+                    {library.watch_mode === 'automatic' ? 'Automatic' : 'Watching'}
+                  </Badge>
+                )}
               </Group>
               <Code>{library.path}</Code>
               <Text size="xs" c="dimmed">
@@ -84,6 +95,7 @@ export function LibrariesPage() {
           </Group>
         </Card>
       ))}
+      {libraries.data && libraries.data.length > 0 && <RescanCard />}
       <AddLibraryModal opened={adding} onClose={() => setAdding(false)} />
       {editing && <EditLibraryModal library={editing} onClose={() => setEditing(null)} />}
     </Stack>
@@ -215,5 +227,51 @@ function EditLibraryModal({ library, onClose }: { library: Library; onClose: () 
         </Stack>
       </form>
     </Modal>
+  );
+}
+
+const TIMES = Array.from({ length: 48 }, (_, i) => {
+  const value = `${String(Math.floor(i / 2)).padStart(2, '0')}:${i % 2 ? '30' : '00'}`;
+  return { value, label: value };
+});
+
+/** The nightly rescan of watched libraries (ADR-0025). */
+function RescanCard() {
+  const automation = useAutomation();
+  const save = useSaveAutomation();
+  const data = automation.data;
+  if (!data) return null;
+  return (
+    <Card withBorder>
+      <Group justify="space-between" align="flex-end">
+        <Stack gap={2}>
+          <Switch
+            label="Rescan watched libraries every night"
+            checked={data.rescan_enabled}
+            disabled={save.isPending}
+            onChange={(e) => save.mutate({ ...data, rescan_enabled: e.currentTarget.checked })}
+          />
+          <Text size="xs" c="dimmed">
+            Libraries set to Watch or Automatic are scanned once a day, to catch anything missed.
+          </Text>
+        </Stack>
+        {data.rescan_enabled && (
+          <Select
+            aria-label="Rescan time"
+            w={110}
+            allowDeselect={false}
+            data={TIMES}
+            value={data.rescan_at}
+            disabled={save.isPending}
+            onChange={(value) => value && save.mutate({ ...data, rescan_at: value })}
+          />
+        )}
+      </Group>
+      {save.isError && (
+        <Text size="sm" c="red">
+          {errorMessage(save.error)}
+        </Text>
+      )}
+    </Card>
   );
 }

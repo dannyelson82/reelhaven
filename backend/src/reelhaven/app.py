@@ -11,6 +11,7 @@ from fastapi.staticfiles import StaticFiles
 from reelhaven import __version__
 from reelhaven.api import (
     auth_routes,
+    automation_routes,
     device_routes,
     file_routes,
     integration_routes,
@@ -24,6 +25,7 @@ from reelhaven.api import (
 )
 from reelhaven.auth.network import IPAddress, read_default_gateways
 from reelhaven.auth.throttle import LoginThrottle
+from reelhaven.automation import Automation
 from reelhaven.config import Settings, get_settings
 from reelhaven.db import Database, Job
 from reelhaven.devices import DeviceRegistry
@@ -59,12 +61,14 @@ def create_app(
         if detect_devices:
             app.state.devices.detect_in_background()
         app.state.queue.start()
+        app.state.automation.start()
         janitor = threading.Thread(
             target=_janitor, args=(db, app.state.stop), name="janitor", daemon=True
         )
         janitor.start()
         yield
         app.state.stop.set()
+        app.state.automation.stop()
         app.state.queue.stop()
         db.close()
 
@@ -86,6 +90,12 @@ def create_app(
     app.state.devices = DeviceRegistry(settings.ffmpeg)
     app.state.queue = JobQueue(db, settings, app.state.devices)
     app.state.live = ChangeFeed()
+    # Lambdas: tests swap the scanner and queue after create_app.
+    app.state.automation = Automation(
+        db,
+        start_scan=lambda library_id: app.state.scanner.start(library_id),
+        notify_queue=lambda: app.state.queue.notify(),
+    )
     db.on_change(Job, app.state.live.changed)
     app.state.stop = threading.Event()
     app.state.secretbox = SecretBox(settings.config_dir)
@@ -112,6 +122,7 @@ def create_app(
     app.include_router(profile_routes.router, prefix="/api/v1")
     app.include_router(test_run_routes.router, prefix="/api/v1")
     app.include_router(live_routes.router, prefix="/api/v1")
+    app.include_router(automation_routes.router, prefix="/api/v1")
 
     @app.get("/healthz", include_in_schema=False)
     def healthz() -> dict[str, str]:

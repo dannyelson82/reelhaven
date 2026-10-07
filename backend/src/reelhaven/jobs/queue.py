@@ -15,6 +15,7 @@ from pathlib import Path
 from sqlalchemy import select, update
 
 from reelhaven import device_settings
+from reelhaven.automation_settings import is_paused
 from reelhaven.config import Settings
 from reelhaven.db import Database, Job, Library
 from reelhaven.db.types import utcnow
@@ -184,6 +185,8 @@ class JobQueue:
         accept: Callable[[Job], bool] = lambda _: True,
         device: str | None = None,
     ) -> int | None:
+        if is_paused(self._db):
+            return None  # ADR-0025: paused, so nothing new starts; running jobs finish
         with self._claim_lock, self._db.write() as session:
             for job in self._queued(session, types):
                 if accept(job):
@@ -214,6 +217,8 @@ class JobQueue:
 
     def _has_runnable(self) -> bool:
         """Queued jobs that some enabled worker could take right now."""
+        if is_paused(self._db):
+            return False
         with self._db.read() as session:
             queued = self._queued(session, ("remux", "encode", "test"))
             settings = device_settings.load(session)

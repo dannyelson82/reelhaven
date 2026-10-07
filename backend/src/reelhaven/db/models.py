@@ -85,6 +85,7 @@ class AuditLog(Base):
 
 
 LIBRARY_TYPES = ("movies", "tv", "other")
+WATCH_MODES = ("off", "watch", "automatic")
 
 
 class Library(Base):
@@ -113,6 +114,12 @@ class Library(Base):
     test_run_at: Mapped[datetime | None] = mapped_column(default=None)
     # How many files a test run tries (1-5); remembered from the last one started.
     test_run_samples: Mapped[int] = mapped_column(Integer, default=1, server_default="1")
+    # ADR-0025: off (manual only), watch (scan new files), automatic (process everything).
+    watch_mode: Mapped[str] = mapped_column(
+        Enum(*WATCH_MODES, name="watch_mode", native_enum=False, create_constraint=True),
+        default="off",
+        server_default="off",
+    )
 
 
 LANGUAGE_SOURCES = ("sonarr", "radarr", "tmdb", "manual", "unknown")
