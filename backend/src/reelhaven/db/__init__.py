@@ -14,6 +14,7 @@ from reelhaven.db.models import (
     RecycleItem,
     Setting,
     TestRun,
+    TestRunSample,
     Title,
     User,
 )
@@ -32,6 +33,7 @@ __all__ = [
     "RecycleItem",
     "Setting",
     "TestRun",
+    "TestRunSample",
     "Title",
     "User",
 ]

@@ -163,7 +163,8 @@ function JobCard({ job }: { job: Job }) {
             </Button>
           )}
           {(job.status === 'failed' || job.status === 'cancelled') &&
-            job.media_file_id !== null && (
+            job.media_file_id !== null &&
+            job.type !== 'test' && (
               <Button
                 size="xs"
                 variant="light"

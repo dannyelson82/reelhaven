@@ -94,7 +94,7 @@ export function DryRunPanel({ libraryId }: { libraryId: number }) {
         />
       </SimpleGrid>
       {r.encode > 0 &&
-        !(testRun.data?.status === 'approved' && testRun.data.profile_is_current) && (
+        !(testRun.data?.run?.status === 'approved' && testRun.data.run.profile_is_current) && (
           <Alert color="blue">
             {r.encode} {r.encode === 1 ? 'file' : 'files'} would be re-encoded. Re-encoding a whole
             library needs an approved test run with the current profile first: see the Test run tab.

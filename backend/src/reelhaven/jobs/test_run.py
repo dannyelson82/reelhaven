@@ -1,8 +1,10 @@
-"""Test runs (ADR-0020): encode one file into /transcode/test-run, measure its
-quality and extract comparison stills. The original is never touched."""
+"""Test runs (ADR-0020, ADR-0021): encode a few sample files into
+/transcode/test-run, measure their quality and extract comparison stills.
+Originals are never touched."""
 
 import logging
 import time
+from collections.abc import Iterable
 from pathlib import Path
 from typing import Any
 
@@ -11,7 +13,7 @@ from sqlalchemy.orm import Session
 
 from reelhaven import audit
 from reelhaven.config import Settings
-from reelhaven.db import Database, Job, Library, MediaFile, TestRun
+from reelhaven.db import Database, Job, Library, MediaFile, TestRun, TestRunSample
 from reelhaven.db.types import utcnow
 from reelhaven.dryrun import plan_library
 from reelhaven.encode_planner import profile_fingerprint
@@ -26,10 +28,12 @@ from reelhaven.media.info import MediaInfo
 from reelhaven.planner import Plan
 from reelhaven.profiles import ProfileSettings
 from reelhaven.quality_metrics import SEGMENT_SECONDS, extract_frame, measure, segment_starts
+from reelhaven.sampling import MAX_SAMPLES, Candidate, choose_samples
 
 logger = logging.getLogger(__name__)
 
 FRAME_WIDTH = 1280
+_ENDED_JOB = ("failed", "cancelled")
 
 
 def test_run_dir(settings: Settings, library_id: int, run_id: int | None = None) -> Path:
@@ -37,56 +41,126 @@ def test_run_dir(settings: Settings, library_id: int, run_id: int | None = None)
     return base if run_id is None else base / str(run_id)
 
 
-def frame_path(settings: Settings, run: TestRun, index: int, which: str) -> Path:
-    return test_run_dir(settings, run.library_id, run.id) / f"frame-{index}-{which}.jpg"
+def sample_dir(settings: Settings, library_id: int, run_id: int, sample_id: int) -> Path:
+    return test_run_dir(settings, library_id, run_id) / str(sample_id)
+
+
+def frame_path(settings: Settings, run: TestRun, sample_id: int, index: int, which: str) -> Path:
+    return sample_dir(settings, run.library_id, run.id, sample_id) / f"frame-{index}-{which}.jpg"
+
+
+def sample_status(sample: TestRunSample, job_status: str | None) -> str:
+    """A sample whose job was cancelled or failed before it could report counts as failed."""
+    if sample.status == "running" and job_status in _ENDED_JOB:
+        return "failed"
+    return sample.status
+
+
+def run_status(run: TestRun, sample_statuses: Iterable[str]) -> str:
+    """running until every sample has ended; then done, or failed if any sample failed."""
+    if run.status == "approved":
+        return "approved"
+    statuses = list(sample_statuses)
+    if not statuses or "running" in statuses:
+        return "running"
+    return "failed" if "failed" in statuses else "done"
+
+
+def samples_of(session: Session, run: TestRun) -> list[tuple[TestRunSample, Job | None]]:
+    samples = session.scalars(
+        select(TestRunSample)
+        .where(TestRunSample.test_run_id == run.id)
+        .order_by(TestRunSample.position)
+    ).all()
+    jobs = {
+        job.test_run_sample_id: job
+        for job in session.scalars(
+            select(Job).where(Job.test_run_sample_id.in_([s.id for s in samples]))
+        )
+    }
+    return [(sample, jobs.get(sample.id)) for sample in samples]
+
+
+def current_status(session: Session, run: TestRun) -> str:
+    return run_status(
+        run, (sample_status(s, job.status if job else None) for s, job in samples_of(session, run))
+    )
 
 
 def create_test_run(
-    db: Database, session: Session, library: Library, file_id: int | None, actor: str
+    db: Database,
+    session: Session,
+    library: Library,
+    file_id: int | None,
+    samples: int,
+    actor: str,
 ) -> TestRun:
-    """Plan a test run on ``file_id``, or on the largest file that would be re-encoded."""
+    """Plan a test run on ``file_id``, or on ``samples`` varied files that would be re-encoded."""
+    if not 1 <= samples <= MAX_SAMPLES:
+        raise ValueError("samples out of range")
     profile = library_profile(session, library)
     if profile is None:
         raise NotApplicableError("no_profile")
-    candidates = [
-        p for p in plan_library(db, library.id)
+    plans = {
+        p.file_id: p
+        for p in plan_library(db, library.id)
         if p.plan is not None and p.plan.action == "encode"
-    ]  # fmt: skip
+    }  # fmt: skip
     if file_id is not None:
-        candidates = [p for p in candidates if p.file_id == file_id]
-        if not candidates:
+        if file_id not in plans:
             raise NotApplicableError("not_an_encode_candidate")
-    if not candidates:
-        raise NotApplicableError("nothing_to_encode")
-    choice = max(candidates, key=lambda p: p.size)
-    media_file = session.get(MediaFile, choice.file_id)
-    assert media_file is not None and choice.plan is not None  # noqa: S101
+        chosen = [file_id]
+    else:
+        if not plans:
+            raise NotApplicableError("nothing_to_encode")
+        library.test_run_samples = samples
+        files = session.scalars(select(MediaFile).where(MediaFile.id.in_(list(plans)))).all()
+        candidates = []
+        for media_file in files:
+            video = MediaInfo.model_validate(media_file.probe or {}).video
+            height, hdr = (video.height, video.hdr) if video else (None, None)
+            candidates.append(
+                Candidate(media_file.id, media_file.size, media_file.title_id, height, hdr)
+            )
+        chosen = choose_samples(candidates, samples)
+
     run = TestRun(
         library_id=library.id,
-        media_file_id=media_file.id,
         profile=profile.model_dump(),
         profile_fingerprint=profile_fingerprint(profile),
         requested_by=actor,
     )
     session.add(run)
     session.flush()
-    session.add(
-        Job(
-            library_id=library.id,
-            media_file_id=media_file.id,
+    for position, chosen_id in enumerate(chosen):
+        sample_file = session.get(MediaFile, chosen_id)
+        plan = plans[chosen_id].plan
+        assert sample_file is not None and plan is not None  # noqa: S101
+        sample = TestRunSample(
             test_run_id=run.id,
-            type="test",
-            priority=10,  # ahead of bulk work: the owner is waiting for it
-            source_path=media_file.path,
-            source_size=media_file.size,
-            source_mtime_ns=media_file.mtime_ns,
-            plan=choice.plan.model_dump(mode="json"),
-            probe=media_file.probe or {},
-            profile=profile.model_dump(),
-            requested_by=actor,
+            media_file_id=sample_file.id,
+            relative_path=sample_file.relative_path,
+            position=position,
         )
-    )
-    details = {"file": media_file.relative_path, "profile": run.profile_fingerprint}
+        session.add(sample)
+        session.flush()
+        session.add(
+            Job(
+                library_id=library.id,
+                media_file_id=sample_file.id,
+                test_run_sample_id=sample.id,
+                type="test",
+                priority=10,  # ahead of bulk work: the owner is waiting for it
+                source_path=sample_file.path,
+                source_size=sample_file.size,
+                source_mtime_ns=sample_file.mtime_ns,
+                plan=plan.model_dump(mode="json"),
+                probe=sample_file.probe or {},
+                profile=profile.model_dump(),
+                requested_by=actor,
+            )
+        )
+    details = {"files": len(chosen), "profile": run.profile_fingerprint}
     audit.record(session, actor, "test_run.started", library.name, details)
     return run
 
@@ -94,21 +168,27 @@ def create_test_run(
 def process_test(db: Database, settings: Settings, job_id: int, device: Device) -> None:
     with db.read() as session:
         job = session.get(Job, job_id)
-        if job is None or job.test_run_id is None or job.profile is None:
+        if job is None or job.test_run_sample_id is None or job.profile is None:
             return
-        run = session.get(TestRun, job.test_run_id)
-        if run is None:
+        sample = session.get(TestRunSample, job.test_run_sample_id)
+        run = session.get(TestRun, sample.test_run_id) if sample else None
+        if sample is None or run is None:
             return
         source = Path(job.source_path)
         info = MediaInfo.model_validate(job.probe)
         plan = Plan.model_validate(job.plan)
         profile = ProfileSettings.model_validate(job.profile)
         snapshot = Snapshot(job.source_size, job.source_mtime_ns)
-        run_id, library_id = run.id, run.library_id
+        sample_id, run_id, library_id = sample.id, run.id, run.library_id
 
     # Only the latest test run per library is kept on disk.
-    remove_tree(test_run_dir(settings, library_id))
-    folder = test_run_dir(settings, library_id, run_id)
+    library_dir = test_run_dir(settings, library_id)
+    if library_dir.is_dir():
+        for old in library_dir.iterdir():
+            if old.name != str(run_id):
+                remove_tree(old)
+    folder = sample_dir(settings, library_id, run_id, sample_id)
+    remove_tree(folder)
     folder.mkdir(parents=True)
     encoded = folder / source.name
     started = time.monotonic()
@@ -148,11 +228,11 @@ def process_test(db: Database, settings: Settings, job_id: int, device: Device) 
         ]
     except CancelledError:
         remove_tree(folder)
-        _finish(db, job_id, run_id, "failed", error="Cancelled.")
+        _finish(db, job_id, sample_id, "failed", error="Cancelled.")
         return
-    except Exception as exc:  # any failure must end the test run, never leave it "running"
+    except Exception as exc:  # any failure must end the sample, never leave it "running"
         remove_tree(folder)
-        _finish(db, job_id, run_id, "failed", error=str(exc)[:2000] or exc.__class__.__name__)
+        _finish(db, job_id, sample_id, "failed", error=str(exc)[:2000] or exc.__class__.__name__)
         if isinstance(exc, (RunError, VerificationError, OSError, ValueError)):
             raise JobFailedError(str(exc)) from exc
         raise
@@ -176,7 +256,7 @@ def process_test(db: Database, settings: Settings, job_id: int, device: Device) 
         "fps": stats.get("fps"),
         "seconds": round(time.monotonic() - started, 1),
     }
-    _finish(db, job_id, run_id, "done", result=result)
+    _finish(db, job_id, sample_id, "done", result=result)
 
 
 def frame_times(duration: float) -> list[float]:
@@ -205,7 +285,7 @@ def _stills(
 def _finish(
     db: Database,
     job_id: int,
-    run_id: int,
+    sample_id: int,
     status: str,
     *,
     result: dict[str, Any] | None = None,
@@ -213,23 +293,30 @@ def _finish(
 ) -> None:
     now = utcnow()
     with db.write() as session:
-        run = session.get(TestRun, run_id)
-        if run is not None:
-            run.status = status
-            run.result = result
-            run.error = error
-            run.finished_at = now
+        sample = session.get(TestRunSample, sample_id)
+        if sample is not None:
+            sample.status = status
+            sample.result = result
+            sample.error = error
+            sample.finished_at = now
         job = session.get(Job, job_id)
         if job is not None and status == "done":
             job.status = "done"
             job.progress = 1.0
             job.finished_at = now
+        session.flush()
+        run = session.get(TestRun, sample.test_run_id) if sample else None
+        if run is not None:
+            status_now = current_status(session, run)
+            if status_now != "running":
+                run.status = status_now
+                run.finished_at = now
 
 
 def approve(session: Session, run: TestRun, library: Library, actor: str) -> None:
-    """The owner looked at the result and accepts the profile for bulk encoding."""
-    if run.status != "done":
-        raise NotApplicableError("test_run_not_finished")
+    """The owner looked at the results and accepts the profile for bulk encoding."""
+    if current_status(session, run) != "done":
+        raise NotApplicableError("test_run_not_passed")
     profile = library_profile(session, library)
     if profile is None or profile_fingerprint(profile) != run.profile_fingerprint:
         raise NotApplicableError("profile_changed")

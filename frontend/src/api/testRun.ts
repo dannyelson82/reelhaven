@@ -1,6 +1,8 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { api, json } from './client';
 
+export const MAX_SAMPLES = 5;
+
 export interface TestRunResult {
   bytes_before: number;
   bytes_after: number;
@@ -20,29 +22,41 @@ export interface TestRunResult {
   seconds: number;
 }
 
-export interface TestRun {
+export interface TestSample {
   id: number;
-  status: 'running' | 'done' | 'failed' | 'approved';
-  file: string | null;
+  file: string;
   media_file_id: number | null;
-  profile: Record<string, unknown>;
-  profile_is_current: boolean;
+  status: 'running' | 'done' | 'failed';
   result: TestRunResult | null;
   error: string | null;
   progress: number;
+  job_id: number | null;
   job_status: string | null;
   fps: number | null;
+}
+
+export interface TestRun {
+  id: number;
+  status: 'running' | 'done' | 'failed' | 'approved';
+  profile: Record<string, unknown>;
+  profile_is_current: boolean;
+  samples: TestSample[];
   created_at: string;
   finished_at: string | null;
   approved_by: string | null;
   approved_at: string | null;
 }
 
+export interface TestRunState {
+  samples: number;
+  run: TestRun | null;
+}
+
 export function useTestRun(libraryId: number) {
   return useQuery({
     queryKey: ['test-run', libraryId],
-    queryFn: () => api<TestRun | null>(`libraries/${libraryId}/test-run`),
-    refetchInterval: (q) => (q.state.data?.status === 'running' ? 1500 : false),
+    queryFn: () => api<TestRunState>(`libraries/${libraryId}/test-run`),
+    refetchInterval: (q) => (q.state.data?.run?.status === 'running' ? 1500 : false),
   });
 }
 
@@ -61,10 +75,10 @@ function useTestRunMutation<TBody, TResult>(
 }
 
 export const useStartTestRun = (libraryId: number) =>
-  useTestRunMutation(libraryId, (fileId: number | null) =>
+  useTestRunMutation(libraryId, (samples: number) =>
     api<TestRun>(`libraries/${libraryId}/test-run`, {
       method: 'POST',
-      body: json({ file_id: fileId }),
+      body: json({ samples }),
     }),
   );
 
@@ -73,5 +87,5 @@ export const useApproveTestRun = (libraryId: number) =>
     api<TestRun>(`test-runs/${runId}/approve`, { method: 'POST' }),
   );
 
-export const frameUrl = (runId: number, index: number, which: 'source' | 'encoded') =>
-  `api/v1/test-runs/${runId}/frames/${index}/${which}.jpg`;
+export const frameUrl = (sampleId: number, index: number, which: 'source' | 'encoded') =>
+  `api/v1/test-run-samples/${sampleId}/frames/${index}/${which}.jpg`;

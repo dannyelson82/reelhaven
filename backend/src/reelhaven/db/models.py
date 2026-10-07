@@ -111,6 +111,8 @@ class Library(Base):
     # is allowed only while it matches the library's current profile.
     test_run_profile: Mapped[str | None] = mapped_column(String(32), default=None)
     test_run_at: Mapped[datetime | None] = mapped_column(default=None)
+    # How many files a test run tries (1-5); remembered from the last one started.
+    test_run_samples: Mapped[int] = mapped_column(Integer, default=1, server_default="1")
 
 
 LANGUAGE_SOURCES = ("sonarr", "radarr", "tmdb", "manual", "unknown")
@@ -223,8 +225,8 @@ class Job(Base):
     plan: Mapped[dict[str, Any]] = mapped_column()
     probe: Mapped[dict[str, Any]] = mapped_column()
     progress: Mapped[float] = mapped_column(default=0.0)
-    test_run_id: Mapped[int | None] = mapped_column(
-        ForeignKey("test_runs.id", ondelete="CASCADE"), default=None
+    test_run_sample_id: Mapped[int | None] = mapped_column(
+        ForeignKey("test_run_samples.id", ondelete="CASCADE"), default=None
     )
     # Encode jobs: the profile snapshot, the device that runs it and live speed.
     profile: Mapped[dict[str, Any] | None] = mapped_column(default=None)
@@ -291,7 +293,7 @@ TEST_RUN_STATUSES = ("running", "done", "failed", "approved")
 
 
 class TestRun(Base):
-    """A one-file trial encode that gates bulk encoding (ADR-0020)."""
+    """Trial encodes of a few files that gate bulk encoding (ADR-0020)."""
 
     __tablename__ = "test_runs"
     __test__ = False  # not a pytest test class
@@ -300,20 +302,49 @@ class TestRun(Base):
     library_id: Mapped[int] = mapped_column(
         ForeignKey("libraries.id", ondelete="CASCADE"), index=True
     )
-    media_file_id: Mapped[int | None] = mapped_column(
-        ForeignKey("media_files.id", ondelete="SET NULL"), default=None
-    )
     profile: Mapped[dict[str, Any]] = mapped_column()
     profile_fingerprint: Mapped[str] = mapped_column(String(32))
+    # done: every sample encoded; failed: at least one didn't (then it can't be approved).
     status: Mapped[str] = mapped_column(
         Enum(*TEST_RUN_STATUSES, name="test_run_status", native_enum=False, create_constraint=True),
         default="running",
     )
-    # Sizes, quality measures and frame times, filled in when the encode finishes.
-    result: Mapped[dict[str, Any] | None] = mapped_column(default=None)
-    error: Mapped[str | None] = mapped_column(Text, default=None)
     requested_by: Mapped[str] = mapped_column(String(128))
     created_at: Mapped[datetime] = mapped_column(default=utcnow)
     finished_at: Mapped[datetime | None] = mapped_column(default=None)
     approved_by: Mapped[str | None] = mapped_column(String(128), default=None)
     approved_at: Mapped[datetime | None] = mapped_column(default=None)
+
+
+TEST_SAMPLE_STATUSES = ("running", "done", "failed")
+
+
+class TestRunSample(Base):
+    """One file of a test run, encoded by its own job."""
+
+    __tablename__ = "test_run_samples"
+    __test__ = False  # not a pytest test class
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    test_run_id: Mapped[int] = mapped_column(
+        ForeignKey("test_runs.id", ondelete="CASCADE"), index=True
+    )
+    media_file_id: Mapped[int | None] = mapped_column(
+        ForeignKey("media_files.id", ondelete="SET NULL"), default=None
+    )
+    # Kept so the result still says which file it was if the file goes away.
+    relative_path: Mapped[str] = mapped_column(String(4096))
+    position: Mapped[int] = mapped_column(Integer)
+    status: Mapped[str] = mapped_column(
+        Enum(
+            *TEST_SAMPLE_STATUSES,
+            name="test_sample_status",
+            native_enum=False,
+            create_constraint=True,
+        ),
+        default="running",
+    )
+    # Sizes, quality measures and frame times, filled in when the encode finishes.
+    result: Mapped[dict[str, Any] | None] = mapped_column(default=None)
+    error: Mapped[str | None] = mapped_column(Text, default=None)
+    finished_at: Mapped[datetime | None] = mapped_column(default=None)

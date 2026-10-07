@@ -250,6 +250,8 @@ def retry_job(job_id: int, request: Request, db: DbDep, principal: InteractiveDe
             raise HTTPException(status.HTTP_404_NOT_FOUND, "job_not_found")
         if job.status not in ("failed", "cancelled") or job.media_file_id is None:
             raise HTTPException(status.HTTP_409_CONFLICT, "job_not_retryable")
+        if job.type == "test":  # a retry would be a real encode; start a new test run instead
+            raise HTTPException(status.HTTP_409_CONFLICT, "test_run_job")
         file_id = job.media_file_id
     return apply_file(file_id, request, db, principal)
 
