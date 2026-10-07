@@ -4,9 +4,19 @@ import subprocess
 import threading
 import time
 from collections.abc import Callable
-from typing import IO
+from typing import IO, Protocol
 
 _STDERR_KEEP = 4000
+
+
+class ProgressCallback(Protocol):
+    def __call__(
+        self, fraction: float, fps: float | None = None, speed: float | None = None
+    ) -> None: ...
+
+
+def _ignore(fraction: float, fps: float | None = None, speed: float | None = None) -> None:
+    pass
 
 
 class RunError(Exception):
@@ -21,7 +31,7 @@ def run_ffmpeg(
     args: list[str],
     duration_s: float | None,
     timeout_s: float,
-    on_progress: Callable[[float], None] = lambda _: None,
+    on_progress: ProgressCallback = _ignore,
     should_cancel: Callable[[], bool] = lambda: False,
 ) -> None:
     """Run ``args`` (an ffmpeg command with ``-progress pipe:1``) to completion."""
@@ -53,14 +63,19 @@ def run_ffmpeg(
     guard = threading.Thread(target=watchdog, daemon=True)
     guard.start()
 
+    block: dict[str, str] = {}
     for raw in process.stdout:
-        line = raw.decode("utf-8", "replace").strip()
-        if line.startswith("out_time_us=") and duration_s:
-            try:
-                done = int(line.split("=", 1)[1]) / 1_000_000
-            except ValueError:
-                continue
-            on_progress(max(0.0, min(done / duration_s, 1.0)))
+        key, _, value = raw.decode("utf-8", "replace").strip().partition("=")
+        block[key] = value
+        if key != "progress":
+            continue
+        # End of one progress block: out_time_us, fps and speed belong together.
+        done = _number(block.get("out_time_us"))
+        fps = _number(block.get("fps")) or None
+        speed = _number((block.get("speed") or "").rstrip("x")) or None
+        if done is not None and duration_s:
+            on_progress(max(0.0, min(done / 1_000_000 / duration_s, 1.0)), fps, speed)
+        block = {}
     process.wait()
     guard.join(timeout=1)
     reader.join(timeout=1)
@@ -73,3 +88,10 @@ def run_ffmpeg(
         stderr = b"".join(stderr_chunks).decode("utf-8", "replace").strip()
         raise RunError(stderr[-_STDERR_KEEP:] or f"ffmpeg exited with code {process.returncode}")
     on_progress(1.0)
+
+
+def _number(value: str | None) -> float | None:
+    try:
+        return float(value) if value not in (None, "", "N/A") else None
+    except ValueError:
+        return None

@@ -8,13 +8,14 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from reelhaven import audit
-from reelhaven.db import Database, Job, Library, MediaFile, RecycleItem
+from reelhaven.db import Database, Job, Library, MediaFile, Profile, RecycleItem
 from reelhaven.db.types import utcnow
 from reelhaven.dryrun import FilePlan
 from reelhaven.jobs.commands import UnsupportedContainerError, remux_format
 from reelhaven.jobs.pipeline import RECYCLE_DAYS
 from reelhaven.jobs.replace import ReplaceError, restore
 from reelhaven.jobs.storage import recycle_path
+from reelhaven.profiles import ProfileSettings
 
 logger = logging.getLogger(__name__)
 
@@ -34,9 +35,15 @@ def _active_file_ids(session: Session, file_ids: list[int]) -> set[int]:
     return {r for r in rows if r is not None}
 
 
+def library_profile(session: Session, library: Library) -> ProfileSettings | None:
+    row = session.get(Profile, library.profile_id) if library.profile_id else None
+    return ProfileSettings.model_validate(row.settings) if row else None
+
+
 def create_jobs(session: Session, library: Library, plans: list[FilePlan], actor: str) -> list[Job]:
-    """Queue remux jobs for planned files; skips files without changes or already queued."""
-    wanted = [p for p in plans if p.plan is not None and p.plan.action == "remux"]
+    """Queue jobs for planned files; skips files without changes or already queued."""
+    wanted = [p for p in plans if p.plan is not None and p.plan.action in ("remux", "encode")]
+    profile = library_profile(session, library)
     busy = _active_file_ids(session, [p.file_id for p in wanted])
     jobs: list[Job] = []
     for item in wanted:
@@ -49,10 +56,14 @@ def create_jobs(session: Session, library: Library, plans: list[FilePlan], actor
             remux_format(Path(media_file.path))
         except UnsupportedContainerError:
             continue
+        encode = item.plan.action == "encode"
+        if encode and profile is None:
+            continue
         job = Job(
             library_id=library.id,
             media_file_id=media_file.id,
-            type="remux",
+            type="encode" if encode else "remux",
+            profile=profile.model_dump() if encode and profile else None,
             source_path=media_file.path,
             source_size=media_file.size,
             source_mtime_ns=media_file.mtime_ns,
@@ -69,7 +80,7 @@ def create_jobs(session: Session, library: Library, plans: list[FilePlan], actor
 def check_applicable(item: FilePlan, media_file: MediaFile) -> None:
     if item.plan is None:
         raise NotApplicableError("file_not_readable")
-    if item.plan.action != "remux":
+    if item.plan.action not in ("remux", "encode"):
         raise NotApplicableError("nothing_to_do")
     try:
         remux_format(Path(media_file.path))

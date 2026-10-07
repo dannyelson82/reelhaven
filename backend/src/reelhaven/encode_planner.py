@@ -70,7 +70,9 @@ def _video_bitrate(info: MediaInfo, video: Stream) -> int | None:
     return max(total - others, 0) or None
 
 
-def plan_video(info: MediaInfo, profile: ProfileSettings | None) -> VideoPlan:
+def plan_video(
+    info: MediaInfo, profile: ProfileSettings | None, no_gain_profile: str | None = None
+) -> VideoPlan:
     video = info.video
     if profile is None:
         return VideoPlan(decision="keep", reason="No compression profile for this library.")
@@ -86,6 +88,10 @@ def plan_video(info: MediaInfo, profile: ProfileSettings | None) -> VideoPlan:
         )
     if video.hdr in ("hdr10", "hlg") and profile.codec == "h264":
         return VideoPlan(decision="keep", reason="HDR can't be kept in H.264.")
+    if no_gain_profile is not None and no_gain_profile == profile_fingerprint(profile):
+        return VideoPlan(
+            decision="keep", reason="Encoding with this profile was tried and didn't save enough."
+        )
     marker = info.tags.get("reelhaven", "")
     if marker == encode_marker(profile):
         return VideoPlan(decision="keep", reason="Already encoded by ReelHaven with this profile.")

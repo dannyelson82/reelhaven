@@ -121,3 +121,39 @@ it('asks before permanently deleting', async () => {
   await userEvent.click(screen.getByRole('button', { name: 'Keep it' }));
   expect(calls.some((c) => c.key.startsWith('DELETE'))).toBe(false);
 });
+
+it('shows live encode progress and a no-gain result', async () => {
+  window.location.hash = '#/jobs';
+  const base = {
+    ...job,
+    type: 'encode',
+    error: null,
+    outcome: null,
+    device: 'nvidia:0',
+    fps: null,
+    speed: null,
+  };
+  mockApi({
+    'GET auth/state': loggedIn,
+    'GET jobs?status=all&offset=0&limit=50': {
+      body: {
+        total: 2,
+        counts: { running: 1, done: 1 },
+        items: [
+          { ...base, id: 7, status: 'running', progress: 0.42, fps: 148.2, speed: 6.1 },
+          {
+            ...base,
+            id: 6,
+            status: 'done',
+            outcome: 'no_gain',
+            bytes_before: 2e9,
+            bytes_after: 1.95e9,
+          },
+        ],
+      },
+    },
+  });
+  render(<App />);
+  expect(await screen.findByText(/42% · nvidia:0 · 148 fps · 6.1× real time/)).toBeInTheDocument();
+  expect(screen.getByText('No gain: the original was kept')).toBeInTheDocument();
+});

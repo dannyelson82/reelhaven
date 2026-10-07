@@ -38,6 +38,7 @@ class Spec:
     size: str = "160x90"
     seconds: float = 1.0
     hdr10: bool = False  # HEVC 10-bit with BT.2020 / PQ colour tags
+    video_bitrate: str | None = None  # e.g. "20M": a big source worth re-encoding
 
 
 def make(path: Path, spec: Spec) -> Path:
@@ -69,6 +70,15 @@ def make(path: Path, spec: Spec) -> Path:
         ]  # fmt: skip
     elif spec.codec == "libx265":
         args += ["-x265-params", "log-level=error"]
+    if spec.video_bitrate:
+        args += [
+            "-b:v",
+            spec.video_bitrate,
+            "-maxrate",
+            spec.video_bitrate,
+            "-bufsize",
+            spec.video_bitrate,
+        ]
     args += ["-c:a", "aac", "-b:a", "48k"]
     args += ["-c:s", "mov_text" if path.suffix == ".mp4" else "srt"]
     for i, audio in enumerate(spec.audio):

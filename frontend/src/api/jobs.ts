@@ -20,6 +20,10 @@ export interface Job {
   bytes_before: number | null;
   bytes_after: number | null;
   process_seconds: number | null;
+  outcome: 'replaced' | 'no_gain' | null;
+  device: string | null;
+  fps: number | null;
+  speed: number | null;
 }
 
 export interface RecycleItem {

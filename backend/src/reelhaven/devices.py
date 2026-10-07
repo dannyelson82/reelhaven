@@ -174,6 +174,7 @@ class DeviceRegistry:
         self._dev = dev
         self._lock = threading.Lock()
         self._reports: list[DeviceReport] = []
+        self._devices: dict[str, Device] = {}
         self._detecting = False
         self.detected_at: float | None = None
 
@@ -196,6 +197,7 @@ class DeviceRegistry:
             reports = [probe_device(d, self._ffmpeg, self._run) for d in devices]
             with self._lock:
                 self._reports = reports
+                self._devices = {d.id: d for d in devices}
                 self.detected_at = time.time()
             logger.info(
                 "devices detected",
@@ -220,6 +222,11 @@ class DeviceRegistry:
             return False
         threading.Thread(target=self.detect, name="detect-devices", daemon=True).start()
         return True
+
+    def usable(self) -> list[tuple[Device, DeviceReport]]:
+        """Detected devices with their test results."""
+        with self._lock:
+            return [(self._devices[r.id], r) for r in self._reports if r.id in self._devices]
 
     def as_dicts(self) -> list[dict[str, object]]:
         return [asdict(r) for r in self.reports()]

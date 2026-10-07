@@ -74,7 +74,7 @@ def process(db: Database, settings: Settings, job_id: int) -> None:
         duration = info.duration_s or 0.0
         last = [0.0]
 
-        def progress(fraction: float) -> None:
+        def progress(fraction: float, fps: float | None = None, speed: float | None = None) -> None:
             if fraction - last[0] >= 0.02 or fraction >= 1.0:
                 last[0] = fraction
                 _set(db, job_id, progress=round(fraction * 0.8, 3))  # remux = first 80 %
@@ -110,13 +110,44 @@ def process(db: Database, settings: Settings, job_id: int) -> None:
         raise JobFailedError(str(exc)) from exc
     remove_tree(workdir)
 
-    # The file at source_path is now the verified new one.
+    record_replacement(
+        db,
+        job_id=job_id,
+        library_id=library.id,
+        library_name=library_name,
+        actor=actor,
+        source=source,
+        stored=stored,
+        snapshot=snapshot,
+        new_info=new_info,
+        started=started,
+        media_file_id=media_file_id,
+    )
+
+
+def record_replacement(
+    db: Database,
+    *,
+    job_id: int,
+    library_id: int,
+    library_name: str,
+    actor: str,
+    source: Path,
+    stored: Path,
+    snapshot: Snapshot,
+    new_info: MediaInfo,
+    started: float,
+    media_file_id: int | None,
+    device: str | None = None,
+    fps: float | None = None,
+) -> None:
+    """After a successful replace: recycle entry, result, refreshed file record, audit."""
     st = source.stat()
     now = utcnow()
     with db.write() as session:
         session.add(
             RecycleItem(
-                library_id=library.id,
+                library_id=library_id,
                 job_id=job_id,
                 original_path=str(source),
                 stored_path=str(stored),
@@ -133,6 +164,9 @@ def process(db: Database, settings: Settings, job_id: int) -> None:
                 bytes_after=st.st_size,
                 duration_s=new_info.duration_s,
                 process_seconds=round(time.monotonic() - started, 2),
+                outcome="replaced",
+                device=device,
+                fps=fps,
             )
         )
         if media_file_id is not None:

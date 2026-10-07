@@ -27,7 +27,7 @@ import { formatBytes } from '../format';
 
 const STATUS: Record<Job['status'], { label: string; color: string }> = {
   queued: { label: 'Waiting', color: 'gray' },
-  running: { label: 'Remuxing', color: 'blue' },
+  running: { label: 'Working', color: 'blue' },
   verifying: { label: 'Checking', color: 'cyan' },
   done: { label: 'Done', color: 'teal' },
   failed: { label: 'Failed', color: 'red' },
@@ -102,7 +102,17 @@ function JobCard({ job }: { job: Job }) {
           <Badge color={status.color}>{status.label}</Badge>
         </Group>
         {isActive(job) && (
-          <Progress value={job.progress * 100} animated={job.status !== 'queued'} />
+          <Stack gap={2}>
+            <Progress value={job.progress * 100} animated={job.status !== 'queued'} />
+            {job.status !== 'queued' && (
+              <Text size="xs" c="dimmed">
+                {Math.round(job.progress * 100)}%
+                {job.type === 'encode' && job.device && ` · ${job.device}`}
+                {job.fps !== null && ` · ${job.fps.toFixed(0)} fps`}
+                {job.speed !== null && ` · ${job.speed.toFixed(1)}× real time`}
+              </Text>
+            )}
+          </Stack>
         )}
         {job.details.length > 0 && (
           <List size="sm">
@@ -111,12 +121,22 @@ function JobCard({ job }: { job: Job }) {
             ))}
           </List>
         )}
-        {job.status === 'done' && saved !== null && (
+        {job.status === 'done' && job.outcome === 'no_gain' && (
+          <Alert color="gray" title="No gain: the original was kept">
+            <Text size="sm">
+              The re-encoded file ({formatBytes(job.bytes_after)}) wasn't small enough compared with
+              the original ({formatBytes(job.bytes_before)}). ReelHaven won't try this profile on
+              this file again.
+            </Text>
+          </Alert>
+        )}
+        {job.status === 'done' && job.outcome !== 'no_gain' && saved !== null && (
           <Text size="sm" c="teal">
             Saved {formatBytes(saved)} ({formatBytes(job.bytes_before)} →{' '}
             {formatBytes(job.bytes_after)})
-            {job.process_seconds !== null && ` in ${job.process_seconds.toFixed(0)}s`}. The original
-            is in the recycle bin.
+            {job.process_seconds !== null && ` in ${job.process_seconds.toFixed(0)}s`}
+            {job.type === 'encode' && job.device && ` on ${job.device}`}. The original is in the
+            recycle bin.
           </Text>
         )}
         {job.status === 'failed' && (

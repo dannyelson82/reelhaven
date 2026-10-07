@@ -41,7 +41,7 @@ def plan_library(db: Database, library_id: int) -> list[FilePlan]:
             file_plan = None
             if media_file.status == "ok" and media_file.probe is not None:
                 info = MediaInfo.model_validate(media_file.probe)
-                file_plan = plan_file(info, original, policy, profile)
+                file_plan = plan_file(info, original, policy, profile, media_file.no_gain_profile)
             result.append(
                 FilePlan(
                     media_file.id, media_file.relative_path, media_file.size, original, file_plan

@@ -49,3 +49,4 @@ secret*.json
 .DS_Store
 Thumbs.db
 .dev-config/
+.dev-transcode/

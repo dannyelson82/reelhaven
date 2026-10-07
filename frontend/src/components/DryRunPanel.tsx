@@ -69,6 +69,7 @@ export function DryRunPanel({ libraryId }: { libraryId: number }) {
   if (dryRun.isError) return <Alert color="red">{errorMessage(dryRun.error)}</Alert>;
   const r = dryRun.data;
   const flagged = (r.flags.wrong_language ?? 0) + (r.flags.no_wanted_audio ?? 0);
+  const total = r.encode + r.remux;
 
   return (
     <Stack>
@@ -119,10 +120,9 @@ export function DryRunPanel({ libraryId }: { libraryId: number }) {
           >
             Run again
           </Button>
-          {r.remux > 0 && (
+          {total > 0 && (
             <Button leftSection={<IconWand size={16} />} onClick={() => setConfirming(true)}>
-              {r.encode > 0 ? 'Apply track changes to' : 'Apply to'} {r.remux}{' '}
-              {r.remux === 1 ? 'file' : 'files'}
+              Apply to {total} {total === 1 ? 'file' : 'files'}
             </Button>
           )}
         </Group>
@@ -152,8 +152,8 @@ export function DryRunPanel({ libraryId }: { libraryId: number }) {
       <Modal opened={confirming} onClose={() => setConfirming(false)} title="Apply the dry run?">
         <Stack>
           <Text size="sm">
-            ReelHaven will remux <b>{r.remux}</b> {r.remux === 1 ? 'file' : 'files'}, removing the
-            tracks and fixing the defaults listed in the dry run.
+            ReelHaven will process <b>{total}</b> {total === 1 ? 'file' : 'files'}: {r.encode}{' '}
+            re-encoded and {r.remux} with track changes only, as listed in the dry run.
           </Text>
           <List size="sm">
             <List.Item>Each new file is checked before it replaces the original.</List.Item>
@@ -169,7 +169,7 @@ export function DryRunPanel({ libraryId }: { libraryId: number }) {
               loading={apply.isPending}
               onClick={() =>
                 apply.mutate(
-                  { libraryId, expected: r.remux },
+                  { libraryId, expected: total },
                   {
                     onSuccess: (result) => {
                       setConfirming(false);
@@ -186,7 +186,7 @@ export function DryRunPanel({ libraryId }: { libraryId: number }) {
                 )
               }
             >
-              Apply to {r.remux} {r.remux === 1 ? 'file' : 'files'}
+              Apply to {total} {total === 1 ? 'file' : 'files'}
             </Button>
           </Group>
         </Stack>
