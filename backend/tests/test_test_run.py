@@ -2,6 +2,7 @@
 
 import hashlib
 import os
+from pathlib import Path
 
 import pytest
 from fastapi import FastAPI
@@ -10,9 +11,10 @@ from fastapi.testclient import TestClient
 from reelhaven.config import Settings
 from reelhaven.db import TestRun, TestRunSample
 from reelhaven.jobs.test_run import frame_times, run_status, sample_status
+from reelhaven.media.probe import probe
 from reelhaven.quality_metrics import rate, segment_starts
 from tests.helpers import API
-from tests.media_fixtures import FFMPEG, make
+from tests.media_fixtures import FFMPEG, Audio, Spec, make
 from tests.test_encode_pipeline import (  # noqa: F401 - shared fixture
     BIG,
     FAST,
@@ -57,14 +59,22 @@ def test_status_rules() -> None:
     assert run_status(TestRun(status="approved"), ["done"]) == "approved"
 
 
-def add_film(admin: TestClient, app: FastAPI, settings: Settings, lib: int, name: str) -> None:  # noqa: F811
+def add_film(
+    admin: TestClient,
+    app: FastAPI,  # noqa: F811
+    settings: Settings,
+    lib: int,
+    name: str,
+    spec: Spec = BIG,
+) -> Path:
     path = settings.media_root / "Movies" / name / "film.mkv"
     path.parent.mkdir(parents=True)
-    os.utime(make(path, BIG), (OLD, OLD))
+    os.utime(make(path, spec), (OLD, OLD))
     admin.post(f"{API}/libraries/{lib}/scan")
     app.state.scanner.wait(lib, timeout=60)
     for title in admin.get(f"{API}/libraries/{lib}/titles").json()["items"]:
         admin.put(f"{API}/titles/{title['id']}/language", json={"language": "eng"})
+    return path
 
 
 def test_test_run_then_approve(app: FastAPI, settings: Settings) -> None:  # noqa: F811
@@ -185,3 +195,29 @@ def test_only_one_test_run_at_a_time(app: FastAPI, settings: Settings) -> None: 
     assert admin.post(f"{API}/libraries/{lib}/test-run", json={}).status_code == 201
     second = admin.post(f"{API}/libraries/{lib}/test-run", json={})
     assert (second.status_code, second.json()["detail"]) == (409, "test_run_in_progress")
+
+
+def test_track_changes_need_no_test_run(app: FastAPI, settings: Settings) -> None:  # noqa: F811
+    """ADR-0020: only re-encoding is gated; track changes can be applied right away."""
+    admin, lib, big = setup(app, settings, FAST)
+    small = add_film(
+        admin,
+        app,
+        settings,
+        lib,
+        "Small (2019)",
+        Spec(codec="libx265", audio=[Audio("eng", default=True), Audio("fre")]),
+    )
+    dry = admin.get(f"{API}/libraries/{lib}/dry-run").json()
+    assert (dry["encode"], dry["remux"]) == (1, 1), dry
+    everything = admin.post(f"{API}/libraries/{lib}/apply", json={"expected_count": 2})
+    assert everything.json()["detail"] == "test_run_required"
+
+    tracks = admin.post(
+        f"{API}/libraries/{lib}/apply", json={"expected_count": 1, "only_track_changes": True}
+    )
+    assert tracks.status_code == 200, tracks.text
+    assert tracks.json()["queued"] == 1
+    assert app.state.queue.wait_idle(120)
+    assert [a.language for a in probe(small).of_kind("audio")] == ["eng"]
+    assert len(probe(big).of_kind("audio")) == 2  # waits for the test run

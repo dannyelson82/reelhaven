@@ -71,7 +71,11 @@ export function DryRunPanel({ libraryId }: { libraryId: number }) {
   if (dryRun.isError) return <Alert color="red">{errorMessage(dryRun.error)}</Alert>;
   const r = dryRun.data;
   const flagged = (r.flags.wrong_language ?? 0) + (r.flags.no_wanted_audio ?? 0);
-  const total = r.encode + r.remux;
+  const approved = testRun.data?.run?.status === 'approved' && testRun.data.run.profile_is_current;
+  // ADR-0020: without an approved test run only the track changes can be applied.
+  const gated = r.encode > 0 && !approved;
+  const total = gated ? r.remux : r.encode + r.remux;
+  const applyLabel = `${gated ? 'Apply track changes to' : 'Apply to'} ${total} ${total === 1 ? 'file' : 'files'}`;
 
   return (
     <Stack>
@@ -93,14 +97,14 @@ export function DryRunPanel({ libraryId }: { libraryId: number }) {
           hint="wrong language or unreadable"
         />
       </SimpleGrid>
-      {r.encode > 0 &&
-        !(testRun.data?.run?.status === 'approved' && testRun.data.run.profile_is_current) && (
-          <Alert color="blue">
-            {r.encode} {r.encode === 1 ? 'file' : 'files'} would be re-encoded. Re-encoding a whole
-            library needs an approved test run with the current profile first: see the Test run tab.
-            Single files can be re-encoded from their details.
-          </Alert>
-        )}
+      {gated && (
+        <Alert color="blue">
+          {r.encode} {r.encode === 1 ? 'file' : 'files'} would be re-encoded. Re-encoding a whole
+          library needs an approved test run with the current profile first: see the Test run tab.
+          Until then you can apply the track changes, and single files can be re-encoded from their
+          details.
+        </Alert>
+      )}
       {r.unknown_original > 0 && (
         <Alert color="yellow">
           {r.unknown_original === 1 ? '1 file has' : `${r.unknown_original} files have`} an unknown
@@ -132,7 +136,7 @@ export function DryRunPanel({ libraryId }: { libraryId: number }) {
           </Button>
           {total > 0 && (
             <Button leftSection={<IconWand size={16} />} onClick={() => setConfirming(true)}>
-              Apply to {total} {total === 1 ? 'file' : 'files'}
+              {applyLabel}
             </Button>
           )}
         </Group>
@@ -162,8 +166,19 @@ export function DryRunPanel({ libraryId }: { libraryId: number }) {
       <Modal opened={confirming} onClose={() => setConfirming(false)} title="Apply the dry run?">
         <Stack>
           <Text size="sm">
-            ReelHaven will process <b>{total}</b> {total === 1 ? 'file' : 'files'}: {r.encode}{' '}
-            re-encoded and {r.remux} with track changes only, as listed in the dry run.
+            {gated ? (
+              <>
+                ReelHaven will apply the track changes to <b>{total}</b>{' '}
+                {total === 1 ? 'file' : 'files'}, as listed in the dry run. The {r.encode}{' '}
+                {r.encode === 1 ? 'file' : 'files'} to re-encode wait for an approved test run; they
+                get their track changes when they're re-encoded.
+              </>
+            ) : (
+              <>
+                ReelHaven will process <b>{total}</b> {total === 1 ? 'file' : 'files'}: {r.encode}{' '}
+                re-encoded and {r.remux} with track changes only, as listed in the dry run.
+              </>
+            )}
           </Text>
           <List size="sm">
             <List.Item>Each new file is checked before it replaces the original.</List.Item>
@@ -179,15 +194,15 @@ export function DryRunPanel({ libraryId }: { libraryId: number }) {
               loading={apply.isPending}
               onClick={() =>
                 apply.mutate(
-                  { libraryId, expected: total },
+                  { libraryId, expected: total, onlyTrackChanges: gated },
                   {
                     onSuccess: (result) => {
                       setConfirming(false);
                       notifications.show({
                         message: (
                           <>
-                            {result.queued} files queued. Follow them on the{' '}
-                            <Link to="/jobs">Jobs page</Link>.
+                            {result.queued} {result.queued === 1 ? 'file' : 'files'} queued. Follow
+                            them on the <Link to="/jobs">Jobs page</Link>.
                           </>
                         ),
                       });
@@ -196,7 +211,7 @@ export function DryRunPanel({ libraryId }: { libraryId: number }) {
                 )
               }
             >
-              Apply to {total} {total === 1 ? 'file' : 'files'}
+              {applyLabel}
             </Button>
           </Group>
         </Stack>

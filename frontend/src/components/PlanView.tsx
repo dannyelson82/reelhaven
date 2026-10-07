@@ -53,7 +53,7 @@ export function PlanView({ fileId }: { fileId: number }) {
             Saves about {formatBytes(p.removed_bytes)}.
           </Text>
         )}
-        {p.action === 'remux' && (
+        {(p.action === 'remux' || p.action === 'encode') && (
           <Group>
             <Button
               size="xs"

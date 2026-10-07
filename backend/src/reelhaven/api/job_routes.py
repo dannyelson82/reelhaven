@@ -81,6 +81,9 @@ class ApplyLibrary(StrictModel):
     # The number of files the user saw and confirmed in the dry run. If the
     # library changed since, nothing is queued and the user must look again.
     expected_count: int = Field(ge=1)
+    # Before a test run is approved (ADR-0020): queue only the files that need
+    # track changes alone; files that will be re-encoded wait for approval.
+    only_track_changes: bool = False
 
 
 class ApplyResult(BaseModel):
@@ -172,7 +175,9 @@ def apply_library(
         plans = plan_library(db, library_id)
     except LookupError as exc:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "library_not_found") from exc
-    changes = sum(1 for p in plans if p.plan is not None and p.plan.action in ("remux", "encode"))
+    actions = ("remux",) if body.only_track_changes else ("remux", "encode")
+    plans = [p for p in plans if p.plan is not None and p.plan.action in actions]
+    changes = len(plans)
     if changes != body.expected_count:
         raise HTTPException(status.HTTP_409_CONFLICT, "plan_changed")
     encodes = any(p.plan is not None and p.plan.action == "encode" for p in plans)
