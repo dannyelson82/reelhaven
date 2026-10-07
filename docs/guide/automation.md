@@ -11,7 +11,7 @@ Each library has a **Watch mode**, set at the top of the library page:
 | Watch mode | What happens |
 |---|---|
 | **Off** (default) | Nothing happens unless you start it: scans, dry runs and **Apply** are all manual. |
-| **Watch** | New and changed files are found by the nightly rescan and planned (see the **Dry run** tab). Nothing is changed. |
+| **Watch** | New and changed files are found and planned (see the **Dry run** tab). Nothing is changed. |
 | **Automatic** | Everything in the library that needs work is processed, **the backlog included**, and new files are handled as they're found. |
 
 Switching to **Automatic** asks you to confirm. Look at the [Dry run](dry-run.md)
@@ -32,6 +32,21 @@ first: that's exactly the work it will do.
   left alone until the file changes. Use **Try again** to retry it yourself.
 - Every original still goes to the [recycle bin](recycle-bin.md) for 14 days.
 
+## How new files are found
+
+For libraries set to **Watch** or **Automatic**:
+
+- **Folder watcher**: when files are added, renamed or removed, the library is
+  rescanned about a minute later (a whole season arriving counts as one
+  change). Files still being copied are left for a follow-up scan a few
+  minutes later.
+- **Every 15 minutes** each watched library is rescanned anyway. Unraid
+  shares don't report every change (for example files written straight to a
+  disk share like `/mnt/disk1`), and this catches them.
+- **Nightly rescan**: a full rescan once a day (below).
+
+Rescans are quick: only new or changed files are read.
+
 ## Nightly rescan
 
 Libraries set to **Watch** or **Automatic** are rescanned once a day to find
@@ -48,6 +63,5 @@ where it left off.
 
 ## Coming in later updates
 
-Folder watching (changes noticed within minutes), Sonarr/Radarr webhooks
-(new imports processed right away) and telling Plex, Sonarr and Radarr about
-changed files.
+Sonarr/Radarr webhooks (new imports noticed the moment they finish) and
+telling Plex, Sonarr and Radarr about changed files.
