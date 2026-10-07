@@ -23,7 +23,7 @@ ENCODER_NAMES: dict[Family, dict[Codec, str]] = {
 
 @dataclass(frozen=True)
 class Device:
-    id: str  # "nvidia:0", "intel:/dev/dri/renderD128", "cpu"
+    id: str  # "nvidia:0", "intel:0000:00:02.0" (PCI slot), "cpu"
     kind: DeviceKind
     name: str
     family: Family

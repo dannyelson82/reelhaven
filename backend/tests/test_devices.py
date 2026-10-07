@@ -23,14 +23,14 @@ from tests.media_fixtures import FFMPEG
 
 NVIDIA = Device(id="nvidia:0", kind="nvidia", name="RTX 3060", family="nvenc", index=0)
 INTEL = Device(
-    id="intel:/dev/dri/renderD128",
+    id="intel:0000:00:02.0",
     kind="intel",
     name="Intel",
     family="qsv",
     render_node="/dev/dri/renderD128",
 )
 AMD = Device(
-    id="amd:/dev/dri/renderD129",
+    id="amd:0000:03:00.0",
     kind="amd",
     name="AMD",
     family="vaapi",
@@ -55,20 +55,26 @@ def test_no_nvidia() -> None:
 
 
 def test_detect_dri_by_vendor(tmp_path: Path) -> None:
-    dev, sysfs = tmp_path / "dev", tmp_path / "sys"
+    dev, sysfs, pci = tmp_path / "dev", tmp_path / "sys", tmp_path / "pci"
     dev.mkdir()
-    for node, vendor in (
-        ("renderD128", "0x8086"),
-        ("renderD129", "0x1002"),
-        ("renderD130", "0x10de"),
+    sysfs.mkdir()
+    for node, vendor, slot in (
+        ("renderD128", "0x10de", "0000:01:00.0"),
+        ("renderD129", "0x8086", "0000:00:02.0"),
+        ("renderD130", "0x1002", None),  # no PCI link: falls back to the node name
     ):
         (dev / node).touch()
-        (sysfs / node / "device").mkdir(parents=True)
+        if slot:
+            (pci / slot).mkdir(parents=True)
+            (sysfs / node).mkdir()
+            (sysfs / node / "device").symlink_to(pci / slot)
+        else:
+            (sysfs / node / "device").mkdir(parents=True)
         (sysfs / node / "device" / "vendor").write_text(vendor + "\n")
     devices = detect_dri(sysfs, dev)
-    assert [(d.kind, d.family, d.render_node) for d in devices] == [
-        ("intel", "qsv", str(dev / "renderD128")),
-        ("amd", "vaapi", str(dev / "renderD129")),
+    assert [(d.id, d.kind, d.family, d.render_node, d.name) for d in devices] == [
+        ("intel:0000:00:02.0", "intel", "qsv", str(dev / "renderD129"), "Intel GPU (0000:00:02.0)"),
+        ("amd:renderD130", "amd", "vaapi", str(dev / "renderD130"), "AMD GPU (renderD130)"),
     ]  # the NVIDIA node is used through NVENC instead
 
 

@@ -26,14 +26,14 @@ from tests.media_fixtures import FFMPEG, Audio, Spec, Sub, make
 
 NVIDIA = Device(id="nvidia:1", kind="nvidia", name="RTX", family="nvenc", index=1)
 INTEL = Device(
-    id="intel:/dev/dri/renderD128",
+    id="intel:0000:00:02.0",
     kind="intel",
     name="Intel",
     family="qsv",
     render_node="/dev/dri/renderD128",
 )
 AMD = Device(
-    id="amd:/dev/dri/renderD129",
+    id="amd:0000:03:00.0",
     kind="amd",
     name="AMD",
     family="vaapi",
