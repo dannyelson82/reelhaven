@@ -431,8 +431,6 @@ low risk, and exercises the whole verify → replace → notify pipeline before
 anything expensive runs.
 
 ## 16. Open questions
-- Exact quality calibration tables per encoder (to be built from test encodes
-  during phase 0.4/0.5).
 - Whether to offer AV1 by default on GPUs that support it, or keep HEVC as the
   default for player compatibility.
 - Subtitle OCR (PGS → SRT) and Dolby Vision handling are post-1.0 candidates.
