@@ -21,7 +21,19 @@ class FilePlan:
     plan: Plan | None  # None: the file couldn't be read
 
 
-def plan_library(db: Database, library_id: int) -> list[FilePlan]:
+@dataclass
+class _Source:
+    file_id: int
+    relative_path: str
+    size: int
+    original_language: str | None
+    info: MediaInfo | None
+    no_gain_profile: str | None
+
+
+def _load(
+    db: Database, library_id: int
+) -> tuple[LanguagePolicy, ProfileSettings | None, list[_Source]]:
     with db.read() as session:
         library = session.get(Library, library_id)
         if library is None:
@@ -35,19 +47,53 @@ def plan_library(db: Database, library_id: int) -> list[FilePlan]:
             .where(MediaFile.library_id == library_id)
             .order_by(MediaFile.relative_path)
         ).all()
-        result: list[FilePlan] = []
-        for media_file, title in rows:
-            original = title.original_language if title else None
-            file_plan = None
-            if media_file.status == "ok" and media_file.probe is not None:
-                info = MediaInfo.model_validate(media_file.probe)
-                file_plan = plan_file(info, original, policy, profile, media_file.no_gain_profile)
-            result.append(
-                FilePlan(
-                    media_file.id, media_file.relative_path, media_file.size, original, file_plan
-                )
+        sources = [
+            _Source(
+                media_file.id,
+                media_file.relative_path,
+                media_file.size,
+                title.original_language if title else None,
+                MediaInfo.model_validate(media_file.probe)
+                if media_file.status == "ok" and media_file.probe is not None
+                else None,
+                media_file.no_gain_profile,
             )
-    return result
+            for media_file, title in rows
+        ]
+    return policy, profile, sources
+
+
+def _plan(
+    sources: list[_Source], policy: LanguagePolicy, profile: ProfileSettings | None
+) -> list[FilePlan]:
+    return [
+        FilePlan(
+            s.file_id,
+            s.relative_path,
+            s.size,
+            s.original_language,
+            None
+            if s.info is None
+            else plan_file(s.info, s.original_language, policy, profile, s.no_gain_profile),
+        )
+        for s in sources
+    ]
+
+
+def plan_library(db: Database, library_id: int) -> list[FilePlan]:
+    policy, profile, sources = _load(db, library_id)
+    return _plan(sources, policy, profile)
+
+
+def estimate(
+    db: Database, library_id: int, candidates: dict[str, ProfileSettings | None]
+) -> dict[str, "DryRunSummary"]:
+    """The dry run's totals as if the library used each candidate profile. Read-only:
+    the files are loaded once and nothing is saved (used by the setup wizard)."""
+    policy, _current, sources = _load(db, library_id)
+    return {
+        name: summarise(_plan(sources, policy, profile)) for name, profile in candidates.items()
+    }
 
 
 @dataclass
