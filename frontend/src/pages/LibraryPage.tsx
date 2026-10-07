@@ -47,6 +47,7 @@ import {
   useSetTitleLanguage,
 } from '../api/titles';
 import { DryRunPanel } from '../components/DryRunPanel';
+import { LibraryProfileSelect } from '../components/LibraryProfileSelect';
 import { PlanView } from '../components/PlanView';
 import { PolicyModal } from '../components/PolicyModal';
 import { HDR_LABELS, formatBytes, formatDuration, languageName, resolutionLabel } from '../format';
@@ -95,6 +96,7 @@ export function LibraryPage() {
           </Text>
         </Stack>
         <Group gap="xs" align="flex-start">
+          <LibraryProfileSelect libraryId={libraryId} />
           <Button
             variant="default"
             leftSection={<IconAdjustments size={16} />}
