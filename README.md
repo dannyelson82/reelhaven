@@ -8,12 +8,12 @@ ReelHaven automatically compresses your video library on Unraid using every
 GPU you have, keeps only the audio and subtitle languages you want, and keeps
 Plex, Jellyfin, Sonarr and Radarr in sync.
 
-> ⚠️ Early development (v0.5). It re-encodes and changes files only when you
+> ⚠️ Early development (v0.6). It re-encodes and changes files only when you
 > ask it to, checks every result, and keeps every original in a recycle bin
 > first. Try it on a copy or a small library before trusting it with media
 > you can't afford to lose.
 
-## What works today (v0.5)
+## What works today (v0.6)
 - **Libraries**: scan your folders and see every file's video, audio and
   subtitle tracks
 - **Languages**: original language of each title from Sonarr, Radarr or TMDB
@@ -34,6 +34,12 @@ Plex, Jellyfin, Sonarr and Radarr in sync.
   replaces the original, and originals stay in a 14-day recycle bin with
   one-click restore
 - **Live progress** for every job (fps, speed, time left)
+- **Automatic processing**: set a library to Watch or Automatic; new files are
+  noticed by a folder watcher, Sonarr/Radarr webhooks and a nightly rescan,
+  and Automatic libraries work through everything (re-encodes only after an
+  approved test run). One button pauses it all
+- **Keeps your apps in sync**: Plex scans the changed folders and
+  Sonarr/Radarr rescan the affected series and movies
 
 ## First start
 Open the web UI (port 7171) and create the admin account **before** exposing
@@ -42,7 +48,6 @@ ReelHaven to the internet: until then, whoever opens it first becomes admin.
 ## Planned features
 - Finds files that arrived in the wrong language and can quarantine and
   re-download them
-- Watches folders and Sonarr/Radarr imports to process new files automatically
 - Stats: files processed, space saved, per-GPU performance
 
 ## Documentation
