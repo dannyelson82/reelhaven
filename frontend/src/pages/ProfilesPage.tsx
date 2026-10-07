@@ -4,6 +4,7 @@ import {
   Button,
   Card,
   Group,
+  List,
   Loader,
   Modal,
   NumberInput,
@@ -18,13 +19,17 @@ import {
 } from '@mantine/core';
 import { useForm } from '@mantine/form';
 import { notifications } from '@mantine/notifications';
+import { IconWand } from '@tabler/icons-react';
 import { useState } from 'react';
 import { errorMessage } from '../api/client';
+import { MimicModal } from '../components/MimicModal';
 import {
   AUDIO_CODEC_LABELS,
   type AudioCodec,
   CODEC_LABELS,
   DEFAULT_KBPS_PER_CHANNEL,
+  type FieldSource,
+  type MimicSaved,
   type Profile,
   type ProfileSettings,
   describe,
@@ -36,15 +41,17 @@ import {
 
 export function ProfilesPage() {
   const profiles = useProfiles();
-  const [editing, setEditing] = useState<{
-    id?: number;
-    name: string;
-    settings: ProfileSettings;
-  } | null>(null);
+  const [editing, setEditing] = useState<EditingProfile | null>(null);
+  const [mimicking, setMimicking] = useState(false);
 
   return (
     <Stack maw={860}>
-      <Title order={2}>Compression profiles</Title>
+      <Group justify="space-between">
+        <Title order={2}>Compression profiles</Title>
+        <Button leftSection={<IconWand size={16} />} onClick={() => setMimicking(true)}>
+          Mimic a file
+        </Button>
+      </Group>
       <Text size="sm" c="dimmed">
         A profile decides how video is re-encoded. Pick one per library on the library page; a
         library without a profile only gets the language changes. Built-in profiles can be copied
@@ -64,6 +71,11 @@ export function ProfilesPage() {
                 {describe(p.settings)}
               </Text>
               {p.used_by.length > 0 && <Text size="xs">Used by: {p.used_by.join(', ')}</Text>}
+              {p.mimic && (
+                <Text size="xs" c="dimmed">
+                  Mimicked from {p.mimic.file}
+                </Text>
+              )}
             </Stack>
             <Group gap="xs" wrap="nowrap">
               <Button
@@ -86,6 +98,20 @@ export function ProfilesPage() {
           </Group>
         </Card>
       ))}
+      {mimicking && (
+        <MimicModal
+          onClose={() => setMimicking(false)}
+          onUse={(file, report) => {
+            setMimicking(false);
+            const stem = (file.split('/').pop() ?? file).replace(/\.[^.]+$/, '');
+            setEditing({
+              name: `Like ${stem}`.slice(0, 100),
+              settings: report.settings,
+              mimic: { file, sources: report.sources, notes: report.notes },
+            });
+          }}
+        />
+      )}
       {editing && (
         <ProfileModal
           initial={editing}
@@ -94,6 +120,31 @@ export function ProfilesPage() {
         />
       )}
     </Stack>
+  );
+}
+
+interface EditingProfile {
+  id?: number;
+  name: string;
+  settings: ProfileSettings;
+  mimic?: MimicSaved;
+}
+
+const SOURCE_BADGE: Record<FieldSource, { label: string; color: string }> = {
+  read: { label: 'read from the sample', color: 'teal' },
+  estimated: { label: 'estimated', color: 'yellow' },
+  default: { label: 'default', color: 'gray' },
+};
+
+/** For a mimicked profile: where this field's value came from. */
+function SourceBadge({ mimic, field }: { mimic?: MimicSaved; field: string }) {
+  const source = mimic?.sources[field];
+  if (!source) return null;
+  const { label, color } = SOURCE_BADGE[source];
+  return (
+    <Badge size="xs" variant="light" color={color} ml={6} tt="none">
+      {label}
+    </Badge>
   );
 }
 
@@ -110,7 +161,7 @@ function ProfileModal({
   existing,
   onClose,
 }: {
-  initial: { id?: number; name: string; settings: ProfileSettings };
+  initial: EditingProfile;
   existing?: Profile;
   onClose: () => void;
 }) {
@@ -135,10 +186,20 @@ function ProfileModal({
         )}
       >
         <Stack>
+          {initial.mimic && (
+            <Alert color="blue" title={`Settings from ${initial.mimic.file}`}>
+              <List size="sm">
+                {initial.mimic.notes.map((note) => (
+                  <List.Item key={note}>{note}</List.Item>
+                ))}
+              </List>
+            </Alert>
+          )}
           <TextInput label="Name" {...form.getInputProps('name')} />
           <div>
             <Text size="sm" fw={500} mb={4}>
               Video codec
+              <SourceBadge mimic={initial.mimic} field="codec" />
             </Text>
             <SegmentedControl
               data={Object.entries(CODEC_LABELS).map(([value, label]) => ({ value, label }))}
@@ -151,6 +212,7 @@ function ProfileModal({
           <div>
             <Text size="sm" fw={500} mb={4}>
               Quality
+              <SourceBadge mimic={initial.mimic} field="quality" />
             </Text>
             <Slider
               min={1}
@@ -175,7 +237,12 @@ function ProfileModal({
             />
           </div>
           <Switch
-            label="10-bit output"
+            label={
+              <>
+                10-bit output
+                <SourceBadge mimic={initial.mimic} field="ten_bit" />
+              </>
+            }
             description="Better quality per byte and no colour banding. Not available for H.264."
             disabled={s.codec === 'h264'}
             {...form.getInputProps('settings.ten_bit', { type: 'checkbox' })}
@@ -199,7 +266,12 @@ function ProfileModal({
             }
           />
           <Select
-            label="Audio"
+            label={
+              <>
+                Audio
+                <SourceBadge mimic={initial.mimic} field="audio" />
+              </>
+            }
             data={[
               { value: 'copy', label: 'Copy every track unchanged' },
               {

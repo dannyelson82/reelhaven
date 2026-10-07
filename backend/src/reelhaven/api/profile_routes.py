@@ -1,6 +1,7 @@
 """Compression profiles, and which profile each library uses."""
 
 from datetime import datetime
+from typing import Annotated, Literal
 
 from fastapi import APIRouter, Depends, HTTPException, status
 from pydantic import BaseModel, Field
@@ -22,12 +23,21 @@ from reelhaven.profiles import ProfileSettings
 router = APIRouter(dependencies=[Depends(require_setup_done), Depends(csrf_protect)])
 
 
+class MimicSaved(StrictModel):
+    """Where a mimicked profile came from, shown next to it (ARCHITECTURE.md §7.2)."""
+
+    file: str = Field(min_length=1, max_length=4096)
+    sources: dict[str, Literal["read", "estimated", "default"]] = Field(max_length=20)
+    notes: list[Annotated[str, Field(max_length=500)]] = Field(max_length=20)
+
+
 class ProfileOut(BaseModel):
     id: int
     name: str
     builtin: bool
     settings: ProfileSettings
     source: str
+    mimic: MimicSaved | None = None
     used_by: list[str]
     updated_at: datetime
 
@@ -35,6 +45,7 @@ class ProfileOut(BaseModel):
 class ProfileIn(StrictModel):
     name: str = Field(min_length=1, max_length=100)
     settings: ProfileSettings
+    mimic: MimicSaved | None = None  # set when the profile was made with mimic
 
 
 class LibraryProfile(StrictModel):
@@ -45,6 +56,7 @@ def _out(profile: Profile, used_by: list[str]) -> ProfileOut:
     return ProfileOut(
         id=profile.id, name=profile.name, builtin=profile.builtin,
         settings=ProfileSettings.model_validate(profile.settings), source=profile.source,
+        mimic=MimicSaved.model_validate(profile.mimic) if profile.mimic else None,
         used_by=used_by, updated_at=profile.updated_at,
     )  # fmt: skip
 
@@ -72,7 +84,12 @@ def list_profiles(db: DbDep, _principal: AnyPrincipalDep) -> list[ProfileOut]:
 @router.post("/profiles", status_code=status.HTTP_201_CREATED)
 def create_profile(body: ProfileIn, db: DbDep, principal: InteractiveDep) -> ProfileOut:
     with db.write() as session:
-        profile = Profile(name=body.name.strip(), settings=body.settings.model_dump())
+        profile = Profile(
+            name=body.name.strip(),
+            settings=body.settings.model_dump(),
+            source="mimic" if body.mimic else "manual",
+            mimic=body.mimic.model_dump() if body.mimic else None,
+        )
         session.add(profile)
         try:
             session.flush()

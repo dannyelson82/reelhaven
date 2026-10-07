@@ -1,12 +1,18 @@
 import os
+import time
 from pathlib import Path
+from typing import cast
 
 import pytest
+from fastapi import FastAPI
+from fastapi.testclient import TestClient
 
+from reelhaven.config import Settings
 from reelhaven.media.encoder_info import read_encoder_tag, read_settings_string
 from reelhaven.media.info import MediaInfo, Stream
 from reelhaven.media.probe import probe
 from reelhaven.mimic import analyse, level_from_bpp, level_from_crf, parse_encoder_settings
+from tests.helpers import API, admin_client, client_at, csrf
 from tests.media_fixtures import FFMPEG, Audio, Spec, make
 
 X265 = (
@@ -170,3 +176,46 @@ def test_real_x265_file(tmp_path: Path) -> None:
     assert report.sources["quality"] == "read"
     assert report.settings.quality == 3  # CRF 28
     assert read_settings_string(FFMPEG or "ffmpeg", path, "av1") is None
+
+
+@pytest.mark.skipif(FFMPEG is None and not os.environ.get("CI"), reason="ffmpeg not installed")
+def test_mimic_api_and_saving(client: TestClient, settings: Settings) -> None:
+    app = cast(FastAPI, client.app)
+    folder = settings.media_root / "Movies" / "Film (2020)"
+    folder.mkdir(parents=True)
+    spec = Spec(codec="libx265", audio=[Audio("eng", default=True)])
+    os.utime(make(folder / "film.mkv", spec), (time.time() - 3600,) * 2)
+    admin = admin_client(app)
+    lib = admin.post(
+        f"{API}/libraries",
+        json={"name": "Movies", "type": "movies", "path": "Movies"},
+        headers=csrf(admin),
+    ).json()["id"]
+    admin.post(f"{API}/libraries/{lib}/scan", headers=csrf(admin))
+    app.state.scanner.wait(lib, timeout=60)
+    file_id = admin.get(f"{API}/libraries/{lib}/files").json()["items"][0]["id"]
+
+    got = admin.get(f"{API}/files/{file_id}/mimic")
+    assert got.status_code == 200, got.text
+    body = got.json()
+    assert body["file"] == "Film (2020)/film.mkv"
+    assert body["report"]["settings"]["quality"] == 3  # x265 default CRF 28
+    assert body["report"]["sources"]["quality"] == "read"
+    assert admin.get(f"{API}/files/999/mimic").status_code == 404
+    assert client_at(app).get(f"{API}/files/{file_id}/mimic").status_code == 401
+
+    report = body["report"]
+    saved = admin.post(
+        f"{API}/profiles",
+        json={
+            "name": "Like film",
+            "settings": report["settings"],
+            "mimic": {"file": body["file"], "sources": report["sources"], "notes": report["notes"]},
+        },
+        headers=csrf(admin),
+    )
+    assert saved.status_code == 201, saved.text
+    mine = next(p for p in admin.get(f"{API}/profiles").json() if p["name"] == "Like film")
+    assert mine["source"] == "mimic"
+    assert mine["mimic"]["file"] == "Film (2020)/film.mkv"
+    assert mine["mimic"]["sources"]["quality"] == "read"
