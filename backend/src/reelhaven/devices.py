@@ -18,6 +18,7 @@ from reelhaven.encoders import (
     CODECS,
     Codec,
     Device,
+    DeviceKind,
     device_select_args,
     encoder_name,
     hw_init_args,
@@ -27,6 +28,7 @@ from reelhaven.encoders import (
 
 logger = logging.getLogger(__name__)
 
+_PCI_SLOT = re.compile(r"[0-9a-f]{4}:[0-9a-f]{2}:[0-9a-f]{2}\.[0-7]")
 PCI_VENDORS = {"0x8086": "intel", "0x1002": "amd", "0x10de": "nvidia"}
 TEST_TIMEOUT_S = 30
 
@@ -94,6 +96,16 @@ def detect_nvidia(nvidia_smi: str = "nvidia-smi", run: Runner = _run) -> list[De
     return devices
 
 
+def _pci_slot(sysfs: Path, node: str) -> str | None:
+    """The GPU's PCI address, e.g. 0000:00:02.0: stable, unlike renderD numbers,
+    which shift when another GPU is added or the BIOS changes."""
+    try:
+        slot = (sysfs / node / "device").resolve(strict=True).name
+    except OSError:
+        return None
+    return slot if _PCI_SLOT.fullmatch(slot) else None
+
+
 def detect_dri(sysfs: Path = Path("/sys/class/drm"), dev: Path = Path("/dev/dri")) -> list[Device]:
     """Intel and AMD render nodes (NVIDIA nodes are handled through NVENC)."""
     devices = []
@@ -103,26 +115,19 @@ def detect_dri(sysfs: Path = Path("/sys/class/drm"), dev: Path = Path("/dev/dri"
             vendor = PCI_VENDORS.get(vendor_file.read_text().strip().lower())
         except OSError:
             vendor = None
-        if vendor == "intel":
-            devices.append(
-                Device(
-                    id=f"intel:{node}",
-                    kind="intel",
-                    name=f"Intel GPU ({node.name})",
-                    family="qsv",
-                    render_node=str(node),
-                )
+        if vendor not in ("intel", "amd"):
+            continue
+        kind: DeviceKind = "intel" if vendor == "intel" else "amd"
+        slot = _pci_slot(sysfs, node.name) or node.name
+        devices.append(
+            Device(
+                id=f"{kind}:{slot}",
+                kind=kind,
+                name=f"{'Intel' if kind == 'intel' else 'AMD'} GPU ({slot})",
+                family="qsv" if kind == "intel" else "vaapi",
+                render_node=str(node),
             )
-        elif vendor == "amd":
-            devices.append(
-                Device(
-                    id=f"amd:{node}",
-                    kind="amd",
-                    name=f"AMD GPU ({node.name})",
-                    family="vaapi",
-                    render_node=str(node),
-                )
-            )
+        )
     return devices
 
 
