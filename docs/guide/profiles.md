@@ -67,7 +67,11 @@ Which tracks are converted:
   AAC, 7.1 for Opus) are copied.
 - Language, title, default and forced flags, and track order stay the same.
 
-For now, audio is converted when a file is re-encoded.
+Audio is converted in the same pass when a file is re-encoded. When the video
+is already efficient, ReelHaven can still convert just the audio: the video is
+copied untouched. It does this when the file gets track changes anyway, or when
+the audio alone saves at least the profile's minimum (10 % of the file). These
+audio-only jobs don't need a [test run](test-run.md).
 
 Always true, whatever the profile:
 

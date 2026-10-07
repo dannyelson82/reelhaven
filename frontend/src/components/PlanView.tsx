@@ -12,6 +12,7 @@ export function PlanView({ fileId }: { fileId: number }) {
   if (plan.isPending) return <Loader size="sm" />;
   if (plan.isError || !plan.data) return null;
   const p = plan.data;
+  const remuxSaved = (p.removed_bytes ?? 0) + (p.audio_saved_bytes ?? 0);
   return (
     <Card withBorder>
       <Stack gap="xs">
@@ -48,9 +49,9 @@ export function PlanView({ fileId }: { fileId: number }) {
             real result is checked after encoding.
           </Text>
         )}
-        {p.action === 'remux' && p.removed_bytes !== null && p.removed_bytes > 0 && (
+        {p.action === 'remux' && p.removed_bytes !== null && remuxSaved > 0 && (
           <Text size="xs" c="dimmed">
-            Saves about {formatBytes(p.removed_bytes)}.
+            Saves about {formatBytes(remuxSaved)}.
           </Text>
         )}
         {(p.action === 'remux' || p.action === 'encode') && (
