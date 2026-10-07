@@ -47,3 +47,26 @@ For each device:
 When several devices can do a job, ReelHaven prefers NVIDIA, then Intel, then
 AMD, then the CPU. A device is only given jobs whose format it passed the test
 for.
+
+## Check that your GPUs really work
+
+Do this once after setting up the container, and again after changing
+drivers, the BIOS or the container settings.
+
+1. Open **Hardware** and click **Detect again**. Each GPU should show a tick
+   for **HEVC 8-bit** and **HEVC 10-bit**. AV1 needs a recent GPU (NVIDIA RTX
+   40 series, Intel Arc or newer); *not supported* there is normal on older
+   cards.
+2. Pick a small library (or make one with a few copies of files) and give it
+   a [profile](profiles.md).
+3. To test one GPU on its own, switch **Use for encoding** off for the
+   others, then start a [test run](test-run.md) with 1 file. The result shows
+   which device encoded it (for example *nvidia:0*) and how fast.
+4. Look at the rating and the still frames. Repeat for each GPU, then switch
+   them all back on.
+5. Optional: apply one file from its details, check it plays in Plex or
+   Jellyfin, then try **Restore** in the [recycle bin](recycle-bin.md).
+
+If a GPU is missing or every format fails, check the container settings at
+the top of this page, then look at the error by hovering over *not
+supported*.
