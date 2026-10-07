@@ -63,3 +63,13 @@ hardware and update `quality.py`:
 cd backend
 uv run python scripts/calibrate_quality.py CLIPS_DIR results.json
 ```
+
+## Used by mimic (0.5)
+
+`backend/src/reelhaven/mimic.py` estimates a sample's quality level from its
+bits per pixel using the **median** x265/x264 bits per pixel per level from
+these measurements (HEVC level 6 ≈ 0.041, H.264 level 6 ≈ 0.074). A sample
+made by NVENC or Quick Sync (seen in its ENCODER tag) is first divided by the
+overhead measured here (1.15 / 1.55). The planner's own bitrate model
+(`encode_planner._HEVC_BPP`) stays 20-50 % higher on purpose: it decides what
+to skip and should under-promise savings.
