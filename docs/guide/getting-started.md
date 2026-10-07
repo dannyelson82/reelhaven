@@ -55,5 +55,5 @@ mode** to **Automatic**: see [Automatic processing](automation.md).
 
 ## Coming later
 
-Sonarr/Radarr webhooks and the statistics dashboard arrive in
-later versions.
+The statistics dashboard arrives in a
+later version.

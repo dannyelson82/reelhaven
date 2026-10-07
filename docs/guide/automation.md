@@ -40,6 +40,9 @@ For libraries set to **Watch** or **Automatic**:
   rescanned about a minute later (a whole season arriving counts as one
   change). Files still being copied are left for a follow-up scan a few
   minutes later.
+- **Sonarr/Radarr webhooks**: imports, upgrades, renames and deletes are
+  noticed the moment they happen (set up on the [Integrations](integrations.md)
+  page).
 - **Every 15 minutes** each watched library is rescanned anyway. Unraid
   shares don't report every change (for example files written straight to a
   disk share like `/mnt/disk1`), and this catches them.
@@ -63,5 +66,4 @@ where it left off.
 
 ## Coming in later updates
 
-Sonarr/Radarr webhooks (new imports noticed the moment they finish) and
-telling Plex, Sonarr and Radarr about changed files.
+Telling Plex, Sonarr and Radarr about changed files.

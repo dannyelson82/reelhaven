@@ -89,3 +89,30 @@ it('keeps the saved key when the key field is left empty', async () => {
   expect(body).not.toHaveProperty('kind');
   expect(body.name).toBe('Sonarr HD');
 });
+
+it('shows how to set up webhooks and what arrived last', async () => {
+  window.location.hash = '#/settings/integrations';
+  mockApi({
+    'GET auth/state': state({ authenticated: true, username: 'admin', method: 'session' }),
+    'GET integrations': { body: [] },
+    'GET webhooks': {
+      body: {
+        sonarr: {
+          at: '2026-10-07T20:00:00Z',
+          event: 'Test',
+          outcome: 'test',
+          message: 'Sonarr can reach ReelHaven.',
+          library: null,
+          path: null,
+        },
+        radarr: null,
+      },
+    },
+  });
+  render(<App />);
+  expect(await screen.findByText('Webhooks')).toBeInTheDocument();
+  expect(screen.getByText(/api\/v1\/webhook\/sonarr\?apikey=YOUR_API_KEY/)).toBeInTheDocument();
+  expect(screen.getByText(/api\/v1\/webhook\/radarr\?apikey=YOUR_API_KEY/)).toBeInTheDocument();
+  expect(await screen.findByText(/Sonarr can reach ReelHaven\./)).toBeInTheDocument();
+  expect(screen.getByText('Nothing received yet.')).toBeInTheDocument();
+});
