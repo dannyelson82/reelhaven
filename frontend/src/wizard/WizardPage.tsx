@@ -1,11 +1,12 @@
 // The setup wizard (ADR-0026): from a folder to automatic compression, one step at a time.
-import { Card, Stack, Stepper, Title } from '@mantine/core';
+import { Card, Loader, Stack, Stepper, Title } from '@mantine/core';
 import { useEffect } from 'react';
 import { useSearchParams } from 'react-router';
 import { useOnboarding, useSaveOnboarding } from '../api/wizard';
 import { FolderStep, LanguagesStep, ScanStep, type StepProps } from './LibrarySteps';
 import { AutomaticStep, DoneStep, TryStep } from './FinishSteps';
 import { AudioStep, QualityStep } from './QualitySteps';
+import { AppsStep, HardwareStep } from './ServerSteps';
 
 interface Step {
   key: string;
@@ -14,8 +15,14 @@ interface Step {
 }
 
 /** The steps for this run: a new library starts at the folder. */
-function wizardSteps(newLibrary: boolean, reencode: boolean): Step[] {
+function wizardSteps(newLibrary: boolean, reencode: boolean, serverSteps: boolean): Step[] {
   return [
+    ...(serverSteps
+      ? [
+          { key: 'hardware', label: 'Hardware', component: HardwareStep },
+          { key: 'apps', label: 'Your apps', component: AppsStep },
+        ]
+      : []),
     ...(newLibrary ? [{ key: 'folder', label: 'Folder', component: FolderStep }] : []),
     { key: 'scan', label: 'Read files', component: ScanStep },
     { key: 'languages', label: 'Languages', component: LanguagesStep },
@@ -46,6 +53,7 @@ export function WizardPage() {
   const steps = wizardSteps(
     params.get('new') === '1' || libraryId === null,
     params.get('choice') !== 'none',
+    onboarding.data?.server_steps_done === false,
   );
   const current = Math.max(
     0,
@@ -58,6 +66,7 @@ export function WizardPage() {
     next.set('step', steps[index].key);
     setParams(next, { replace: true });
   };
+  if (onboarding.isPending) return <Loader />;
   const Step = steps[current].component;
 
   return (

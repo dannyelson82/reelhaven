@@ -157,7 +157,7 @@ it('walks a new library from folder to automatic', async () => {
       body: { ...DRY, files: 12, encode: 10, remux: 2, saved_bytes: 50e9 },
     },
     'PATCH libraries/4': { body: { ...library, watch_mode: 'automatic' } },
-    'GET onboarding': { body: { wizard_seen: false, server_steps_done: false } },
+    'GET onboarding': { body: { wizard_seen: false, server_steps_done: true } },
     'PUT onboarding': (init) => ({ body: JSON.parse(String(init?.body)) }),
     'GET profiles': { body: PROFILES },
     'POST libraries/4/estimate': (init) => {
@@ -254,7 +254,7 @@ it('walks a new library from folder to automatic', async () => {
   expect(screen.getByRole('link', { name: 'See the progress' })).toHaveAttribute('href', '#/jobs');
   expect(JSON.parse(String(calls.find((c) => c.key === 'PUT onboarding')?.init?.body))).toEqual({
     wizard_seen: true,
-    server_steps_done: false,
+    server_steps_done: true,
   });
 });
 

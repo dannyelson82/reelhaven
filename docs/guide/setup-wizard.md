@@ -17,7 +17,21 @@ You'll find it:
 - as **Set up automatic compression** on any library's page,
 - as **Set up your first library** on the Dashboard while you have none.
 
-## The steps
+## First time only: hardware and apps
+
+The first time, the wizard starts with two steps about the server itself:
+
+- **Hardware**: which graphics cards ReelHaven can use (it tries a short test
+  encode on each). If none works, it explains how to give the container your
+  GPU, and offers **Allow CPU encoding (slow)** so you can carry on anyway.
+- **Your apps**: **Add** Sonarr, Radarr or Plex if you use them (optional;
+  see [Integrations](integrations.md)). Once Sonarr or Radarr is connected you
+  can also open the webhook instructions for instant new-file notices.
+  **Skip** if you don't use them.
+
+Later runs go straight to the library steps.
+
+## The library steps
 
 1. **Folder**: pick the folder that holds the videos. ReelHaven guesses a
    name and whether it's movies or TV shows from the folder name; change them
