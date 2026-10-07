@@ -6,6 +6,7 @@ codec, because what a GPU claims and what works in a container differ.
 """
 
 import logging
+import re
 import subprocess
 import threading
 import time
@@ -52,23 +53,29 @@ class DeviceReport:
         return any(r.ok for r in self.results if r.codec == codec and r.ten_bit == ten_bit)
 
 
-Runner = Callable[[list[str], float], tuple[int, str]]
+# (exit code, stdout, stderr)
+Runner = Callable[[list[str], float], tuple[int, str, str]]
 
 
-def _run(args: list[str], timeout: float) -> tuple[int, str]:
+def _run(args: list[str], timeout: float) -> tuple[int, str, str]:
     try:
         result = subprocess.run(  # noqa: S603 - argument list, no shell
             args, capture_output=True, timeout=timeout, check=False
         )
     except subprocess.TimeoutExpired:
-        return 124, f"timed out after {timeout:.0f}s"
+        return 124, "", f"timed out after {timeout:.0f}s"
     except OSError as exc:
-        return 127, str(exc)
-    return result.returncode, result.stderr.decode("utf-8", "replace")
+        return 127, "", str(exc)
+    return (
+        result.returncode,
+        result.stdout.decode("utf-8", "replace"),
+        result.stderr.decode("utf-8", "replace"),
+    )
 
 
 def detect_nvidia(nvidia_smi: str = "nvidia-smi", run: Runner = _run) -> list[Device]:
-    code, output = run([nvidia_smi, "--query-gpu=index,name", "--format=csv,noheader"], 10)
+    # The list is on stdout; reading stderr here once hid every NVIDIA card.
+    code, output, _ = run([nvidia_smi, "--query-gpu=index,name", "--format=csv,noheader"], 10)
     if code != 0:
         return []
     devices = []
@@ -136,12 +143,26 @@ def trial_encode_command(ffmpeg: str, device: Device, codec: Codec, ten_bit: boo
     ]  # fmt: skip
 
 
+_PREFIX = re.compile(r"^(\[[^\]]*\]\s*)+")
+
+
+def first_error(stderr: str) -> str:
+    """ffmpeg's first error line is the cause; the rest are its consequences."""
+    for line in stderr.splitlines():
+        text = _PREFIX.sub("", line).strip()
+        if text:
+            return text[:400]
+    return ""
+
+
 def probe_device(device: Device, ffmpeg: str, run: Runner = _run) -> DeviceReport:
     report = DeviceReport(device.id, device.kind, device.name, device.family)
     for codec in CODECS:
         for ten_bit in (False, True) if codec != "h264" else (False,):
             started = time.monotonic()
-            code, stderr = run(trial_encode_command(ffmpeg, device, codec, ten_bit), TEST_TIMEOUT_S)
+            code, _, stderr = run(
+                trial_encode_command(ffmpeg, device, codec, ten_bit), TEST_TIMEOUT_S
+            )
             ok = code == 0
             report.results.append(
                 CodecResult(
@@ -149,7 +170,7 @@ def probe_device(device: Device, ffmpeg: str, run: Runner = _run) -> DeviceRepor
                     ten_bit=ten_bit,
                     encoder=encoder_name(device, codec),
                     ok=ok,
-                    error=None if ok else (stderr.strip()[-400:] or f"exit code {code}"),
+                    error=None if ok else first_error(stderr) or f"exit code {code}",
                     seconds=round(time.monotonic() - started, 2),
                 )
             )
