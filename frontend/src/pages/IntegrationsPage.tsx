@@ -115,7 +115,7 @@ export function IntegrationsPage() {
   );
 }
 
-function IntegrationModal({
+export function IntegrationModal({
   existing,
   kind,
   onClose,
