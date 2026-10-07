@@ -1,6 +1,6 @@
 # 0020: Encode test run gates bulk encoding
 
-- Status: accepted
+- Status: accepted (preview: amended by ADR-0021)
 - Date: 2026-10-06
 
 ## Context

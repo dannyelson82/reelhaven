@@ -18,6 +18,7 @@ from reelhaven.api import (
     library_routes,
     profile_routes,
     security_routes,
+    test_run_routes,
     title_routes,
 )
 from reelhaven.auth.network import IPAddress, read_default_gateways
@@ -105,6 +106,7 @@ def create_app(
     app.include_router(job_routes.router, prefix="/api/v1")
     app.include_router(device_routes.router, prefix="/api/v1")
     app.include_router(profile_routes.router, prefix="/api/v1")
+    app.include_router(test_run_routes.router, prefix="/api/v1")
 
     @app.get("/healthz", include_in_schema=False)
     def healthz() -> dict[str, str]:

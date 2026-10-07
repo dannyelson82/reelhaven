@@ -49,6 +49,7 @@ import {
 import { DryRunPanel } from '../components/DryRunPanel';
 import { LibraryProfileSelect } from '../components/LibraryProfileSelect';
 import { PlanView } from '../components/PlanView';
+import { TestRunPanel } from '../components/TestRunPanel';
 import { PolicyModal } from '../components/PolicyModal';
 import { HDR_LABELS, formatBytes, formatDuration, languageName, resolutionLabel } from '../format';
 
@@ -120,6 +121,7 @@ export function LibraryPage() {
         <Tabs.List mb="md">
           <Tabs.Tab value="files">Files</Tabs.Tab>
           <Tabs.Tab value="dry-run">Dry run</Tabs.Tab>
+          <Tabs.Tab value="test-run">Test run</Tabs.Tab>
         </Tabs.List>
         <Tabs.Panel value="files">
           <Stack>
@@ -188,6 +190,9 @@ export function LibraryPage() {
         </Tabs.Panel>
         <Tabs.Panel value="dry-run">
           <DryRunPanel libraryId={libraryId} />
+        </Tabs.Panel>
+        <Tabs.Panel value="test-run">
+          <TestRunPanel libraryId={libraryId} />
         </Tabs.Panel>
       </Tabs>
       <FileDrawer libraryId={libraryId} fileId={selected} onClose={() => setSelected(null)} />

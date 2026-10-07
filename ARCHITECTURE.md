@@ -338,12 +338,11 @@ Action per library:
 
 - **Dry run**: plans every file in a library and produces a report: counts by
   action, estimated savings, track changes, flagged files. Read-only.
-- **Test run**: picks a small sample per library (default 3; a mix of
-  resolutions and languages when available), runs the full pipeline into
-  `/transcode/test-run/<library>/`, and shows before/after side by side
-  (size, streams, defaults, plus a short preview clip). Originals untouched.
-  New libraries **require a successful test run before automatic processing
-  can be enabled.**
+- **Test run** (ADR-0020, ADR-0021): re-encodes a small sample per library
+  (default 1, up to 5) into `/transcode/test-run/<library>/`, measures
+  quality (XPSNR, SSIM) and shows size before/after plus still frames side by
+  side. Originals untouched. Bulk encoding a library **requires an approved
+  test run with its current profile.**
 
 ## 10. Data model (initial)
 
