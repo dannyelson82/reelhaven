@@ -18,7 +18,12 @@ from reelhaven.db.types import utcnow
 from reelhaven.dryrun import plan_library
 from reelhaven.encode_planner import profile_fingerprint
 from reelhaven.encoders import Device
-from reelhaven.jobs.encode_commands import encode_command, expected_encode_layout, expected_video
+from reelhaven.jobs.encode_commands import (
+    encode_command,
+    expected_codecs,
+    expected_encode_layout,
+    expected_video,
+)
 from reelhaven.jobs.pipeline import JobFailedError, _is_cancelled, _set
 from reelhaven.jobs.replace import Snapshot, check_unchanged, remove_tree
 from reelhaven.jobs.runner import CancelledError, RunError, run_ffmpeg
@@ -214,6 +219,7 @@ def process_test(db: Database, settings: Settings, job_id: int, device: Device) 
         new_info = verify_output(
             encoded, info, expected_encode_layout(source, info, plan, profile),
             settings.ffmpeg, settings.ffprobe, timeout_s=600 + duration, expected_video=target,
+            expected_codecs=expected_codecs(source, info, plan, profile),
         )  # fmt: skip
         out_video = new_info.video
         assert out_video is not None and out_video.width is not None  # noqa: S101

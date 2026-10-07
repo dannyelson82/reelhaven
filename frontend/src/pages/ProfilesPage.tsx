@@ -6,6 +6,7 @@ import {
   Group,
   Loader,
   Modal,
+  NumberInput,
   SegmentedControl,
   Select,
   Slider,
@@ -20,10 +21,14 @@ import { notifications } from '@mantine/notifications';
 import { useState } from 'react';
 import { errorMessage } from '../api/client';
 import {
+  AUDIO_CODEC_LABELS,
+  type AudioCodec,
   CODEC_LABELS,
+  DEFAULT_KBPS_PER_CHANNEL,
   type Profile,
   type ProfileSettings,
   describe,
+  trackKbps,
   useDeleteProfile,
   useProfiles,
   useSaveProfile,
@@ -199,17 +204,60 @@ function ProfileModal({
               { value: 'copy', label: 'Copy every track unchanged' },
               {
                 value: 'compress_lossless',
-                label: 'Compress lossless tracks (TrueHD, DTS-HD MA, FLAC, PCM) to E-AC-3',
+                label: 'Convert lossless tracks (TrueHD, DTS-HD MA, FLAC, PCM)',
+              },
+              {
+                value: 'convert',
+                label: 'Convert large tracks (lossless, and lossy ones well above the target)',
               },
             ]}
             {...form.getInputProps('settings.audio')}
           />
+          {s.audio !== 'copy' && (
+            <Group align="flex-start" grow>
+              <div>
+                <Text size="sm" fw={500} mb={4}>
+                  Convert to
+                </Text>
+                <SegmentedControl
+                  data={Object.entries(AUDIO_CODEC_LABELS).map(([value, label]) => ({
+                    value,
+                    label,
+                  }))}
+                  value={s.audio_codec}
+                  onChange={(v) => {
+                    form.setFieldValue('settings.audio_codec', v as AudioCodec);
+                    form.setFieldValue('settings.audio_kbps_per_channel', null);
+                  }}
+                />
+                <Text size="xs" c="dimmed" mt={4}>
+                  E-AC-3 plays on almost everything; AAC on everything; Opus is smallest for the
+                  quality but some TVs can't play it.
+                </Text>
+              </div>
+              <NumberInput
+                label="Bitrate per channel (kbit/s)"
+                description={`Stereo ${trackKbps(s, 2)} · 5.1 ${trackKbps(s, 6)} kbit/s`}
+                placeholder={String(DEFAULT_KBPS_PER_CHANNEL[s.audio_codec])}
+                min={16}
+                max={256}
+                value={s.audio_kbps_per_channel ?? ''}
+                onChange={(v) =>
+                  form.setFieldValue(
+                    'settings.audio_kbps_per_channel',
+                    typeof v === 'number' ? v : null,
+                  )
+                }
+              />
+            </Group>
+          )}
           <Switch
             label="Add a stereo AAC track for older devices"
             {...form.getInputProps('settings.add_stereo_aac', { type: 'checkbox' })}
           />
           <Text size="xs" c="dimmed">
-            Atmos and DTS:X audio is always copied unchanged. Dolby Vision files are skipped.
+            Atmos and DTS:X audio is always copied unchanged, and audio is never upmixed. Dolby
+            Vision files are skipped.
           </Text>
           {(save.isError || remove.isError) && (
             <Alert color="red">{errorMessage(save.error ?? remove.error)}</Alert>

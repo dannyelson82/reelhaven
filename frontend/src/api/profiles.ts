@@ -7,7 +7,9 @@ export interface ProfileSettings {
   speed: 'fast' | 'balanced' | 'slow';
   ten_bit: boolean;
   max_height: 2160 | 1440 | 1080 | 720 | null;
-  audio: 'copy' | 'compress_lossless';
+  audio: 'copy' | 'compress_lossless' | 'convert';
+  audio_codec: AudioCodec;
+  audio_kbps_per_channel: number | null;
   add_stereo_aac: boolean;
   min_savings_percent: number;
 }
@@ -24,13 +26,38 @@ export interface Profile {
 
 export const CODEC_LABELS = { hevc: 'HEVC (H.265)', av1: 'AV1', h264: 'H.264' } as const;
 
+export type AudioCodec = 'eac3' | 'aac' | 'opus';
+export const AUDIO_CODEC_LABELS: Record<AudioCodec, string> = {
+  eac3: 'E-AC-3',
+  aac: 'AAC',
+  opus: 'Opus',
+};
+// Same defaults and limits as the backend (audio_rules.py).
+export const DEFAULT_KBPS_PER_CHANNEL: Record<AudioCodec, number> = {
+  eac3: 112,
+  aac: 64,
+  opus: 48,
+};
+const MAX_TRACK_KBPS: Record<AudioCodec, number> = { eac3: 640, aac: 512, opus: 510 };
+
+export function trackKbps(s: ProfileSettings, channels: number): number {
+  const per = s.audio_kbps_per_channel ?? DEFAULT_KBPS_PER_CHANNEL[s.audio_codec];
+  return Math.min(per * channels, MAX_TRACK_KBPS[s.audio_codec]);
+}
+
+function describeAudio(s: ProfileSettings): string {
+  if (s.audio === 'copy') return 'audio copied';
+  const target = `${AUDIO_CODEC_LABELS[s.audio_codec]} ${trackKbps(s, 6)}k for 5.1`;
+  return s.audio === 'compress_lossless' ? `lossless audio to ${target}` : `audio to ${target}`;
+}
+
 export function describe(s: ProfileSettings): string {
   return [
     CODEC_LABELS[s.codec],
     s.ten_bit ? '10-bit' : '8-bit',
     `quality ${s.quality}/10`,
     s.max_height ? `max ${s.max_height}p` : 'keep resolution',
-    s.audio === 'copy' ? 'audio copied' : 'lossless audio compressed',
+    describeAudio(s),
   ].join(' · ');
 }
 

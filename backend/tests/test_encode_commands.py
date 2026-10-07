@@ -3,6 +3,7 @@ from pathlib import Path
 
 import pytest
 
+from reelhaven.audio_rules import is_lossless
 from reelhaven.devices import CPU
 from reelhaven.encode_planner import encode_marker
 from reelhaven.encoders import Device
@@ -10,7 +11,6 @@ from reelhaven.jobs.encode_commands import (
     encode_command,
     expected_encode_layout,
     expected_video,
-    is_lossless,
     output_streams,
     target_height,
 )
@@ -124,7 +124,7 @@ def test_output_streams_and_stereo_track() -> None:
     layout = output_streams(info, p, profile, "matroska")
     assert [(s.kind, s.source_index, s.action) for s in layout] == [
         ("video", 0, "encode-video"),
-        ("audio", 1, "eac3"),  # lossless 5.1 compressed
+        ("audio", 1, "convert-audio"),  # lossless 5.1 compressed
         ("audio", 2, "copy"),  # Atmos always copied
         ("audio", 1, "aac-stereo"),  # added after the audio tracks
         ("subtitle", 4, "copy"),
@@ -218,6 +218,16 @@ def test_nvenc_hdr_4k_to_1080p_golden() -> None:
         "eac3",
         "-b:a:0",
         "640k",
+        "-metadata:s:1",
+        "BPS=",
+        "-metadata:s:1",
+        "NUMBER_OF_BYTES=",
+        "-metadata:s:1",
+        "NUMBER_OF_FRAMES=",
+        "-metadata:s:1",
+        "DURATION=",
+        "-metadata:s:1",
+        "_STATISTICS_TAGS=",
         "-disposition:1",
         "default",
         "-disposition:2",
