@@ -29,6 +29,12 @@ but the roadmap had no phase for it.
 - Every step has a recommended default, plain language, and a way back. The
   wizard only uses features that already exist; the safety rails (verify,
   recycle bin, test-run gate, review flags, pause) are unchanged.
+- **Space savings tracking** (owner request, also phase 0.7): the Dashboard shows the
+  total saved over the life of the install, this week and this month, and
+  weekly and monthly charts, overall and per library. Savings come from the
+  before/after sizes every replacing job records; a file restored from the
+  recycle bin takes its saving back out. The rest of the stats dashboard
+  (per-GPU performance, trends) stays in 0.8.
 - When the chosen preset and audio answer don't match a built-in profile, the
   wizard saves a profile named after them (e.g. *Balanced, smaller audio*) and
   reuses it for other libraries with the same answers.

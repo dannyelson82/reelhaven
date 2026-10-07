@@ -8,7 +8,8 @@ guided flow, with a recommended answer at every step.
 
 Owner decisions: first run + every new library (+ a button on existing
 libraries); three quality cards with real estimates; one audio question; extra
-steps for GPU check, languages, Sonarr/Radarr and Plex.
+steps for GPU check, languages, Sonarr/Radarr and Plex. Added during planning:
+space savings tracking (lifetime total, weekly/monthly).
 
 | # | Chunk | Contents |
 |---|-------|----------|
@@ -18,4 +19,5 @@ steps for GPU check, languages, Sonarr/Radarr and Plex.
 | 4 | Quality + audio | Three cards with estimates, *More options* (mimic / editor), audio question, find-or-create the matching profile |
 | 5 | Try it + go automatic | Automatic 2-file test run with approval, retry with another setting, summary, Automatic / Watch, done screen |
 | 6 | Server steps | Hardware (GPU check, CPU fallback switch), connect apps (Sonarr/Radarr + webhook steps, Plex), skipped when done |
-| 7 | Wrap-up | Guide, release v0.7.0 |
+| 7 | Space savings | Lifetime total, this week / month, weekly and monthly charts (12 periods), per library; restores subtract; Dashboard; guide |
+| 8 | Wrap-up | Guide, release v0.7.0 |

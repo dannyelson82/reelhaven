@@ -425,8 +425,8 @@ endpoint (unauthenticated, no details) for Docker health checks.
 | 0.4 Encoding | Device detection, worker pools, profiles, command builders, skip rules, test run (quality-checked, gates bulk encoding, ADR-0020), queue UI with live progress. |
 | 0.5 Mimic | Sample selection from libraries (ADR-0022), settings extraction, estimation, audio re-encoding and audio-only jobs (ADR-0023), profile editor. |
 | 0.6 Automation | Watch modes and automatic processing (ADR-0025), webhooks, folder watcher, scheduled rescans, notifiers (Plex, Sonarr, Radarr). |
-| 0.7 Setup wizard (ADR-0026) | A guided flow from install to an automatic library: hardware, apps, folder, languages, size vs quality with estimates, audio, test run, Automatic. |
-| 0.8 Insight and safety | Stats dashboard, review page, wrong-language quarantine + re-search, optional TOTP 2FA, audit log page. |
+| 0.7 Setup wizard (ADR-0026) | A guided flow from install to an automatic library: hardware, apps, folder, languages, size vs quality with estimates, audio, test run, Automatic. Space savings tracking (lifetime, weekly, monthly). |
+| 0.8 Insight and safety | Rest of the stats dashboard (per-GPU performance, trends), review page, wrong-language quarantine + re-search, optional TOTP 2FA, audit log page. |
 | 1.0 | Hardening, docs, release checklist, CA submission. |
 
 Language handling ships before encoding on purpose: it's fast (stream copy),
