@@ -35,6 +35,10 @@ Every file ReelHaven processes is a **job**. The **Jobs** page lists them;
 **Cancel** stops a waiting or running job. **Try again** plans the file again
 (it may have changed) and queues a new job.
 
+**Pause all processing** (top of the Jobs page) stops new jobs from starting;
+running jobs finish. **Resume processing** carries on. Jobs started by an
+[Automatic](automation.md) library show *requested by automatic*.
+
 ## No gain
 
 Sometimes a re-encode isn't smaller enough to be worth it. Then the original

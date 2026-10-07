@@ -27,6 +27,7 @@ from reelhaven.policy import LanguagePolicy
 router = APIRouter(dependencies=[Depends(require_setup_done), Depends(csrf_protect)])
 
 LibraryType = Literal["movies", "tv", "other"]
+WatchMode = Literal["off", "watch", "automatic"]
 MAX_BROWSE_ENTRIES = 2000
 
 
@@ -52,6 +53,7 @@ class LibraryOut(BaseModel):
     last_scan_at: datetime | None = None
     last_scan_error: str | None = None
     scanning: bool = False
+    watch_mode: WatchMode = "off"
 
 
 class LibraryCreate(StrictModel):
@@ -71,6 +73,7 @@ class LibraryCreate(StrictModel):
 class LibraryUpdate(StrictModel):
     name: str | None = Field(default=None, min_length=1, max_length=100)
     type: LibraryType | None = None
+    watch_mode: WatchMode | None = None
 
     @field_validator("name")
     @classmethod
@@ -104,6 +107,7 @@ def _out(library: Library, root: Path, file_count: int = 0, scanning: bool = Fal
         last_scan_at=library.last_scan_at,
         last_scan_error=library.last_scan_error,
         scanning=scanning,
+        watch_mode=library.watch_mode,  # type: ignore[arg-type]
     )
 
 
@@ -212,6 +216,7 @@ def get_library(
 def update_library(
     library_id: int,
     body: LibraryUpdate,
+    request: Request,
     db: DbDep,
     root: MediaRootDep,
     principal: InteractiveDep,
@@ -227,7 +232,10 @@ def update_library(
             raise HTTPException(status.HTTP_409_CONFLICT, "name_taken") from exc
         if changes:
             audit.record(session, principal.actor, "library.updated", library.name, changes)
-        return _out(library, root)
+        out = _out(library, root)
+    if changes.get("watch_mode") == "automatic":
+        request.app.state.automation.poke()  # start right away, not in 30 s
+    return out
 
 
 @router.delete("/libraries/{library_id}", status_code=status.HTTP_204_NO_CONTENT)

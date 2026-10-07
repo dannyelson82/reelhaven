@@ -19,6 +19,13 @@ A **library** is a folder of videos under `/media`, for example
 **Edit** lets you rename a library or change its type. **Remove library**
 makes ReelHaven forget it; your files stay exactly where they are.
 
+## Watch mode
+
+At the top of a library page, **Watch mode** decides whether ReelHaven looks
+after the library on its own: **Off**, **Watch** (find and plan new files) or
+**Automatic** (process everything). See [Automatic processing](automation.md).
+The Libraries page shows *Watching* or *Automatic* next to the library's name.
+
 ## Scan a library
 
 Open a library and click **Scan library**. ReelHaven:

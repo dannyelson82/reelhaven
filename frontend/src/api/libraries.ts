@@ -2,6 +2,21 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { api, json } from './client';
 
 export type LibraryType = 'movies' | 'tv' | 'other';
+export type WatchMode = 'off' | 'watch' | 'automatic';
+
+export const WATCH_MODES: { value: WatchMode; label: string; description: string }[] = [
+  { value: 'off', label: 'Off', description: 'Nothing happens unless you start it.' },
+  {
+    value: 'watch',
+    label: 'Watch',
+    description: 'New and changed files are found and planned. Nothing is changed.',
+  },
+  {
+    value: 'automatic',
+    label: 'Automatic',
+    description: 'Everything that needs work is processed, the backlog too, a few files at a time.',
+  },
+];
 
 export interface Library {
   id: number;
@@ -14,6 +29,7 @@ export interface Library {
   last_scan_at: string | null;
   last_scan_error: string | null;
   scanning: boolean;
+  watch_mode: WatchMode;
 }
 
 export interface BrowseResult {
@@ -63,3 +79,8 @@ export const useUpdateLibrary = () =>
 
 export const useDeleteLibrary = () =>
   useLibraryMutation((id: number) => api(`libraries/${id}`, { method: 'DELETE' }));
+
+export const useSetWatchMode = () =>
+  useLibraryMutation(({ id, watch_mode }: { id: number; watch_mode: WatchMode }) =>
+    api<Library>(`libraries/${id}`, { method: 'PATCH', body: json({ watch_mode }) }),
+  );
