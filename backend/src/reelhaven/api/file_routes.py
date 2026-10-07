@@ -4,10 +4,10 @@ import os
 from dataclasses import asdict
 from datetime import datetime
 from pathlib import Path
-from typing import Any, Literal
+from typing import Annotated, Any, Literal
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 from sqlalchemy import func, select
 
 from reelhaven import audit
@@ -18,9 +18,10 @@ from reelhaven.api.deps import (
     csrf_protect,
     require_setup_done,
 )
+from reelhaven.api.schemas import StrictModel
 from reelhaven.config import Settings
 from reelhaven.db import Library, MediaFile, Profile, Title
-from reelhaven.dryrun import FilePlan, plan_library, summarise
+from reelhaven.dryrun import DryRunSummary, FilePlan, estimate, plan_library, summarise
 from reelhaven.media.encoder_info import read_encoder_tag, read_settings_string
 from reelhaven.media.info import MediaInfo, Stream
 from reelhaven.media.probe import ProbeError
@@ -322,3 +323,33 @@ def dry_run(
         for item in selected[offset : offset + limit]
     ]
     return DryRunResult(**asdict(summary), total=len(selected), items=items)
+
+
+class EstimateIn(StrictModel):
+    # name -> profile settings (None: no re-encoding, languages only)
+    profiles: dict[Annotated[str, Field(min_length=1, max_length=40)], ProfileSettings | None] = (
+        Field(min_length=1, max_length=6)
+    )
+
+
+class EstimateOut(BaseModel):
+    library_bytes: int
+    results: dict[str, DryRunSummary]
+
+
+@router.post("/libraries/{library_id}/estimate")
+def estimate_profiles(
+    library_id: int, body: EstimateIn, db: DbDep, _principal: AnyPrincipalDep
+) -> EstimateOut:
+    """What each candidate profile would save on this library (setup wizard). Changes nothing."""
+    try:
+        results = estimate(db, library_id, body.profiles)
+    except LookupError as exc:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "library_not_found") from exc
+    with db.read() as session:
+        total = session.scalar(
+            select(func.coalesce(func.sum(MediaFile.size), 0)).where(
+                MediaFile.library_id == library_id
+            )
+        )
+    return EstimateOut(library_bytes=int(total or 0), results=results)

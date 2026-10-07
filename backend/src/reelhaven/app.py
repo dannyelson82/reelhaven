@@ -18,6 +18,7 @@ from reelhaven.api import (
     job_routes,
     library_routes,
     live_routes,
+    onboarding_routes,
     profile_routes,
     security_routes,
     test_run_routes,
@@ -139,6 +140,7 @@ def create_app(
     app.include_router(live_routes.router, prefix="/api/v1")
     app.include_router(automation_routes.router, prefix="/api/v1")
     app.include_router(webhook_routes.router, prefix="/api/v1")
+    app.include_router(onboarding_routes.router, prefix="/api/v1")
 
     @app.get("/healthz", include_in_schema=False)
     def healthz() -> dict[str, str]:
