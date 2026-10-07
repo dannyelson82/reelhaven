@@ -1,5 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { api, json } from './client';
+import { liveConnected } from './live';
 
 export interface Job {
   id: number;
@@ -24,6 +25,7 @@ export interface Job {
   device: string | null;
   fps: number | null;
   speed: number | null;
+  eta_seconds: number | null;
 }
 
 export interface RecycleItem {
@@ -45,6 +47,7 @@ const ACTIVE = new Set(['queued', 'running', 'verifying']);
 export const isActive = (job: Job) => ACTIVE.has(job.status);
 
 export function useJobs(filter: JobFilter, page: number) {
+  const queryClient = useQueryClient();
   return useQuery({
     queryKey: ['jobs', filter, page],
     queryFn: () =>
@@ -52,10 +55,13 @@ export function useJobs(filter: JobFilter, page: number) {
         `jobs?status=${filter}&offset=${(page - 1) * 50}&limit=50`,
       ),
     refetchInterval: (query) =>
-      query.state.data?.items.some(isActive) ||
-      (query.state.data?.counts.queued ?? 0) + (query.state.data?.counts.running ?? 0) > 0
-        ? 1500
-        : 10000,
+      // The socket says when jobs change; polling is only the fallback.
+      liveConnected(queryClient)
+        ? 30000
+        : query.state.data?.items.some(isActive) ||
+            (query.state.data?.counts.queued ?? 0) + (query.state.data?.counts.running ?? 0) > 0
+          ? 1500
+          : 10000,
   });
 }
 

@@ -9,6 +9,7 @@ import logging
 from collections.abc import Iterable
 from ipaddress import IPv4Address, IPv4Network, IPv6Address, IPv6Network, ip_address, ip_network
 from pathlib import Path
+from urllib.parse import urlsplit
 
 logger = logging.getLogger(__name__)
 
@@ -104,3 +105,49 @@ def read_default_gateways(proc: Path = Path("/proc/net")) -> frozenset[IPAddress
     except (OSError, ValueError):
         logger.debug("no IPv6 route table available")
     return frozenset(gateways)
+
+
+def _host_port(value: str, scheme: str) -> str | None:
+    """``host[:port]`` in lower case, without the scheme's default port."""
+    try:
+        parts = urlsplit(f"{scheme}://{value.strip()}")
+        host, port = parts.hostname, parts.port
+    except ValueError:
+        return None
+    if not host:
+        return None
+    if port is None or (scheme, port) in (("http", 80), ("https", 443)):
+        return host
+    return f"{host}:{port}"
+
+
+def same_origin(
+    origin: str | None,
+    host: str | None,
+    socket_ip: str | None,
+    forwarded_host: str | None,
+    trusted: list[IPNetwork],
+) -> bool:
+    """Whether a WebSocket's ``Origin`` is this site (SECURITY.md).
+
+    Browsers send ``Origin`` with every WebSocket handshake, and cookies go
+    along cross-site too, so this is what stops another website from opening a
+    socket with the user's session. ``X-Forwarded-Host`` counts only from a
+    trusted proxy.
+    """
+    if not origin or origin == "null":
+        return False
+    try:
+        parsed = urlsplit(origin)
+    except ValueError:
+        return False
+    if parsed.scheme not in ("http", "https") or parsed.path not in ("", "/"):
+        return False
+    wanted = _host_port(parsed.netloc, parsed.scheme)
+    if wanted is None:
+        return False
+    candidates = [host]
+    peer = parse_ip(socket_ip)
+    if forwarded_host and peer is not None and _in_any(peer, trusted):
+        candidates.append(forwarded_host.split(",")[-1])
+    return any(c and _host_port(c, parsed.scheme) == wanted for c in candidates)

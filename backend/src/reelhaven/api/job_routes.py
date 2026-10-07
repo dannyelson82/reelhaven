@@ -35,6 +35,7 @@ from reelhaven.jobs.service import (
     purge_item,
     restore_item,
 )
+from reelhaven.live import eta_seconds
 
 router = APIRouter(dependencies=[Depends(require_setup_done), Depends(csrf_protect)])
 
@@ -67,6 +68,7 @@ class JobOut(BaseModel):
     device: str | None = None
     fps: float | None = None
     speed: float | None = None
+    eta_seconds: int | None = None
 
 
 class JobPage(BaseModel):
@@ -98,7 +100,7 @@ class RecycleOut(BaseModel):
     purged_at: datetime | None
 
 
-def _job_out(job: Job, library: Library | None, result: JobResult | None) -> JobOut:
+def job_out(job: Job, library: Library | None, result: JobResult | None) -> JobOut:
     root = Path(library.path) if library else None
     source = Path(job.source_path)
     shown = (
@@ -127,6 +129,11 @@ def _job_out(job: Job, library: Library | None, result: JobResult | None) -> Job
         device=job.device,
         fps=job.fps or (result.fps if result else None),
         speed=job.speed,
+        eta_seconds=(
+            eta_seconds(job.progress, (utcnow() - job.started_at).total_seconds())
+            if job.status in ("running", "verifying") and job.started_at is not None
+            else None
+        ),
     )
 
 
@@ -152,7 +159,7 @@ def apply_file(file_id: int, request: Request, db: DbDep, principal: Interactive
         audit.record(
             session, principal.actor, "file.apply", media_file.relative_path, {"job": jobs[0].id}
         )
-        out = _job_out(jobs[0], library, None)
+        out = job_out(jobs[0], library, None)
     _queue(request).notify()
     return out
 
@@ -213,7 +220,7 @@ def list_jobs(
         total = session.scalar(select(func.count()).select_from(query.subquery())) or 0
         rows = session.execute(query.order_by(Job.id.desc()).offset(offset).limit(limit)).all()
         counts = dict(session.execute(select(Job.status, func.count()).group_by(Job.status)).all())
-        items = [_job_out(job, library, result) for job, library, result in rows]
+        items = [job_out(job, library, result) for job, library, result in rows]
     return JobPage(total=total, counts=counts, items=items)
 
 
@@ -223,7 +230,7 @@ def get_job(job_id: int, db: DbDep, _principal: AnyPrincipalDep) -> JobOut:
         job = session.get(Job, job_id)
         if job is None:
             raise HTTPException(status.HTTP_404_NOT_FOUND, "job_not_found")
-        return _job_out(job, session.get(Library, job.library_id), session.get(JobResult, job.id))
+        return job_out(job, session.get(Library, job.library_id), session.get(JobResult, job.id))
 
 
 @router.post("/jobs/{job_id}/cancel")
@@ -238,7 +245,7 @@ def cancel_job(job_id: int, db: DbDep, principal: InteractiveDep) -> JobOut:
         if job.finished_at is None and job.started_at is None:
             job.finished_at = utcnow()
         audit.record(session, principal.actor, "job.cancelled", job.source_path, {"job": job_id})
-        return _job_out(job, session.get(Library, job.library_id), None)
+        return job_out(job, session.get(Library, job.library_id), None)
 
 
 @router.post("/jobs/{job_id}/retry", status_code=status.HTTP_201_CREATED)

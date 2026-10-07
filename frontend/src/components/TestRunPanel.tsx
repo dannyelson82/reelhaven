@@ -17,6 +17,7 @@ import { notifications } from '@mantine/notifications';
 import { IconCheck, IconPlayerPlay } from '@tabler/icons-react';
 import { useState } from 'react';
 import { errorMessage } from '../api/client';
+import type { Job } from '../api/jobs';
 import { useLibraryProfile } from '../api/profiles';
 import {
   MAX_SAMPLES,
@@ -27,7 +28,8 @@ import {
   useStartTestRun,
   useTestRun,
 } from '../api/testRun';
-import { formatBytes, formatDuration } from '../format';
+import { useLiveJobs } from '../api/live';
+import { formatBytes, formatDuration, formatTimeLeft } from '../format';
 
 const RATING_COLOR: Record<string, string> = {
   Indistinguishable: 'teal',
@@ -98,6 +100,7 @@ export function TestRunPanel({ libraryId }: { libraryId: number }) {
 
 function TestRunView({ libraryId, run }: { libraryId: number; run: TestRun }) {
   const approve = useApproveTestRun(libraryId);
+  const live = useLiveJobs();
   const done = run.samples.filter((s) => s.status === 'done').length;
   const failed = run.samples.filter((s) => s.status === 'failed').length;
   return (
@@ -121,7 +124,11 @@ function TestRunView({ libraryId, run }: { libraryId: number; run: TestRun }) {
       )}
       {run.samples.length > 1 && done > 1 && <Summary samples={run.samples} />}
       {run.samples.map((sample) => (
-        <SampleView key={sample.id} sample={sample} />
+        <SampleView
+          key={sample.id}
+          sample={sample}
+          liveJob={live?.active.find((j) => j.id === sample.job_id)}
+        />
       ))}
       {run.status === 'approved' && (
         <Alert color="teal" icon={<IconCheck />}>
@@ -180,19 +187,22 @@ function Summary({ samples }: { samples: TestSample[] }) {
   );
 }
 
-function SampleView({ sample }: { sample: TestSample }) {
+function SampleView({ sample, liveJob }: { sample: TestSample; liveJob?: Job }) {
   if (sample.status === 'running') {
+    const progress = liveJob?.progress ?? sample.progress;
+    const fps = liveJob ? liveJob.fps : sample.fps;
+    const eta = liveJob?.eta_seconds ?? null;
     return (
       <Card withBorder>
         <Stack gap="xs">
           <Text size="sm">
             Test-encoding <b>{sample.file}</b>…{' '}
-            {sample.job_status === 'queued' && 'waiting for a free encoder'}
+            {(liveJob?.status ?? sample.job_status) === 'queued' && 'waiting for a free encoder'}
           </Text>
-          <Progress value={sample.progress * 100} animated />
+          <Progress value={progress * 100} animated />
           <Text size="xs" c="dimmed">
-            {Math.round(sample.progress * 100)}%
-            {sample.fps !== null && ` · ${sample.fps.toFixed(0)} fps`}
+            {Math.round(progress * 100)}%{fps !== null && ` · ${fps.toFixed(0)} fps`}
+            {eta !== null && ` · ${formatTimeLeft(eta)} left`}
           </Text>
         </Stack>
       </Card>
