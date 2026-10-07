@@ -33,8 +33,7 @@ it('adds Sonarr after a successful connection test', async () => {
     'POST integrations': { status: 201, body: saved },
   });
   render(<App />);
-  await userEvent.click(await screen.findByRole('button', { name: 'Add integration' }));
-  await userEvent.click(await screen.findByRole('menuitem', { name: 'Sonarr' }));
+  await userEvent.click(await screen.findByRole('button', { name: 'Add Sonarr' }));
   await userEvent.type(await screen.findByLabelText('Address'), 'http://10.0.0.5:8989');
   await userEvent.type(screen.getByLabelText('API key'), '0123456789abcdef');
   await userEvent.click(screen.getByRole('button', { name: 'Test connection' }));
@@ -64,8 +63,7 @@ it('shows why a connection test failed', async () => {
     },
   });
   render(<App />);
-  await userEvent.click(await screen.findByRole('button', { name: 'Add integration' }));
-  await userEvent.click(await screen.findByRole('menuitem', { name: 'Radarr' }));
+  await userEvent.click(await screen.findByRole('button', { name: 'Add Radarr' }));
   await userEvent.type(await screen.findByLabelText('Address'), 'http://10.0.0.5:7878');
   await userEvent.type(screen.getByLabelText('API key'), 'wrong');
   await userEvent.click(screen.getByRole('button', { name: 'Test connection' }));

@@ -37,6 +37,7 @@ class Spec:
     codec: str = "libx264"
     size: str = "160x90"
     seconds: float = 1.0
+    hdr10: bool = False  # HEVC 10-bit with BT.2020 / PQ colour tags
 
 
 def make(path: Path, spec: Spec) -> Path:
@@ -55,8 +56,18 @@ def make(path: Path, spec: Spec) -> Path:
         args += ["-map", f"{i + 1}:a"]
     for i in range(len(spec.subs)):
         args += ["-map", f"{len(spec.audio) + 1 + i}:s"]
-    args += ["-c:v", spec.codec, "-preset", "ultrafast"]
-    if spec.codec == "libx265":
+    args += ["-c:v", "libx265" if spec.hdr10 else spec.codec, "-preset", "ultrafast"]
+    if spec.hdr10:
+        args += [
+            "-vf", "setparams=color_primaries=bt2020:color_trc=smpte2084:colorspace=bt2020nc",
+            "-pix_fmt", "yuv420p10le",
+            "-color_primaries", "bt2020", "-color_trc", "smpte2084", "-colorspace", "bt2020nc",
+            "-x265-params",
+            "log-level=error:hdr10=1:colorprim=bt2020:transfer=smpte2084:colormatrix=bt2020nc:"
+            "master-display=G(13250,34500)B(7500,3000)R(34000,16000)WP(15635,16450)L(10000000,1):"
+            "max-cll=1000,400",
+        ]  # fmt: skip
+    elif spec.codec == "libx265":
         args += ["-x265-params", "log-level=error"]
     args += ["-c:a", "aac", "-b:a", "48k"]
     args += ["-c:s", "mov_text" if path.suffix == ".mp4" else "srt"]

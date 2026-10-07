@@ -7,7 +7,6 @@ import {
   Code,
   Group,
   Loader,
-  Menu,
   Modal,
   PasswordInput,
   Stack,
@@ -49,18 +48,18 @@ export function IntegrationsPage() {
     <Stack maw={860}>
       <Group justify="space-between">
         <Title order={2}>Integrations</Title>
-        <Menu>
-          <Menu.Target>
-            <Button leftSection={<IconPlus size={16} />}>Add integration</Button>
-          </Menu.Target>
-          <Menu.Dropdown>
-            {(Object.keys(KIND_LABELS) as IntegrationKind[]).map((kind) => (
-              <Menu.Item key={kind} onClick={() => setEditing(kind)}>
-                {KIND_LABELS[kind]}
-              </Menu.Item>
-            ))}
-          </Menu.Dropdown>
-        </Menu>
+        <Group gap="xs">
+          {(Object.keys(KIND_LABELS) as IntegrationKind[]).map((kind) => (
+            <Button
+              key={kind}
+              variant={kind === 'tmdb' ? 'default' : 'filled'}
+              leftSection={<IconPlus size={16} />}
+              onClick={() => setEditing(kind)}
+            >
+              Add {KIND_LABELS[kind]}
+            </Button>
+          ))}
+        </Group>
       </Group>
       <Text size="sm" c="dimmed">
         ReelHaven asks these services what language each title was originally made in. API keys are
