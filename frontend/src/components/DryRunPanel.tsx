@@ -18,6 +18,7 @@ import { IconPlayerPlay, IconWand } from '@tabler/icons-react';
 import { notifications } from '@mantine/notifications';
 import { Link } from 'react-router';
 import { useApplyLibrary } from '../api/jobs';
+import { useTestRun } from '../api/testRun';
 import { useState } from 'react';
 import { errorMessage } from '../api/client';
 import { type DryRunItem, type DryRunShow, useDryRun } from '../api/dryrun';
@@ -49,6 +50,7 @@ export function DryRunPanel({ libraryId }: { libraryId: number }) {
   const dryRun = useDryRun(libraryId, show, page, started);
   const [confirming, setConfirming] = useState(false);
   const apply = useApplyLibrary();
+  const testRun = useTestRun(libraryId);
 
   if (!started) {
     return (
@@ -91,6 +93,14 @@ export function DryRunPanel({ libraryId }: { libraryId: number }) {
           hint="wrong language or unreadable"
         />
       </SimpleGrid>
+      {r.encode > 0 &&
+        !(testRun.data?.status === 'approved' && testRun.data.profile_is_current) && (
+          <Alert color="blue">
+            {r.encode} {r.encode === 1 ? 'file' : 'files'} would be re-encoded. Re-encoding a whole
+            library needs an approved test run with the current profile first: see the Test run tab.
+            Single files can be re-encoded from their details.
+          </Alert>
+        )}
       {r.unknown_original > 0 && (
         <Alert color="yellow">
           {r.unknown_original === 1 ? '1 file has' : `${r.unknown_original} files have`} an unknown
