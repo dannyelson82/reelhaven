@@ -59,5 +59,23 @@ of instantly.
 ## Dashboard
 
 The **Dashboard** shows what's being processed right now and how many files
-are waiting. Statistics (space saved over time, per-device speed) arrive in a
-later version.
+are waiting, and how much space ReelHaven has saved.
+
+### Space saved
+
+Once the first file has been made smaller, the **Space saved** card shows:
+
+- **Since you installed ReelHaven**: the total space saved over the life of
+  this install.
+- **This week** and **This month**: what was saved in the current calendar
+  week (starting Monday) and month, in the server's local time.
+- **Files made smaller**: how many files were replaced by a smaller version.
+- A bar chart of the last 12 weeks or 12 months (switch with **Weekly** /
+  **Monthly**). Hover over a bar for the exact figure, or choose **Show as
+  table** to see the numbers as a list.
+- **By library**: the totals for each library, when you have more than one.
+
+The figures follow the recycle bin. If you restore an original, its saving is
+taken back out (in the week you restored it); if you later put the smaller
+version back, the saving counts again. Files that were only remuxed (for
+example, unwanted languages removed) count too, since they also got smaller.
