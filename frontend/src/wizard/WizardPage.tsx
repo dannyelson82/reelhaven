@@ -2,6 +2,7 @@
 import { Card, Stack, Stepper, Text, Title } from '@mantine/core';
 import { useSearchParams } from 'react-router';
 import { FolderStep, LanguagesStep, ScanStep, type StepProps } from './LibrarySteps';
+import { AudioStep, QualityStep } from './QualitySteps';
 
 interface Step {
   key: string;
@@ -11,18 +12,19 @@ interface Step {
 
 const COMING_NEXT: Step = {
   key: 'next',
-  label: 'Size and quality',
-  component: () => (
-    <Text>The next steps (size and quality, audio, a test run and going automatic) come next.</Text>
-  ),
+  label: 'Try it',
+  component: () => <Text>The next steps (a test run and going automatic) come next.</Text>,
 };
 
 /** The steps for this run: a new library starts at the folder. */
-function wizardSteps(newLibrary: boolean): Step[] {
+function wizardSteps(newLibrary: boolean, reencode: boolean): Step[] {
   return [
     ...(newLibrary ? [{ key: 'folder', label: 'Folder', component: FolderStep }] : []),
     { key: 'scan', label: 'Read files', component: ScanStep },
     { key: 'languages', label: 'Languages', component: LanguagesStep },
+    { key: 'quality', label: 'Size and quality', component: QualityStep },
+    // Audio conversion needs a profile: skipped when the video isn't re-encoded.
+    ...(reencode ? [{ key: 'audio', label: 'Audio', component: AudioStep }] : []),
     COMING_NEXT,
   ];
 }
@@ -32,7 +34,10 @@ export function WizardPage() {
   const library = params.get('library');
   const libraryId = library ? Number(library) : null;
   // A library that existed before the wizard opened skips the folder step.
-  const steps = wizardSteps(params.get('new') === '1' || libraryId === null);
+  const steps = wizardSteps(
+    params.get('new') === '1' || libraryId === null,
+    params.get('choice') !== 'none',
+  );
   const current = Math.max(
     0,
     steps.findIndex((s) => s.key === params.get('step')),
