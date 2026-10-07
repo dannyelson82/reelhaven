@@ -8,15 +8,18 @@ export interface DryRunItem {
   relative_path: string;
   size: number;
   original_language: string | null;
-  action: 'remux' | 'skip' | 'unreadable';
+  action: 'encode' | 'remux' | 'skip' | 'unreadable';
   flags: string[];
   summary: string;
   details: string[];
   removed_bytes: number | null;
+  bytes_after_estimate: number | null;
+  savings_percent: number | null;
 }
 
 export interface DryRunResult {
   files: number;
+  encode: number;
   remux: number;
   unchanged: number;
   unreadable: number;

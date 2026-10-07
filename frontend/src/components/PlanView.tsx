@@ -19,8 +19,8 @@ export function PlanView({ fileId }: { fileId: number }) {
           <Text size="sm" fw={500}>
             What ReelHaven would do
           </Text>
-          <Badge color={p.action === 'remux' ? 'blue' : 'gray'}>
-            {p.action === 'remux' ? 'Remux' : 'Nothing'}
+          <Badge color={p.action === 'encode' ? 'violet' : p.action === 'remux' ? 'blue' : 'gray'}>
+            {p.action === 'encode' ? 'Re-encode' : p.action === 'remux' ? 'Remux' : 'Nothing'}
           </Badge>
           {p.flags.map((flag) => (
             <Badge key={flag} color={flag === 'dolby_vision' ? 'grape' : 'orange'}>
@@ -35,6 +35,18 @@ export function PlanView({ fileId }: { fileId: number }) {
               <List.Item key={d}>{d}</List.Item>
             ))}
           </List>
+        )}
+        {p.video && p.video.decision === 'keep' && (
+          <Text size="xs" c="dimmed">
+            Video kept as it is: {p.video.reason}
+          </Text>
+        )}
+        {p.action === 'encode' && p.video?.bytes_after_estimate != null && (
+          <Text size="xs" c="dimmed">
+            Estimated {formatBytes(p.video.bytes_before)} →{' '}
+            {formatBytes(p.video.bytes_after_estimate)} ({p.video.savings_percent}% smaller). The
+            real result is checked after encoding.
+          </Text>
         )}
         {p.action === 'remux' && p.removed_bytes !== null && p.removed_bytes > 0 && (
           <Text size="xs" c="dimmed">

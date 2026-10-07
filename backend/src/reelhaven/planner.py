@@ -9,12 +9,16 @@ from typing import Literal
 
 from pydantic import BaseModel
 
+from reelhaven.encode_planner import VideoPlan, plan_video
 from reelhaven.media.info import MediaInfo, Stream
 from reelhaven.media.languages import display_name
 from reelhaven.policy import LanguagePolicy
+from reelhaven.profiles import ProfileSettings
 
-Action = Literal["skip", "remux"]
-Flag = Literal["wrong_language", "no_wanted_audio", "dolby_vision", "probe_failed", "no_audio"]
+Action = Literal["skip", "remux", "encode"]
+Flag = Literal[
+    "wrong_language", "no_wanted_audio", "dolby_vision", "hdr10plus", "probe_failed", "no_audio"
+]
 
 
 class TrackPlan(BaseModel):
@@ -35,6 +39,7 @@ class Plan(BaseModel):
     summary: str
     details: list[str]
     removed_bytes: int | None  # estimate; None when stream sizes are unknown
+    video: VideoPlan | None = None  # set when the library has a compression profile
 
     @property
     def changes(self) -> bool:
@@ -299,3 +304,40 @@ def _summary(
     if default_changes:
         parts.append("fix default tracks")
     return f"{origin} Will {', '.join(parts)}."
+
+
+def plan_file(
+    info: MediaInfo,
+    original_language: str | None,
+    policy: LanguagePolicy,
+    profile: ProfileSettings | None,
+) -> Plan:
+    """Language changes (§8) plus the video decision (§7.4), done in one pass."""
+    result = plan(info, original_language, policy)
+    if profile is None:
+        return result
+    video = plan_video(info, profile)
+    result.video = video
+    if info.video is not None and info.video.hdr == "hdr10plus":
+        result.flags.append("hdr10plus")
+    if "wrong_language" in result.flags or "no_wanted_audio" in result.flags:
+        video.decision = "keep"
+        video.reason = "The file needs review first."
+        return result
+    if video.decision == "encode":
+        result.action = "encode"
+        height = (
+            f" {video.height_before}p → {video.height_after}p"
+            if video.height_after != video.height_before
+            else ""
+        )
+        result.details.insert(
+            0,
+            f"Re-encode video to {(video.codec or '').upper()}"
+            f"{' 10-bit' if video.ten_bit else ''}{height} ({video.reason[:-1].lower()}).",
+        )
+        origin = result.summary.split(".")[0] + "."
+        result.summary = f"{origin} Will re-encode the video" + (
+            " and apply the track changes." if any(not t.keep for t in result.tracks) else "."
+        )
+    return result

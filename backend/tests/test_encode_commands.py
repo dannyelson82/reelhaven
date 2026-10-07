@@ -4,6 +4,7 @@ from pathlib import Path
 import pytest
 
 from reelhaven.devices import CPU
+from reelhaven.encode_planner import encode_marker
 from reelhaven.encoders import Device
 from reelhaven.jobs.encode_commands import (
     encode_command,
@@ -222,7 +223,7 @@ def test_nvenc_hdr_4k_to_1080p_golden() -> None:
         "-disposition:3",
         "default+forced",
         "-metadata",
-        "REELHAVEN=encode-1",
+        f"REELHAVEN={encode_marker(profile)}",
         "-f",
         "matroska",
         "file:/w/a.mkv",

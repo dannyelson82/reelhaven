@@ -74,7 +74,11 @@ export function DryRunPanel({ libraryId }: { libraryId: number }) {
     <Stack>
       <SimpleGrid cols={{ base: 2, sm: 4 }}>
         <Stat label="Files" value={r.files} />
-        <Stat label="Would change" value={r.remux} hint="remux: tracks/defaults only" />
+        <Stat
+          label="Would change"
+          value={r.encode + r.remux}
+          hint={`${r.encode} re-encode · ${r.remux} track changes only`}
+        />
         <Stat
           label="Space saved"
           value={formatBytes(r.saved_bytes)}
@@ -102,7 +106,7 @@ export function DryRunPanel({ libraryId }: { libraryId: number }) {
             setPage(1);
           }}
           data={[
-            { value: 'changes', label: `Changes (${r.remux})` },
+            { value: 'changes', label: `Changes (${r.encode + r.remux})` },
             { value: 'flagged', label: `Needs review (${flagged + r.unreadable})` },
             { value: 'all', label: `All (${r.files})` },
           ]}
@@ -117,7 +121,8 @@ export function DryRunPanel({ libraryId }: { libraryId: number }) {
           </Button>
           {r.remux > 0 && (
             <Button leftSection={<IconWand size={16} />} onClick={() => setConfirming(true)}>
-              Apply to {r.remux} {r.remux === 1 ? 'file' : 'files'}
+              {r.encode > 0 ? 'Apply track changes to' : 'Apply to'} {r.remux}{' '}
+              {r.remux === 1 ? 'file' : 'files'}
             </Button>
           )}
         </Group>
@@ -224,11 +229,15 @@ function DryRunRow({ item }: { item: DryRunItem }) {
       </Table.Td>
       <Table.Td ta="right" style={{ verticalAlign: 'top', whiteSpace: 'nowrap' }}>
         <Text size="sm">
-          {item.action !== 'remux'
-            ? '–'
-            : item.removed_bytes === null
-              ? '?'
-              : formatBytes(item.removed_bytes)}
+          {item.action === 'encode'
+            ? item.savings_percent !== null
+              ? `~${item.savings_percent}%`
+              : '?'
+            : item.action !== 'remux'
+              ? '–'
+              : item.removed_bytes === null
+                ? '?'
+                : formatBytes(item.removed_bytes)}
         </Text>
       </Table.Td>
     </Table.Tr>

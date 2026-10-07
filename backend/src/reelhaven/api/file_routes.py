@@ -16,11 +16,12 @@ from reelhaven.api.deps import (
     csrf_protect,
     require_setup_done,
 )
-from reelhaven.db import Library, MediaFile, Title
+from reelhaven.db import Library, MediaFile, Profile, Title
 from reelhaven.dryrun import FilePlan, plan_library, summarise
 from reelhaven.media.info import MediaInfo, Stream
-from reelhaven.planner import Plan, plan
+from reelhaven.planner import Plan, plan_file
 from reelhaven.policy import LanguagePolicy
+from reelhaven.profiles import ProfileSettings
 from reelhaven.scanner import Scanner
 
 router = APIRouter(dependencies=[Depends(require_setup_done), Depends(csrf_protect)])
@@ -198,7 +199,9 @@ def get_plan(file_id: int, db: DbDep, _principal: AnyPrincipalDep) -> Plan:
             raise HTTPException(status.HTTP_409_CONFLICT, "file_not_readable")
         info = MediaInfo.model_validate(row.probe)
         policy = LanguagePolicy.model_validate(library.language_policy or {})
-    return plan(info, title.original_language if title else None, policy)
+        profile_row = session.get(Profile, library.profile_id) if library.profile_id else None
+        profile = ProfileSettings.model_validate(profile_row.settings) if profile_row else None
+    return plan_file(info, title.original_language if title else None, policy, profile)
 
 
 class DryRunItem(BaseModel):
@@ -211,10 +214,13 @@ class DryRunItem(BaseModel):
     summary: str
     details: list[str]
     removed_bytes: int | None
+    bytes_after_estimate: int | None = None
+    savings_percent: float | None = None
 
 
 class DryRunResult(BaseModel):
     files: int
+    encode: int
     remux: int
     unchanged: int
     unreadable: int
@@ -249,7 +255,7 @@ def dry_run(
             return item.plan is None or bool(
                 set(item.plan.flags) & {"wrong_language", "no_wanted_audio", "no_audio"}
             )
-        return item.plan is not None and item.plan.action == "remux"
+        return item.plan is not None and item.plan.action in ("remux", "encode")
 
     selected = [item for item in plans if wanted(item)]
     items = [
@@ -263,6 +269,12 @@ def dry_run(
             summary=item.plan.summary if item.plan else "The file couldn't be read.",
             details=item.plan.details if item.plan else [],
             removed_bytes=item.plan.removed_bytes if item.plan else None,
+            bytes_after_estimate=(
+                item.plan.video.bytes_after_estimate if item.plan and item.plan.video else None
+            ),
+            savings_percent=item.plan.video.savings_percent
+            if item.plan and item.plan.video
+            else None,
         )
         for item in selected[offset : offset + limit]
     ]

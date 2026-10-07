@@ -24,19 +24,33 @@ export interface TrackPlan {
   reason: string;
 }
 
+export interface VideoPlan {
+  decision: 'encode' | 'keep';
+  reason: string;
+  codec: string | null;
+  ten_bit: boolean | null;
+  height_before: number | null;
+  height_after: number | null;
+  bytes_before: number | null;
+  bytes_after_estimate: number | null;
+  savings_percent: number | null;
+}
+
 export interface Plan {
-  action: 'skip' | 'remux';
+  action: 'skip' | 'remux' | 'encode';
   tracks: TrackPlan[];
   flags: string[];
   summary: string;
   details: string[];
   removed_bytes: number | null;
+  video: VideoPlan | null;
 }
 
 export const FLAG_LABELS: Record<string, string> = {
   wrong_language: 'Wrong language',
   no_wanted_audio: 'No wanted audio',
   dolby_vision: 'Dolby Vision',
+  hdr10plus: 'HDR10+',
   no_audio: 'No audio',
   probe_failed: "Can't read",
 };
