@@ -9,7 +9,7 @@ from reelhaven import audit
 from reelhaven.config import Settings
 from reelhaven.db import Database, Job, JobResult, Library, MediaFile, RecycleItem
 from reelhaven.db.types import utcnow
-from reelhaven.jobs.commands import expected_layout, remux_command
+from reelhaven.jobs.commands import expected_layout, expected_remux_codecs, remux_command
 from reelhaven.jobs.replace import (
     ReplaceError,
     Snapshot,
@@ -94,7 +94,10 @@ def process(db: Database, settings: Settings, job_id: int) -> None:
             settings.ffmpeg,
             settings.ffprobe,
             timeout_s=300 + duration,
+            expected_codecs=expected_remux_codecs(source, info, plan),
         )
+        if any(t.convert_codec for t in plan.tracks) and output.stat().st_size >= snapshot.size:
+            raise VerificationError("converting the audio didn't make the file smaller")
         if _is_cancelled(db, job_id):
             raise CancelledError
 

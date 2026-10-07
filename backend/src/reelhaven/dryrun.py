@@ -82,10 +82,10 @@ def summarise(plans: list[FilePlan]) -> DryRunSummary:
                 saved += video.bytes_before - video.bytes_after_estimate
         elif item.plan.action == "remux":
             remux += 1
-            if item.plan.removed_bytes is None:
+            if item.plan.remux_saved_bytes is None:
                 savings_unknown += 1
             else:
-                saved += item.plan.removed_bytes
+                saved += item.plan.remux_saved_bytes
         else:
             unchanged += 1
     return DryRunSummary(

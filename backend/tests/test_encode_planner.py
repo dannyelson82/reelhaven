@@ -187,3 +187,81 @@ def test_hdr10plus_flagged_but_language_changes_still_planned() -> None:
     p = plan_file(info, "eng", LanguagePolicy(), BALANCED)
     assert "hdr10plus" in p.flags
     assert p.action == "remux"
+
+
+# --- audio conversion (ADR-0023) ------------------------------------------------------------
+
+CONVERT_AAC = ProfileSettings(audio="convert", audio_codec="aac")
+
+
+def with_audio(info: MediaInfo, codec: str, kbps: int | None, channels: int = 6) -> MediaInfo:
+    info.streams[1] = Stream(
+        index=1,
+        kind="audio",
+        codec=codec,
+        language="eng",
+        default=True,
+        channels=channels,
+        bit_rate=kbps * 1000 if kbps else None,
+    )
+    return info
+
+
+def test_audio_only_plan_when_the_video_is_already_efficient() -> None:
+    info = with_audio(movie(codec="hevc", video_mbps=2), "truehd", 4000)
+    p = plan_file(info, "eng", LanguagePolicy(), CONVERT_AAC)
+    assert p.video is not None and p.video.decision == "keep"
+    assert p.action == "remux"
+    (track,) = [t for t in p.tracks if t.convert_codec]
+    assert (track.index, track.convert_codec, track.convert_kbps) == (1, "aac", 384)
+    assert p.audio_saved_bytes == int((4_000_000 - 384_000) * 7200 / 8)
+    assert p.remux_saved_bytes == p.audio_saved_bytes
+    assert "Convert audio: English (TRUEHD) → AAC 384 kbit/s." in p.details
+    assert p.summary == "Original language: English. Will convert 1 audio track."
+
+
+def test_lossless_bitrate_is_estimated_when_unknown() -> None:
+    info = with_audio(movie(codec="hevc", video_mbps=2), "truehd", None)
+    p = plan_file(info, "eng", LanguagePolicy(), CONVERT_AAC)
+    assert p.action == "remux"
+    assert p.audio_saved_bytes and p.audio_saved_bytes > 0
+
+
+def test_small_audio_savings_alone_are_skipped() -> None:
+    # 1 Mbit/s E-AC-3 -> 384k AAC saves ~0.6 Mbit/s of a ~9 Mbit/s file: under 10 %.
+    info = with_audio(movie(codec="hevc", height=2160, video_mbps=8), "eac3", 1000)
+    p = plan_file(info, "eng", LanguagePolicy(), CONVERT_AAC)
+    assert p.action == "skip"
+    assert not any(t.convert_codec for t in p.tracks)
+    assert p.audio_saved_bytes is None
+
+
+def test_track_changes_take_the_audio_conversion_along() -> None:
+    info = with_audio(movie(codec="hevc", height=2160, video_mbps=8), "eac3", 1000)
+    info.streams.append(
+        Stream(index=2, kind="audio", codec="ac3", language="fra", channels=6, bit_rate=448_000)
+    )
+    p = plan_file(info, "eng", LanguagePolicy(), CONVERT_AAC)
+    assert p.action == "remux"
+    assert [t.index for t in p.tracks if t.convert_codec] == [1]
+    assert p.summary == (
+        "Original language: English. Will remove 1 audio track, convert 1 audio track."
+    )
+
+
+def test_encode_counts_converted_audio_in_the_estimate() -> None:
+    plain = plan_file(with_audio(movie(), "truehd", 4000), "eng", LanguagePolicy(), BALANCED)
+    converted = plan_file(with_audio(movie(), "truehd", 4000), "eng", LanguagePolicy(), CONVERT_AAC)
+    assert plain.action == converted.action == "encode"
+    assert plain.video and converted.video
+    assert converted.video.savings_percent > plain.video.savings_percent  # type: ignore[operator]
+    assert converted.audio_saved_bytes
+    assert any(d.startswith("Convert audio:") for d in converted.details)
+
+
+def test_copy_profile_and_review_files_convert_nothing() -> None:
+    info = with_audio(movie(codec="hevc", video_mbps=2), "truehd", 4000)
+    assert plan_file(info, "eng", LanguagePolicy(), BALANCED).action == "skip"
+    info.streams[1].language = "spa"  # wrong language: needs review
+    p = plan_file(info, "eng", LanguagePolicy(), CONVERT_AAC)
+    assert p.action == "skip" and not any(t.convert_codec for t in p.tracks)

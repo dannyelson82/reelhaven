@@ -19,9 +19,10 @@ ARCHITECTURE.md §7.1 already allows transcoding to E-AC-3, AAC or Opus.
   E-AC-3 JOC, DTS:X) is **always copied**. Channels are never added
   (no upmix); AAC is limited to 5.1, Opus to 7.1, E-AC-3 to 5.1, and tracks
   with more channels are copied.
-- **Audio-only jobs**: when only the audio would change (the video is already
-  efficient or the library has no video encoding), the file is processed with
-  the video **copied untouched**. The same verification, minimum saving
+- **Audio-only jobs**: when only the audio would change (the profile keeps the
+  video because it's already efficient), the file is processed with the video
+  **copied untouched**, if there are track changes anyway or the audio alone
+  reaches the minimum saving. The same verification, minimum saving
   (default 10 % of the whole file) and recycle bin apply.
 - Track language, title, default/forced flags and order are kept.
 

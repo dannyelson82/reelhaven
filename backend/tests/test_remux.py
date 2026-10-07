@@ -21,7 +21,7 @@ from reelhaven.config import Settings
 from reelhaven.db import AuditLog, Database, Job, RecycleItem
 from reelhaven.db.types import utcnow
 from reelhaven.jobs import pipeline, replace
-from reelhaven.jobs.commands import MARKER_TAG, remux_command
+from reelhaven.jobs.commands import MARKER_TAG, expected_remux_codecs, remux_command
 from reelhaven.media.info import MediaInfo, Stream
 from reelhaven.media.probe import probe, probe_raw
 from reelhaven.planner import plan
@@ -424,3 +424,28 @@ def test_restore_refuses_paths_outside_the_library(tmp_path: Path) -> None:
     with pytest.raises(replace.ReplaceError, match="outside the library"):
         replace.restore(outside, root / "x.mkv", root / ".reelhaven" / "recycle" / "y.mkv", root)
     assert stored.exists()
+
+
+def test_remux_converts_planned_audio_tracks() -> None:
+    """ADR-0023: only the converted track gets an encoder; video and the rest are copied."""
+    info = MediaInfo(
+        container="matroska,webm",
+        duration_s=10,
+        size_bytes=1,
+        bit_rate=None,
+        streams=[
+            Stream(index=0, kind="video", codec="hevc"),
+            Stream(index=1, kind="audio", codec="ac3", language="eng", default=True),
+            Stream(index=2, kind="audio", codec="truehd", language="eng", channels=6),
+        ],
+    )
+    p = plan(info, "eng", LanguagePolicy())
+    p.tracks[1].convert_codec, p.tracks[1].convert_kbps = "opus", 288
+    args = remux_command("ffmpeg", Path("/m/a.mkv"), Path("/m/w/a.mkv"), info, p)
+    tail = args[args.index("-c") : args.index("-metadata", args.index("-c"))]
+    assert "-c:a:1" in tail and "-c:a:0" not in tail
+    assert tail[tail.index("-c:a:1") : tail.index("-c:a:1") + 6] == [
+        "-c:a:1", "libopus", "-b:a:1", "288k", "-mapping_family:a:1", "1",
+    ]  # fmt: skip
+    assert args[args.index("-metadata:s:2") :][:2] == ["-metadata:s:2", "BPS="]
+    assert expected_remux_codecs(Path("/m/a.mkv"), info, p) == {2: "opus"}

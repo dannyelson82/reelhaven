@@ -273,3 +273,33 @@ def test_encode_converts_audio(app: FastAPI, settings: Settings, codec: str) -> 
     assert audio[0].bit_rate != 4_000_000  # the old track's statistics are gone
     again = admin.get(f"{API}/files/{file_id(admin, lib)}/plan").json()
     assert again["action"] == "skip", again  # nothing converted twice
+
+
+def test_audio_only_job_copies_the_video(app: FastAPI, settings: Settings) -> None:
+    """ADR-0023: efficient video + big lossless audio = audio-only job, no test run needed."""
+    profile = {**FAST, "audio": "convert", "audio_codec": "aac"}
+    admin, lib, path = setup(app, settings, profile)
+    path.unlink()
+    surround = Audio("eng", default=True, channels=6, codec="pcm_s16le")
+    os.utime(make(path, Spec(codec="libx265", audio=[surround], seconds=3)), (OLD, OLD))
+    admin.post(f"{API}/libraries/{lib}/scan")
+    app.state.scanner.wait(lib, timeout=60)
+    video_before = probe(path).video
+    size_before = path.stat().st_size
+
+    dry = admin.get(f"{API}/libraries/{lib}/dry-run").json()
+    assert (dry["encode"], dry["remux"]) == (0, 1), dry
+    applied = admin.post(f"{API}/libraries/{lib}/apply", json={"expected_count": 1})
+    assert applied.status_code == 200, applied.text  # no test run: nothing is re-encoded
+    assert app.state.queue.wait_idle(120)
+
+    job = last_job(admin)
+    assert (job["type"], job["status"], job["outcome"]) == ("remux", "done", "replaced"), job
+    info = probe(path)
+    (audio,) = info.of_kind("audio")
+    assert (audio.codec, audio.channels, audio.language, audio.default) == ("aac", 6, "eng", True)
+    assert info.video is not None and video_before is not None
+    assert (info.video.codec, info.video.width) == (video_before.codec, video_before.width)
+    assert path.stat().st_size < size_before
+    again = admin.get(f"{API}/files/{file_id(admin, lib)}/plan").json()
+    assert again["action"] == "skip", again

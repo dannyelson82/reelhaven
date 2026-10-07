@@ -3,6 +3,7 @@ argument lists, never shell strings (SECURITY.md)."""
 
 from pathlib import Path
 
+from reelhaven.audio_rules import ENCODER, AudioCodec
 from reelhaven.media.info import MediaInfo, Stream
 from reelhaven.media.probe import ffmpeg_input
 from reelhaven.planner import Plan
@@ -79,6 +80,7 @@ def remux_command(
     for out_index, (stream, default) in enumerate(kept):
         if default is not None:
             args += [f"-disposition:{out_index}", _disposition(stream, default)]
+    args += _audio_conversion_args(kept, plan, fmt)
     args += ["-metadata", f"{MARKER_TAG}={MARKER_VALUE}"]
     if fmt in _MP4_FAMILY:
         args += ["-movflags", "+faststart+use_metadata_tags"]
@@ -94,3 +96,43 @@ def expected_layout(
         (stream.kind, stream.language, default)
         for stream, default in _kept_streams(info, plan, remux_format(source))
     ]
+
+
+_MKV_STAT_TAGS = ("BPS", "NUMBER_OF_BYTES", "NUMBER_OF_FRAMES", "DURATION", "_STATISTICS_TAGS")
+_PROBED_CODEC: dict[AudioCodec, str] = {"eac3": "eac3", "aac": "aac", "opus": "opus"}
+
+
+def _audio_conversion_args(
+    kept: list[tuple[Stream, bool | None]], plan: Plan, fmt: str
+) -> list[str]:
+    """ADR-0023: re-encode the audio tracks the plan converts; everything else is copied."""
+    converts = {t.index: t for t in plan.tracks if t.convert_codec and t.convert_kbps}
+    args: list[str] = []
+    audio_index = 0
+    for out_index, (stream, _) in enumerate(kept):
+        if stream.kind != "audio":
+            continue
+        track = converts.get(stream.index)
+        if track is not None and track.convert_codec is not None:
+            codec = track.convert_codec
+            args += [f"-c:a:{audio_index}", ENCODER[codec], f"-b:a:{audio_index}"]
+            args += [f"{track.convert_kbps}k"]
+            if codec == "opus":
+                args += [f"-mapping_family:a:{audio_index}", "1"]
+            if fmt == "matroska":
+                # The old track's bitrate would make the next plan convert it again.
+                for tag in _MKV_STAT_TAGS:
+                    args += [f"-metadata:s:{out_index}", f"{tag}="]
+        audio_index += 1
+    return args
+
+
+def expected_remux_codecs(source: Path, info: MediaInfo, plan: Plan) -> dict[int, str]:
+    """Output position -> codec of every converted audio track, for the verifier."""
+    converts = {t.index: t.convert_codec for t in plan.tracks if t.convert_codec is not None}
+    kept = _kept_streams(info, plan, remux_format(source))
+    return {
+        position: _PROBED_CODEC[converts[stream.index]]
+        for position, (stream, _) in enumerate(kept)
+        if stream.index in converts
+    }

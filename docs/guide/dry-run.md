@@ -29,8 +29,9 @@ plan. **Run again** refreshes it after you change a setting.
 
 - **Re-encode**: the video is compressed with the library's profile (track
   changes happen in the same pass).
-- **Remux**: only audio/subtitle tracks or default flags change. Fast, and
-  the video is untouched.
+- **Remux**: only the tracks change: unwanted ones are removed, default flags
+  are fixed, and audio is converted if the profile says so (see
+  [Profiles](profiles.md)). The video is copied untouched.
 - **Nothing**: the file already matches your settings.
 
 A file isn't re-encoded when it wouldn't help, for example when:

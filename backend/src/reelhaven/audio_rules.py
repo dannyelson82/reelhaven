@@ -57,3 +57,21 @@ def conversion(
     if mode == "convert" and lossy_big:
         return target
     return None  # lossy and small enough already, or its bitrate is unknown
+
+
+def source_bitrate(stream: Stream) -> int | None:
+    """The track's bitrate in bit/s, estimated for lossless tracks that don't record it."""
+    if stream.bit_rate:
+        return stream.bit_rate
+    if is_lossless(stream):
+        # Lossless audio typically compresses 24-bit PCM to about 60 %.
+        return int((stream.channels or 2) * (stream.sample_rate or 48000) * 24 * 0.6)
+    return None
+
+
+def saved_bytes(stream: Stream, target_kbps: int, duration_s: float) -> int:
+    """Estimated bytes saved by converting this track (0 when unknown)."""
+    before = source_bitrate(stream)
+    if before is None:
+        return 0
+    return max(int((before - target_kbps * 1000) * duration_s / 8), 0)

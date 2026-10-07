@@ -43,6 +43,7 @@ export interface Plan {
   summary: string;
   details: string[];
   removed_bytes: number | null;
+  audio_saved_bytes?: number | null;
   video: VideoPlan | null;
 }
 

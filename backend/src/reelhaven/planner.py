@@ -9,6 +9,7 @@ from typing import Literal
 
 from pydantic import BaseModel
 
+from reelhaven.audio_rules import AudioCodec, conversion, saved_bytes
 from reelhaven.encode_planner import VideoPlan, plan_video
 from reelhaven.media.info import MediaInfo, Stream
 from reelhaven.media.languages import display_name
@@ -30,6 +31,9 @@ class TrackPlan(BaseModel):
     default_before: bool
     default_after: bool
     reason: str
+    # Audio conversion (ADR-0023); None = the track is copied.
+    convert_codec: AudioCodec | None = None
+    convert_kbps: int | None = None
 
 
 class Plan(BaseModel):
@@ -40,10 +44,18 @@ class Plan(BaseModel):
     details: list[str]
     removed_bytes: int | None  # estimate; None when stream sizes are unknown
     video: VideoPlan | None = None  # set when the library has a compression profile
+    audio_saved_bytes: int | None = None  # estimate for converted audio tracks
 
     @property
     def changes(self) -> bool:
         return self.action != "skip"
+
+    @property
+    def remux_saved_bytes(self) -> int | None:
+        """Estimated saving of a track-change job: removed tracks plus converted audio."""
+        if self.removed_bytes is None:
+            return None
+        return self.removed_bytes + (self.audio_saved_bytes or 0)
 
 
 def _effective_language(stream: Stream, policy: LanguagePolicy) -> str | None:
@@ -306,6 +318,36 @@ def _summary(
     return f"{origin} Will {', '.join(parts)}."
 
 
+_CODEC_NAMES = {"eac3": "E-AC-3", "aac": "AAC", "opus": "Opus"}
+
+
+def _plan_audio(info: MediaInfo, result: Plan, profile: ProfileSettings) -> int:
+    """Mark kept audio tracks the profile converts; returns the estimated bytes saved."""
+    saved = 0
+    for track in result.tracks:
+        if track.kind != "audio" or not track.keep:
+            continue
+        stream = _stream(info, track.index)
+        kbps = conversion(
+            stream, profile.audio, profile.audio_codec, profile.audio_kbps_per_channel
+        )
+        if kbps is None:
+            continue
+        track.convert_codec, track.convert_kbps = profile.audio_codec, kbps
+        saved += saved_bytes(stream, kbps, info.duration_s or 0.0)
+    return saved
+
+
+def _conversion_details(info: MediaInfo, result: Plan) -> list[str]:
+    return [
+        f"Convert audio: {_describe(_stream(info, t.index))} "
+        f"({(_stream(info, t.index).codec or '?').upper()}) → "
+        f"{_CODEC_NAMES.get(t.convert_codec or '', t.convert_codec)} {t.convert_kbps} kbit/s."
+        for t in result.tracks
+        if t.convert_codec
+    ]
+
+
 def plan_file(
     info: MediaInfo,
     original_language: str | None,
@@ -325,6 +367,34 @@ def plan_file(
         video.decision = "keep"
         video.reason = "The file needs review first."
         return result
+    audio_saved = _plan_audio(info, result, profile)
+    converted = any(t.convert_codec for t in result.tracks)
+    if converted and video.decision == "encode":
+        # Converted in the same pass: count the audio in the saving estimate.
+        result.audio_saved_bytes = audio_saved
+        if video.bytes_after_estimate is not None and info.size_bytes:
+            video.bytes_after_estimate = max(video.bytes_after_estimate - audio_saved, 0)
+            video.savings_percent = round(
+                100 * (1 - video.bytes_after_estimate / info.size_bytes), 1
+            )
+        result.details.extend(_conversion_details(info, result))
+    elif converted:
+        # ADR-0023 audio-only: the video is copied. Worth it when there are track
+        # changes anyway, or when the audio alone reaches the profile's minimum.
+        minimum = (info.size_bytes or 0) * profile.min_savings_percent / 100
+        if result.action == "remux" or (info.size_bytes and audio_saved >= minimum):
+            result.action = "remux"
+            result.audio_saved_bytes = audio_saved
+            result.details.extend(_conversion_details(info, result))
+            n = sum(1 for t in result.tracks if t.convert_codec)
+            what = f"convert {n} audio track{'s' if n != 1 else ''}"
+            if result.summary.endswith("Nothing to change."):
+                result.summary = result.summary.replace("Nothing to change.", f"Will {what}.")
+            else:
+                result.summary = result.summary[:-1] + f", {what}."
+        else:
+            for track in result.tracks:
+                track.convert_codec = track.convert_kbps = None
     if video.decision == "encode":
         result.action = "encode"
         height = (

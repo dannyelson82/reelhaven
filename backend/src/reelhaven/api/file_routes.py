@@ -269,7 +269,7 @@ def dry_run(
             flags=list(item.plan.flags) if item.plan else ["probe_failed"],
             summary=item.plan.summary if item.plan else "The file couldn't be read.",
             details=item.plan.details if item.plan else [],
-            removed_bytes=item.plan.removed_bytes if item.plan else None,
+            removed_bytes=item.plan.remux_saved_bytes if item.plan else None,
             bytes_after_estimate=(
                 item.plan.video.bytes_after_estimate if item.plan and item.plan.video else None
             ),
