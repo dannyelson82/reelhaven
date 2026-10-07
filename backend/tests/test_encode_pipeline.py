@@ -251,3 +251,25 @@ def test_remember_no_gain_per_profile(db: Database) -> None:
     )
     with db.read() as session:
         assert session.scalars(select(MediaFile)).all() == []
+
+
+@pytest.mark.parametrize("codec", ["eac3", "aac", "opus"])
+def test_encode_converts_audio(app: FastAPI, settings: Settings, codec: str) -> None:
+    """ADR-0023: lossless surround is converted, small lossy stereo is copied."""
+    admin, lib, path = setup(app, settings, {**FAST, "audio": "convert", "audio_codec": codec})
+    path.unlink()
+    surround = Audio("eng", default=True, channels=6, codec="flac", bps=4_000_000)
+    os.utime(make(path, Spec(audio=[surround, Audio("eng")], size="1280x720",
+                             seconds=3, video_bitrate="12M")), (OLD, OLD))  # fmt: skip
+    admin.post(f"{API}/libraries/{lib}/scan")
+    app.state.scanner.wait(lib, timeout=60)
+    assert admin.post(f"{API}/files/{file_id(admin, lib)}/apply").status_code == 201
+    assert app.state.queue.wait_idle(180)
+    job = last_job(admin)
+    assert (job["status"], job["outcome"]) == ("done", "replaced"), job
+    audio = probe(path).of_kind("audio")
+    assert [a.codec for a in audio] == [codec, "aac"]
+    assert audio[0].channels == 6
+    assert audio[0].bit_rate != 4_000_000  # the old track's statistics are gone
+    again = admin.get(f"{API}/files/{file_id(admin, lib)}/plan").json()
+    assert again["action"] == "skip", again  # nothing converted twice

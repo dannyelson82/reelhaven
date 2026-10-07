@@ -28,6 +28,9 @@ class ResizeObserverStub {
 }
 window.ResizeObserver = ResizeObserverStub;
 
+// Mantine's dropdowns scroll the active option into view.
+Element.prototype.scrollIntoView = () => {};
+
 // Mantine's autosize Textarea listens for web fonts loading.
 if (!('fonts' in document)) {
   Object.defineProperty(document, 'fonts', {

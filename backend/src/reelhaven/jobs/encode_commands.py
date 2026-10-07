@@ -7,6 +7,7 @@ the command and tells the verifier what to expect.
 from dataclasses import dataclass
 from pathlib import Path
 
+from reelhaven.audio_rules import ENCODER, conversion
 from reelhaven.encode_planner import encode_marker
 from reelhaven.encoders import (
     Codec,
@@ -26,9 +27,6 @@ from reelhaven.profiles import ProfileSettings
 from reelhaven.quality import quality_value
 
 _MP4_FAMILY = {"mp4", "mov"}
-_LOSSLESS_AUDIO = {"truehd", "flac", "alac", "mlp"}
-_OBJECT_AUDIO_HINTS = ("atmos", "dts:x", "dts-x", "joc")
-_EAC3_BITRATE = {1: 128, 2: 224, 3: 384, 4: 448, 5: 640, 6: 640}
 _MKV_STAT_TAGS = ("BPS", "NUMBER_OF_BYTES", "NUMBER_OF_FRAMES", "DURATION", "_STATISTICS_TAGS")
 
 _NVENC_PRESET = {"fast": "p3", "balanced": "p5", "slow": "p7"}
@@ -41,21 +39,12 @@ _SVT_PRESET = {"fast": "8", "balanced": "6", "slow": "4"}
 class OutputStream:
     kind: str
     source_index: int
-    action: str  # "copy", "encode-video", "eac3", "aac-stereo"
+    action: str  # "copy", "encode-video", "convert-audio", "aac-stereo"
     language: str | None
     default: bool | None  # None: leave the source flag alone
     dispositions: tuple[str, ...] = ()
     title: str | None = None
-
-
-def is_lossless(stream: Stream) -> bool:
-    codec = (stream.codec or "").lower()
-    profile = (stream.profile or "").lower()
-    if any(h in profile or h in (stream.title or "").lower() for h in _OBJECT_AUDIO_HINTS):
-        return False  # object audio (Atmos, DTS:X) is always copied
-    if codec in _LOSSLESS_AUDIO or codec.startswith("pcm_"):
-        return True
-    return codec == "dts" and "ma" in profile  # DTS-HD MA
+    kbps: int | None = None  # convert-audio: the target bitrate
 
 
 def output_streams(
@@ -79,22 +68,18 @@ def output_streams(
                 )
             )
         elif track is not None and track.keep:
-            action = "copy"
-            if (
-                stream.kind == "audio"
-                and profile.audio == "compress_lossless"
-                and is_lossless(stream)
-                and (stream.channels or 0) <= 6
-            ):
-                action = "eac3"
+            kbps = conversion(
+                stream, profile.audio, profile.audio_codec, profile.audio_kbps_per_channel
+            )
             out.append(
                 OutputStream(
                     stream.kind,
                     stream.index,
-                    action,
+                    "copy" if kbps is None else "convert-audio",
                     stream.language,
                     track.default_after,
                     tuple(stream.dispositions),
+                    kbps=kbps,
                 )
             )
             if stream.kind == "audio" and track.default_after:
@@ -193,16 +178,20 @@ def encode_command(
     for out_index, s in enumerate(streams):
         if s.kind != "audio":
             continue
-        if s.action == "eac3":
-            channels = (
-                next((st.channels for st in info.streams if st.index == s.source_index), 6) or 6
-            )
+        if s.action == "convert-audio":
             args += [
                 f"-c:a:{audio_index}",
-                "eac3",
+                ENCODER[profile.audio_codec],
                 f"-b:a:{audio_index}",
-                f"{_EAC3_BITRATE.get(channels, 640)}k",
+                f"{s.kbps}k",
             ]
+            if profile.audio_codec == "opus":
+                # Surround Opus needs the Vorbis channel mapping; harmless for stereo.
+                args += [f"-mapping_family:a:{audio_index}", "1"]
+            if fmt == "matroska":
+                # The old track's bitrate would make the next plan convert it again.
+                for tag in _MKV_STAT_TAGS:
+                    args += [f"-metadata:s:{out_index}", f"{tag}="]
         elif s.action == "aac-stereo":
             args += [
                 f"-c:a:{audio_index}",
@@ -275,3 +264,19 @@ def expected_video(info: MediaInfo, profile: ProfileSettings) -> ExpectedVideo:
     if video is None or video.height is None:
         raise ValueError("no video stream to encode")
     return ExpectedVideo(codec=profile.codec, height=target_height(video, profile) or video.height)
+
+
+_PROBED_CODEC = {"eac3": "eac3", "aac": "aac", "opus": "opus"}
+
+
+def expected_codecs(
+    source: Path, info: MediaInfo, plan: Plan, profile: ProfileSettings
+) -> dict[int, str]:
+    """Output position -> audio codec, for every track the encode converts or adds."""
+    out: dict[int, str] = {}
+    for position, s in enumerate(output_streams(info, plan, profile, remux_format(source))):
+        if s.action == "convert-audio":
+            out[position] = _PROBED_CODEC[profile.audio_codec]
+        elif s.action == "aac-stereo":
+            out[position] = "aac"
+    return out

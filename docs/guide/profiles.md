@@ -41,8 +41,33 @@ copy.
 | **Speed** | **Fast**, **Balanced** or **Slow (smaller files)**. Slower settings squeeze a little more out of each file. |
 | **10-bit output** | Better quality per byte and no colour banding. Not available for H.264. |
 | **Maximum resolution** | Larger videos are scaled down; smaller ones are never scaled up. |
-| **Audio** | **Copy every track unchanged**, or **Compress lossless tracks (TrueHD, DTS-HD MA, FLAC, PCM) to E-AC-3**. |
+| **Audio** | **Copy every track unchanged**; **Convert lossless tracks** (TrueHD, DTS-HD MA, FLAC, PCM); or **Convert large tracks** (lossless ones, and lossy ones well above the target). See *Audio conversion* below. |
 | **Add a stereo AAC track for older devices** | Adds one extra stereo track. |
+
+## Audio conversion
+
+When a profile converts audio, choose **Convert to** and the **Bitrate per
+channel**; the editor shows what that means for stereo and 5.1.
+
+| Codec | Default per channel | Stereo / 5.1 | Plays on |
+|---|---|---|---|
+| **E-AC-3** | 112 kbit/s | 224 / 640 | Almost every TV, soundbar and player |
+| **AAC** | 64 kbit/s | 128 / 384 | Everything |
+| **Opus** | 48 kbit/s | 96 / 288 | Smallest for the quality; some TVs can't play it |
+
+Which tracks are converted:
+
+- Lossless tracks always.
+- With **Convert large tracks**, lossy tracks too, but only when they're at
+  least 1.5 times the target bitrate. For example, with AAC at 384 kbit/s for
+  5.1, a 1.5 Mbit/s DTS track is converted but a 448 kbit/s AC-3 track is
+  kept, because re-encoding it would save little and cost some quality.
+- **Atmos and DTS:X are always copied**, and tracks are never upmixed. Tracks
+  with more channels than the codec is used for (more than 5.1 for E-AC-3 and
+  AAC, 7.1 for Opus) are copied.
+- Language, title, default and forced flags, and track order stay the same.
+
+For now, audio is converted when a file is re-encoded.
 
 Always true, whatever the profile:
 

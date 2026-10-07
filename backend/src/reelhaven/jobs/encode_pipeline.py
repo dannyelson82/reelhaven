@@ -13,7 +13,12 @@ from reelhaven.db import Database, Job, JobResult, Library, MediaFile
 from reelhaven.db.types import utcnow
 from reelhaven.encode_planner import profile_fingerprint
 from reelhaven.encoders import Device
-from reelhaven.jobs.encode_commands import encode_command, expected_encode_layout, expected_video
+from reelhaven.jobs.encode_commands import (
+    encode_command,
+    expected_codecs,
+    expected_encode_layout,
+    expected_video,
+)
 from reelhaven.jobs.pipeline import JobFailedError, _is_cancelled, _set, record_replacement
 from reelhaven.jobs.replace import (
     ReplaceError,
@@ -108,6 +113,7 @@ def process_encode(db: Database, settings: Settings, job_id: int, device: Device
             settings.ffprobe,
             timeout_s=600 + duration,
             expected_video=expected_video(info, profile),
+            expected_codecs=expected_codecs(source, info, plan, profile),
         )
         if _is_cancelled(db, job_id):
             raise CancelledError

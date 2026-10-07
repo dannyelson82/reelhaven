@@ -4,11 +4,13 @@ from typing import TYPE_CHECKING, Literal
 
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
+from reelhaven.audio_rules import AudioCodec
+
 if TYPE_CHECKING:
     from reelhaven.db import Database
 
 Speed = Literal["fast", "balanced", "slow"]
-AudioMode = Literal["copy", "compress_lossless"]
+AudioMode = Literal["copy", "compress_lossless", "convert"]
 
 
 class ProfileSettings(BaseModel):
@@ -21,8 +23,12 @@ class ProfileSettings(BaseModel):
     ten_bit: bool = True
     # Cap the height (never upscales); None keeps the source resolution.
     max_height: Literal[2160, 1440, 1080, 720] | None = None
-    # Lossless audio (TrueHD without Atmos, DTS-HD MA, FLAC, PCM) to E-AC-3.
+    # ADR-0023: copy; convert lossless tracks only; or convert lossless tracks and
+    # lossy ones at least 1.5x the target. Atmos / DTS:X are always copied.
     audio: AudioMode = "copy"
+    audio_codec: AudioCodec = "eac3"
+    # None: the codec's default (audio_rules.DEFAULT_KBPS_PER_CHANNEL).
+    audio_kbps_per_channel: int | None = Field(default=None, ge=16, le=256)
     add_stereo_aac: bool = False
     # Results saving less than this are discarded and the file marked "no gain".
     min_savings_percent: int = Field(default=10, ge=0, le=90)

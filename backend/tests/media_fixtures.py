@@ -19,6 +19,8 @@ class Audio:
     default: bool = False
     comment: bool = False
     channels: int = 2
+    codec: str = "aac"  # e.g. "flac" for a lossless track
+    bps: int | None = None  # an MKV statistics tag, as mkvmerge writes it
 
 
 @dataclass
@@ -79,7 +81,10 @@ def make(path: Path, spec: Spec) -> Path:
             "-bufsize",
             spec.video_bitrate,
         ]
-    args += ["-c:a", "aac", "-b:a", "48k"]
+    for i, audio in enumerate(spec.audio):
+        args += [f"-c:a:{i}", audio.codec]
+        if audio.codec == "aac":
+            args += [f"-b:a:{i}", "48k"]
     args += ["-c:s", "mov_text" if path.suffix == ".mp4" else "srt"]
     for i, audio in enumerate(spec.audio):
         args += [f"-ac:a:{i}", str(audio.channels)]
@@ -87,6 +92,8 @@ def make(path: Path, spec: Spec) -> Path:
             args += [f"-metadata:s:a:{i}", f"language={audio.language}"]
         if audio.title:
             args += [f"-metadata:s:a:{i}", f"title={audio.title}"]
+        if audio.bps:
+            args += [f"-metadata:s:a:{i}", f"BPS={audio.bps}"]
         flags = [f for f, on in (("default", audio.default), ("comment", audio.comment)) if on]
         args += [f"-disposition:a:{i}", "+".join(flags) or "0"]
     for i, sub in enumerate(spec.subs):
