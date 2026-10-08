@@ -199,7 +199,8 @@ A new file must pass every check before it can replace the original:
    since nothing plans it and some sources come back tagged after a rewrite).
 2. Duration within tolerance of the source (default ±1 s or 0.5%).
 3. Decode test: ffmpeg decodes several short segments spread across the file
-   to `-f null` with no errors.
+   to `-f null` with no errors (the null muxer's own complaints about duplicate
+   timestamps right after seeking are ignored; decoder errors are not).
 4. Size check: output smaller than source by at least the configured minimum
    savings (default 10%) for `encode` jobs. If not, the result is discarded
    and the file marked "no gain" so it isn't retried.

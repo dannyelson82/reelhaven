@@ -1,6 +1,7 @@
 """The verifier (ARCHITECTURE.md §6.7): a new file must pass every check
 before it may replace the original."""
 
+import re
 import subprocess
 from dataclasses import dataclass
 from pathlib import Path
@@ -9,6 +10,18 @@ from reelhaven.media.info import MediaInfo
 from reelhaven.media.probe import ProbeError, ffmpeg_input, probe
 
 DECODE_SECONDS = 2.0
+# The decode test writes to ffmpeg's null muxer. Right after seeking into the middle of a
+# file, the first decoded frames can share a timestamp, which only that throwaway output
+# complains about; the file itself is fine (its own muxer refused such timestamps).
+_NULL_MUXER_DTS = re.compile(
+    r"^\[null @ 0x[0-9a-f]+\] Application provided invalid, non monotonically increasing dts"
+)
+
+
+def decode_errors(stderr: str) -> str:
+    """The decode test's error output without the null muxer's timestamp complaints."""
+    lines = [line for line in stderr.splitlines() if not _NULL_MUXER_DTS.match(line.strip())]
+    return "\n".join(lines).strip()
 
 
 class VerificationError(Exception):
@@ -131,6 +144,6 @@ def _decode(ffmpeg: str, path: Path, start: float, timeout_s: float) -> None:
         )
     except subprocess.TimeoutExpired as exc:
         raise VerificationError("decode test timed out") from exc
-    errors = result.stderr.decode("utf-8", "replace").strip()
+    errors = decode_errors(result.stderr.decode("utf-8", "replace"))
     if result.returncode != 0 or errors:
         raise VerificationError(f"decode test failed at {start:.0f}s: {errors[-500:]}")
