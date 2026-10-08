@@ -5,6 +5,7 @@ import pytest
 from reelhaven.encode_planner import (
     encode_marker,
     expected_bitrate,
+    format_size,
     plan_video,
     profile_fingerprint,
 )
@@ -90,6 +91,7 @@ def test_small_savings_are_skipped() -> None:
     video = plan_video(movie(video_mbps=2.9), BALANCED)
     assert video.decision == "keep"
     assert "below the 10 % minimum" in video.reason
+    assert video.reason.startswith("Would save only about ")
 
 
 def test_downscaling_counts_even_for_efficient_hevc() -> None:
@@ -151,6 +153,37 @@ def test_video_bitrate_estimated_from_file_size() -> None:
     info = movie()
     info.streams[0].bit_rate = None
     assert plan_video(info, BALANCED).decision == "encode"
+
+
+def test_stale_stream_bitrate_bigger_than_the_file_is_not_trusted() -> None:
+    """A leftover BPS tag claimed more than the whole file, so the estimate said 100 %."""
+    info = movie(video_mbps=4.0)
+    info.streams[0].bit_rate = 40_000_000  # ten times the real rate
+    video = plan_video(info, BALANCED)
+    honest = plan_video(movie(video_mbps=4.0), BALANCED)
+    assert video.savings_percent is not None and video.savings_percent < 100
+    assert video.savings_percent == pytest.approx(honest.savings_percent, abs=2)
+
+
+def test_saving_is_described_as_a_size() -> None:
+    video = plan_video(movie(), BALANCED)
+    saved = (video.bytes_before or 0) - (video.bytes_after_estimate or 0)
+    assert video.reason == f"Saves about {format_size(saved)} ({video.savings_percent:.0f} %)."
+    assert video.reason.startswith("Saves about ") and " GB (" in video.reason
+
+
+@pytest.mark.parametrize(
+    ("n", "text"),
+    [
+        (0, "0 B"),
+        (999, "999 B"),
+        (1_000, "1.0 KB"),
+        (120_400_000, "120 MB"),
+        (3_240_000_000, "3.2 GB"),
+    ],
+)
+def test_format_size(n: int, text: str) -> None:
+    assert format_size(n) == text
 
 
 # --- combined with the language plan -----------------------------------------------
@@ -257,6 +290,9 @@ def test_encode_counts_converted_audio_in_the_estimate() -> None:
     assert converted.video.savings_percent > plain.video.savings_percent  # type: ignore[operator]
     assert converted.audio_saved_bytes
     assert any(d.startswith("Convert audio:") for d in converted.details)
+    # The description follows the combined estimate, not the video-only one.
+    assert converted.video.reason != plain.video.reason
+    assert f"({converted.video.savings_percent:.0f} %)" in converted.video.reason
 
 
 def test_copy_profile_and_review_files_convert_nothing() -> None:

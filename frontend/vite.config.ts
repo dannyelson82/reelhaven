@@ -27,5 +27,8 @@ export default defineConfig({
     globals: true,
     setupFiles: ['./src/test/setup.ts'],
     css: false,
+    // Page tests that click through several steps take a few seconds; a busy machine
+    // (or CI runner) can push them past the 5 s default.
+    testTimeout: 15_000,
   },
 });

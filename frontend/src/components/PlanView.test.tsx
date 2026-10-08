@@ -20,7 +20,7 @@ it('re-encodes a single file without a test run', async () => {
         removed_bytes: null,
         video: {
           decision: 'encode',
-          reason: 'Estimated saving 40 %.',
+          reason: 'Saves about 2.0 GB (40 %).',
           bytes_before: 4e9,
           bytes_after_estimate: 2.4e9,
           savings_percent: 40,

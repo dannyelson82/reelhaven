@@ -10,7 +10,7 @@ from typing import Literal
 from pydantic import BaseModel
 
 from reelhaven.audio_rules import AudioCodec, conversion, saved_bytes
-from reelhaven.encode_planner import VideoPlan, plan_video
+from reelhaven.encode_planner import VideoPlan, format_size, plan_video
 from reelhaven.media.info import MediaInfo, Stream
 from reelhaven.media.languages import display_name
 from reelhaven.policy import LanguagePolicy
@@ -384,6 +384,8 @@ def plan_file(
             video.savings_percent = round(
                 100 * (1 - video.bytes_after_estimate / info.size_bytes), 1
             )
+            saved = info.size_bytes - video.bytes_after_estimate
+            video.reason = f"Saves about {format_size(saved)} ({video.savings_percent:.0f} %)."
         result.details.extend(_conversion_details(info, result))
     elif converted:
         # ADR-0023 audio-only: the video is copied. Worth it when there are track
@@ -412,7 +414,8 @@ def plan_file(
         result.details.insert(
             0,
             f"Re-encode video to {(video.codec or '').upper()}"
-            f"{' 10-bit' if video.ten_bit else ''}{height} ({video.reason[:-1].lower()}).",
+            f"{' 10-bit' if video.ten_bit else ''}{height}: "
+            f"{video.reason[0].lower()}{video.reason[1:]}",
         )
         origin = result.summary.split(".")[0] + "."
         result.summary = f"{origin} Will re-encode the video" + (
