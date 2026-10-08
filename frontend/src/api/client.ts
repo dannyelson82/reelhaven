@@ -103,6 +103,8 @@ export function errorMessage(error: unknown): string {
       return 'The library changed since the dry run. Run it again and check the new numbers.';
     case 'nothing_to_do':
       return 'There is nothing to change in this file.';
+    case 'language_pending':
+      return "This file's original language hasn't been looked up yet. It can be changed once the scan finishes.";
     case 'already_queued':
       return 'This file is already waiting to be processed.';
     case 'unsupported_container':

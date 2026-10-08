@@ -86,6 +86,20 @@ def test_pick_follows_the_safety_rails() -> None:
     assert ids(encodes_allowed=True, limit=2) == [1, 2]
 
 
+def test_pick_waits_for_the_original_language() -> None:
+    waiting = fp(1, "remux")
+    waiting.language_pending = True
+    chosen = pick(
+        [waiting, fp(2, "remux")],
+        active=set(),
+        gave_up={},
+        current={},
+        encodes_allowed=True,
+        limit=10,
+    )
+    assert [p.file_id for p in chosen] == [2]
+
+
 # --- end to end ------------------------------------------------------------------------------
 
 

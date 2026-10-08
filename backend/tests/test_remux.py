@@ -18,7 +18,7 @@ from sqlalchemy import select, update
 
 from reelhaven.app import create_app
 from reelhaven.config import Settings
-from reelhaven.db import AuditLog, Database, Job, RecycleItem
+from reelhaven.db import AuditLog, Database, Job, RecycleItem, Title
 from reelhaven.db.types import utcnow
 from reelhaven.jobs import pipeline, replace
 from reelhaven.jobs.commands import MARKER_TAG, expected_remux_codecs, remux_command
@@ -126,7 +126,12 @@ def test_remux_refuses_container_change() -> None:
 @pytest.fixture
 def app(settings: Settings) -> Iterator[FastAPI]:
     application = create_app(settings, gateways=frozenset(), detect_devices=False)
-    application.state.scanner = Scanner(application.state.db, settings, stable_seconds=0)
+    application.state.scanner = Scanner(
+        application.state.db,
+        settings,
+        stable_seconds=0,
+        resolve_languages=application.state.scanner._resolve_languages,
+    )
     with TestClient(application):
         yield application
 
@@ -169,7 +174,7 @@ def test_remux_mkv_end_to_end(app: FastAPI, settings: Settings) -> None:
     before = sha(path)
     size_before = path.stat().st_size
 
-    assert apply_all(app, admin, lib) == {"queued": 1}
+    assert apply_all(app, admin, lib) == {"queued": 1, "waiting": 0}
     job = jobs(admin)[0]
     assert job["status"] == "done", job["error"]
     assert job["bytes_before"] == size_before
@@ -453,3 +458,35 @@ def test_remux_converts_planned_audio_tracks() -> None:
     args = remux_command("ffmpeg", Path("/m/a.mkv"), Path("/m/w/a.mkv"), info, p)
     assert args[args.index("-ac:a:1") + 1] == "2"
     assert expected_remux_codecs(Path("/m/a.mkv"), info, p) == {2: ("opus", 2)}
+
+
+def test_files_wait_until_their_language_is_looked_up(app: FastAPI, settings: Settings) -> None:
+    admin, lib, _root = setup_library(app, settings, {"Film (2020)/film.mkv": MULTI})
+    db: Database = app.state.db
+    # As if the scan were still running, or Sonarr/Radarr/TMDB couldn't be reached:
+    # planned without the original language, the French track could be lost.
+    with db.write() as session:
+        session.execute(
+            update(Title).values(
+                resolved_at=None, language_source="unknown", original_language=None
+            )
+        )
+    dry = admin.get(f"{API}/libraries/{lib}/dry-run").json()
+    assert (dry["remux"], dry["waiting_for_language"]) == (1, 1)
+    assert dry["items"][0]["language_pending"] is True
+    file_id = dry["items"][0]["file_id"]
+
+    refused = admin.post(f"{API}/files/{file_id}/apply")
+    assert (refused.status_code, refused.json()["detail"]) == (409, "language_pending")
+    assert admin.post(f"{API}/libraries/{lib}/apply", json={"expected_count": 1}).json() == {
+        "queued": 0,
+        "waiting": 1,
+    }
+    assert jobs(admin) == []
+
+    # Once the lookup has run (here: no integrations, so "unknown"), it can go ahead.
+    admin.post(f"{API}/libraries/{lib}/languages/refresh")
+    app.state.scanner.wait(lib, timeout=60)
+    dry = admin.get(f"{API}/libraries/{lib}/dry-run").json()
+    assert dry["waiting_for_language"] == 0
+    assert apply_all(app, admin, lib) == {"queued": 1, "waiting": 0}

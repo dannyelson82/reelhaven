@@ -269,6 +269,7 @@ class DryRunItem(BaseModel):
     removed_bytes: int | None
     bytes_after_estimate: int | None = None
     savings_percent: float | None = None
+    language_pending: bool = False
 
 
 class DryRunResult(BaseModel):
@@ -281,6 +282,7 @@ class DryRunResult(BaseModel):
     unknown_original: int
     saved_bytes: int
     savings_unknown: int
+    waiting_for_language: int
     total: int  # items matching the filter
     items: list[DryRunItem]
 
@@ -328,6 +330,7 @@ def dry_run(
             savings_percent=item.plan.video.savings_percent
             if item.plan and item.plan.video
             else None,
+            language_pending=item.language_pending,
         )
         for item in selected[offset : offset + limit]
     ]

@@ -91,7 +91,7 @@ export const useApplyLibrary = () =>
       expected: number;
       onlyTrackChanges?: boolean;
     }) =>
-      api<{ queued: number }>(`libraries/${libraryId}/apply`, {
+      api<{ queued: number; waiting: number }>(`libraries/${libraryId}/apply`, {
         method: 'POST',
         body: json({ expected_count: expected, only_track_changes: onlyTrackChanges }),
       }),

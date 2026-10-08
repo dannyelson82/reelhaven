@@ -25,6 +25,8 @@ first: that's exactly the work it will do.
   start straight away.
 - **Files that need review are never touched** (wrong language, no wanted
   audio, unreadable).
+- **Files wait for the language lookup**: a new file is only processed once its
+  title's original language has been looked up (see [Languages](languages.md)).
 - **A few files at a time**: ReelHaven keeps about four jobs per library in
   the queue and adds more as they finish, so the [Jobs](jobs.md) page stays
   readable and new files get their turn.

@@ -59,8 +59,9 @@ def pick(
 
     Skips files already queued or running, files whose last job failed or was
     cancelled and that haven't changed since (no automatic retries), and
-    re-encodes until the library's profile has an approved test run. Files
-    needing review never have an encode or remux plan, so they're never picked.
+    re-encodes until the library's profile has an approved test run. Files whose
+    original language is still being looked up wait. Files needing review never
+    have an encode or remux plan, so they're never picked.
     """
     chosen: list[FilePlan] = []
     for item in plans:
@@ -70,6 +71,8 @@ def pick(
         if plan is None or plan.action not in ("remux", "encode"):
             continue
         if plan.action == "encode" and not encodes_allowed:
+            continue
+        if item.language_pending:
             continue
         if item.file_id in active:
             continue

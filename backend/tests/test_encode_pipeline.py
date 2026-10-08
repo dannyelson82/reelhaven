@@ -71,7 +71,12 @@ def app(settings: Settings) -> Iterator[FastAPI]:
         update={"transcode_dir": settings.config_dir.parent / "transcode"}
     )
     application = create_app(settings, gateways=frozenset(), detect_devices=False)
-    application.state.scanner = Scanner(application.state.db, settings, stable_seconds=0)
+    application.state.scanner = Scanner(
+        application.state.db,
+        settings,
+        stable_seconds=0,
+        resolve_languages=application.state.scanner._resolve_languages,
+    )
     application.state.devices = CpuOnly(FFMPEG or "ffmpeg")
     application.state.queue = type(application.state.queue)(
         application.state.db, settings, application.state.devices
@@ -196,7 +201,8 @@ def test_bulk_encode_needs_a_test_run(app: FastAPI, settings: Settings) -> None:
             )
         )
     assert admin.post(f"{API}/libraries/{lib}/apply", json={"expected_count": total}).json() == {
-        "queued": 1
+        "queued": 1,
+        "waiting": 0,
     }
 
 
