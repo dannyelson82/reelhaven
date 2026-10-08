@@ -190,6 +190,8 @@ audio: original language is English, keep-list is English").
 Turns a Plan + device into an ffmpeg argument **list** (never a shell string;
 see SECURITY.md). One builder per encoder family (nvenc, qsv, vaapi, amf,
 libx265/libsvtav1 for CPU), all tested against golden argument snapshots.
+NVENC jobs decode and scale on the same card when NVDEC supports the source,
+with a CPU-decoding retry if that fails (ADR-0029).
 
 ### 6.7 Verifier
 A new file must pass every check before it can replace the original:

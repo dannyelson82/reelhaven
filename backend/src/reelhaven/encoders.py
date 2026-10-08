@@ -76,3 +76,48 @@ def profile_args(device: Device, codec: Codec, ten_bit: bool) -> list[str]:
     if codec == "h264":
         return ["-profile:v", "high"]
     return []
+
+
+# --- GPU decoding (ADR-0029) ------------------------------------------------------------
+
+# What NVDEC decodes on every NVENC card from Pascal on, as (codec -> bit depths), in 4:2:0.
+# AV1 needs an RTX 30 or newer; on older cards the encode falls back to CPU decoding.
+_NVDEC: dict[str, tuple[int, ...]] = {
+    "h264": (8,),
+    "hevc": (8, 10, 12),
+    "vp9": (8, 10, 12),
+    "av1": (8, 10),
+    "mpeg2video": (8,),
+    "vc1": (8,),
+}
+
+
+def gpu_decodes(
+    device: Device, codec: str | None, bit_depth: int | None, pix_fmt: str | None
+) -> bool:
+    """Whether to decode the source on ``device`` itself. Unknown chroma (older scans) is
+    taken as 4:2:0, the norm; a wrong guess only costs a retry with CPU decoding."""
+    if device.family != "nvenc" or codec not in _NVDEC:
+        return False
+    if pix_fmt is not None and ("422" in pix_fmt or "444" in pix_fmt or "440" in pix_fmt):
+        return False
+    return (bit_depth or 8) in _NVDEC[codec]
+
+
+def gpu_decode_args(device: Device) -> list[str]:
+    """Arguments before ``-i`` that decode on the GPU and keep the frames there."""
+    return [
+        "-hwaccel",
+        "cuda",
+        "-hwaccel_device",
+        str(device.index or 0),
+        "-hwaccel_output_format",
+        "cuda",
+    ]
+
+
+def gpu_video_filters(height: int | None, ten_bit: bool) -> list[str]:
+    """Scale and set the bit depth on the GPU (frames never leave it)."""
+    options = [f"w=-2:h={height}:interp_algo=lanczos"] if height is not None else []
+    options.append(f"format={'p010le' if ten_bit else 'nv12'}")
+    return [f"scale_cuda={':'.join(options)}"]

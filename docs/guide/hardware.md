@@ -40,7 +40,9 @@ For each device:
 - **Use for encoding** switches the device on or off.
 - **At the same time** is how many files it encodes at once (default 2 per
   GPU). Lower it if Plex or Jellyfin playback stutters while ReelHaven works;
-  consumer NVIDIA cards also limit simultaneous encodes.
+  consumer NVIDIA cards also limit simultaneous encodes. A card has one
+  encoding engine, so once it's fully busy, more files at once don't finish
+  any sooner. 2 or 3 is usually the sweet spot.
 - The CPU is off by default (**Allow CPU encoding (slow)**). It's useful for
   AV1 on GPUs that can't encode it, or when there's no GPU.
 
@@ -52,6 +54,17 @@ GPUs are much faster than the CPU, but at the same quality their files are
 somewhat larger: in our measurements about 15 % for NVIDIA and up to 55 % for
 older Intel graphics (UHD 630). The quality looks the same; you just save a
 little less space.
+
+### Decoding on the GPU too
+
+To re-encode a file, ReelHaven first has to decode (unpack) the original
+video. With an NVIDIA card it does that on the card as well, so the CPU stays
+almost idle. This works for nearly every file: H.264, HEVC (including 10-bit
+and HDR), VP9, AV1 (RTX 30 series and newer), MPEG-2 and VC-1. The few files
+the card can't decode, such as 10-bit H.264 ("Hi10P", common in anime), are
+decoded by the CPU instead. If decoding on the card fails for any reason, the
+file is simply tried again with the CPU, so nothing is lost. Intel and AMD
+graphics will get the same in a later update.
 
 ## Check that your GPUs really work
 
