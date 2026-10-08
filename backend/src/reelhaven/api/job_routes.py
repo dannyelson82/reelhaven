@@ -88,6 +88,7 @@ class ApplyLibrary(StrictModel):
 
 class ApplyResult(BaseModel):
     queued: int
+    waiting: int = 0  # held back until their original language is known
 
 
 class RecycleOut(BaseModel):
@@ -191,10 +192,11 @@ def apply_library(
             # ADR-0020: a whole library is only encoded after a passed test run
             # with its current profile.
             raise HTTPException(status.HTTP_409_CONFLICT, "test_run_required")
-        jobs = create_jobs(session, library, plans, principal.actor)
+        ready = [p for p in plans if not p.language_pending]
+        jobs = create_jobs(session, library, ready, principal.actor)
         audit.record(session, principal.actor, "library.apply", library.name, {"queued": len(jobs)})
     _queue(request).notify()
-    return ApplyResult(queued=len(jobs))
+    return ApplyResult(queued=len(jobs), waiting=len(plans) - len(ready))
 
 
 @router.get("/jobs")

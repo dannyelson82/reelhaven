@@ -37,7 +37,12 @@ def gpu_app(settings: Settings, registry: DeviceRegistry) -> Iterator[FastAPI]:
         update={"transcode_dir": settings.config_dir.parent / "transcode"}
     )
     application = create_app(settings, gateways=frozenset(), detect_devices=False)
-    application.state.scanner = Scanner(application.state.db, settings, stable_seconds=0)
+    application.state.scanner = Scanner(
+        application.state.db,
+        settings,
+        stable_seconds=0,
+        resolve_languages=application.state.scanner._resolve_languages,
+    )
     application.state.devices = registry
     application.state.queue = type(application.state.queue)(
         application.state.db, settings, registry

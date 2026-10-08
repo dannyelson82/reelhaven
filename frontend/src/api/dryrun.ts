@@ -15,6 +15,7 @@ export interface DryRunItem {
   removed_bytes: number | null;
   bytes_after_estimate: number | null;
   savings_percent: number | null;
+  language_pending: boolean;
 }
 
 export interface DryRunResult {
@@ -27,6 +28,7 @@ export interface DryRunResult {
   unknown_original: number;
   saved_bytes: number;
   savings_unknown: number;
+  waiting_for_language: number;
   total: number;
   items: DryRunItem[];
 }

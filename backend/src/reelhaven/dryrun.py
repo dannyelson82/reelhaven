@@ -19,6 +19,10 @@ class FilePlan:
     size: int
     original_language: str | None
     plan: Plan | None  # None: the file couldn't be read
+    # The title's original language hasn't been looked up yet (new files while a
+    # scan runs, or Sonarr/Radarr/TMDB couldn't be reached). Planned without it, a
+    # file could lose its original-language audio, so it is never queued until then.
+    language_pending: bool = False
 
 
 @dataclass
@@ -29,6 +33,11 @@ class _Source:
     original_language: str | None
     info: MediaInfo | None
     no_gain_profile: str | None
+    language_pending: bool
+
+
+def _language_pending(title: Title | None) -> bool:
+    return title is None or (title.resolved_at is None and title.language_source != "manual")
 
 
 def _load(
@@ -57,6 +66,7 @@ def _load(
                 if media_file.status == "ok" and media_file.probe is not None
                 else None,
                 media_file.no_gain_profile,
+                _language_pending(title),
             )
             for media_file, title in rows
         ]
@@ -75,6 +85,7 @@ def _plan(
             None
             if s.info is None
             else plan_file(s.info, s.original_language, policy, profile, s.no_gain_profile),
+            s.language_pending,
         )
         for s in sources
     ]
@@ -107,18 +118,22 @@ class DryRunSummary:
     unknown_original: int
     saved_bytes: int
     savings_unknown: int
+    waiting_for_language: int = 0  # changes held back until the language is known
 
 
 def summarise(plans: list[FilePlan]) -> DryRunSummary:
     flags: Counter[str] = Counter()
     encode = remux = unchanged = unreadable = unknown = saved = savings_unknown = 0
+    waiting = 0
     for item in plans:
-        if item.original_language is None:
+        if item.original_language is None and not item.language_pending:
             unknown += 1
         if item.plan is None:
             unreadable += 1
             continue
         flags.update(item.plan.flags)
+        if item.language_pending and item.plan.action in ("encode", "remux"):
+            waiting += 1
         video = item.plan.video
         if item.plan.action == "encode" and video is not None:
             encode += 1
@@ -144,4 +159,5 @@ def summarise(plans: list[FilePlan]) -> DryRunSummary:
         unknown_original=unknown,
         saved_bytes=saved,
         savings_unknown=savings_unknown,
+        waiting_for_language=waiting,
     )

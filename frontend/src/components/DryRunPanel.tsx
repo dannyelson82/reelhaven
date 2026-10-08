@@ -105,6 +105,18 @@ export function DryRunPanel({ libraryId }: { libraryId: number }) {
           details.
         </Alert>
       )}
+      {r.waiting_for_language > 0 && (
+        <Alert color="blue" title="Waiting for the language lookup">
+          {r.waiting_for_language === 1 ? '1 file' : `${r.waiting_for_language} files`} won't be
+          changed until{' '}
+          {r.waiting_for_language === 1
+            ? "its title's original language"
+            : 'their original language'}{' '}
+          has been looked up, so no original-language soundtrack is removed by mistake. This happens
+          at the end of a scan; if Sonarr, Radarr or TMDB couldn't be reached, the next scan tries
+          again.
+        </Alert>
+      )}
       {r.unknown_original > 0 && (
         <Alert color="yellow">
           {r.unknown_original === 1 ? '1 file has' : `${r.unknown_original} files have`} an unknown
@@ -203,6 +215,8 @@ export function DryRunPanel({ libraryId }: { libraryId: number }) {
                           <>
                             {result.queued} {result.queued === 1 ? 'file' : 'files'} queued. Follow
                             them on the <Link to="/jobs">Jobs page</Link>.
+                            {result.waiting > 0 &&
+                              ` ${result.waiting} ${result.waiting === 1 ? 'waits' : 'wait'} for the language lookup; apply again after the scan.`}
                           </>
                         ),
                       });

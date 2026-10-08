@@ -2,6 +2,7 @@ import hashlib
 import os
 import time
 from collections.abc import Iterator
+from datetime import UTC, datetime
 from pathlib import Path
 
 import pytest
@@ -10,6 +11,8 @@ from fastapi.testclient import TestClient
 
 from reelhaven.app import create_app
 from reelhaven.config import Settings
+from reelhaven.db import Title
+from reelhaven.dryrun import _language_pending
 from reelhaven.scanner import Scanner
 from tests.helpers import API, admin_client
 from tests.media_fixtures import FFMPEG, Audio, Spec, Sub, make
@@ -112,3 +115,24 @@ def test_dry_run_report(app: FastAPI, settings: Settings) -> None:
 
 def test_dry_run_unknown_library(app: FastAPI) -> None:
     assert admin_client(app).get(f"{API}/libraries/99/dry-run").status_code == 404
+
+
+@pytest.mark.parametrize(
+    ("title", "pending"),
+    [
+        (None, True),  # not linked to a title yet: the scan is still running
+        (Title(language_source="unknown"), True),  # never looked up
+        (Title(language_source="manual", original_language="jpn"), False),
+        (Title(language_source="unknown", resolved_at=datetime(2026, 1, 1, tzinfo=UTC)), False),
+        (
+            Title(
+                language_source="tmdb",
+                original_language="jpn",
+                resolved_at=datetime(2026, 1, 1, tzinfo=UTC),
+            ),
+            False,
+        ),
+    ],
+)
+def test_language_pending(title: Title | None, pending: bool) -> None:
+    assert _language_pending(title) is pending

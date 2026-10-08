@@ -299,3 +299,54 @@ it('applies only track changes until a test run is approved', async () => {
     only_track_changes: true,
   });
 });
+
+it('holds back files whose original language is still being looked up', async () => {
+  window.location.hash = '#/libraries/1';
+  const item = (id: number, pending: boolean) => ({
+    file_id: id,
+    relative_path: `${id}/film.mkv`,
+    size: 1,
+    original_language: pending ? null : 'eng',
+    action: 'remux',
+    flags: [],
+    summary: 's',
+    details: ['Remove audio: French.'],
+    removed_bytes: 5e8,
+    language_pending: pending,
+  });
+  const report = {
+    files: 2,
+    encode: 0,
+    remux: 2,
+    unchanged: 0,
+    unreadable: 0,
+    flags: {},
+    unknown_original: 0,
+    saved_bytes: 1e9,
+    savings_unknown: 0,
+    waiting_for_language: 1,
+    total: 2,
+    items: [item(1, false), item(2, true)],
+  };
+  mockApi({
+    'GET auth/state': loggedIn,
+    'GET libraries': { body: [library] },
+    'GET libraries/1/scan': { body: null },
+    'GET libraries/1/files?q=&problems=false&offset=0&limit=50': { body: { total: 0, items: [] } },
+    'GET libraries/1/dry-run?show=changes&offset=0&limit=100': { body: report },
+    'POST libraries/1/apply': { body: { queued: 1, waiting: 1 } },
+  });
+  render(<App />);
+  await userEvent.click(await screen.findByRole('tab', { name: 'Dry run' }));
+  await userEvent.click(await screen.findByRole('button', { name: 'Run dry run' }));
+  expect(await screen.findByText('Waiting for the language lookup')).toBeInTheDocument();
+  expect(screen.getByText(/1 file won't be changed until/)).toBeInTheDocument();
+  await userEvent.click(await screen.findByRole('button', { name: 'Apply to 2 files' }));
+  const dialog = await screen.findByRole('dialog');
+  await userEvent.click(
+    Array.from(dialog.querySelectorAll('button')).find(
+      (b) => b.textContent === 'Apply to 2 files',
+    )!,
+  );
+  expect(await screen.findByText(/1 waits for the language lookup/)).toBeInTheDocument();
+});

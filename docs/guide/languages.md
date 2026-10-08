@@ -26,6 +26,13 @@ this title**). That applies to every file of the movie or series.
 When the original language is unknown, only your wanted languages are kept,
 and the dry run says so.
 
+Until the lookup has run, a file is never changed. The lookup happens at the
+end of each scan, so new files wait a little; if Sonarr, Radarr or TMDB
+couldn't be reached, those files wait for the next scan. The dry run shows
+how many are waiting. This keeps an original-language soundtrack (say, the
+Japanese audio of an anime) from being removed just because the language
+wasn't known yet.
+
 ## Language policy
 
 Each library has its own policy. Open the library and click **Language

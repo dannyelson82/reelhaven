@@ -82,6 +82,8 @@ def check_applicable(item: FilePlan, media_file: MediaFile) -> None:
         raise NotApplicableError("file_not_readable")
     if item.plan.action not in ("remux", "encode"):
         raise NotApplicableError("nothing_to_do")
+    if item.language_pending:
+        raise NotApplicableError("language_pending")
     try:
         remux_format(Path(media_file.path))
     except UnsupportedContainerError as exc:
