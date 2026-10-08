@@ -272,8 +272,8 @@ function DryRunRow({ item }: { item: DryRunItem }) {
       <Table.Td ta="right" style={{ verticalAlign: 'top', whiteSpace: 'nowrap' }}>
         <Text size="sm">
           {item.action === 'encode'
-            ? item.savings_percent !== null
-              ? `~${item.savings_percent}%`
+            ? item.bytes_after_estimate !== null
+              ? `~${formatBytes(item.size - item.bytes_after_estimate)}`
               : '?'
             : item.action !== 'remux'
               ? '–'

@@ -56,12 +56,24 @@ def _scaled_size(video: Stream, profile: ProfileSettings) -> tuple[int, int]:
     return width, height
 
 
+def format_size(n: int) -> str:
+    """Bytes as the UI shows them: 1.0 GB, 120 MB (decimal units)."""
+    value, unit = float(n), 0
+    units = ("B", "KB", "MB", "GB", "TB")
+    while value >= 1000 and unit < len(units) - 1:
+        value /= 1000
+        unit += 1
+    return f"{value:.{0 if value >= 100 or unit == 0 else 1}f} {units[unit]}"
+
+
 def _video_bitrate(info: MediaInfo, video: Stream) -> int | None:
-    if video.bit_rate:
-        return video.bit_rate
     total = info.bit_rate or (
         int(info.size_bytes * 8 / info.duration_s) if info.size_bytes and info.duration_s else None
     )
+    # A stream's own figure (e.g. an MKV BPS tag) can be stale, left over from an earlier
+    # version of the file. More than the whole file can't be right: work it out instead.
+    if video.bit_rate and (total is None or video.bit_rate <= total):
+        return video.bit_rate
     if total is None:
         return None
     others = sum(
@@ -128,8 +140,11 @@ def plan_video(
     base.savings_percent = savings
     if savings < profile.min_savings_percent:
         minimum = profile.min_savings_percent
-        base.reason = f"Estimated saving {savings:.0f} % is below the {minimum} % minimum."
+        base.reason = (
+            f"Would save only about {format_size(info.size_bytes - estimate)} "
+            f"({savings:.0f} %), below the {minimum} % minimum."
+        )
         return base
     base.decision = "encode"
-    base.reason = f"Estimated saving {savings:.0f} %."
+    base.reason = f"Saves about {format_size(info.size_bytes - estimate)} ({savings:.0f} %)."
     return base
