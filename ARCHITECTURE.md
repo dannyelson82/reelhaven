@@ -194,7 +194,9 @@ libx265/libsvtav1 for CPU), all tested against golden argument snapshots.
 ### 6.7 Verifier
 A new file must pass every check before it can replace the original:
 
-1. ffprobe succeeds and stream layout matches the plan.
+1. ffprobe succeeds and stream layout matches the plan (kinds and order; audio
+   and subtitle languages exactly; a video track's language tag is not compared,
+   since nothing plans it and some sources come back tagged after a rewrite).
 2. Duration within tolerance of the source (default ±1 s or 0.5%).
 3. Decode test: ffmpeg decodes several short segments spread across the file
    to `-f null` with no errors.

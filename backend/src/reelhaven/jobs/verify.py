@@ -46,7 +46,10 @@ def verify_output(
     for position, ((kind, language, default), (a_kind, a_language, a_default)) in enumerate(
         zip(expected, actual, strict=True)
     ):
-        if kind != a_kind or language != a_language:
+        # A video track's language is never planned or changed and players ignore it, but
+        # some sources come back tagged after a rewrite (untagged -> "eng"). Audio and
+        # subtitle languages decide what is kept, so they must match exactly.
+        if kind != a_kind or (kind != "video" and language != a_language):
             raise VerificationError(
                 f"stream {position}: expected {kind} {language}, found {a_kind} {a_language}"
             )
