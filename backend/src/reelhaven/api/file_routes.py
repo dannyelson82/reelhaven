@@ -1,6 +1,7 @@
 """Scanning and browsing the files of a library. Read-only on disk."""
 
 import os
+import time
 from dataclasses import asdict
 from datetime import datetime
 from pathlib import Path
@@ -38,6 +39,8 @@ class ScanStatus(BaseModel):
     state: str
     phase: str
     found: int
+    to_match: int
+    matched: int
     to_probe: int
     probed: int
     failed: int
@@ -50,7 +53,9 @@ class ScanStatus(BaseModel):
     language_errors: list[str]
     error: str | None
     started_at: float
+    phase_started_at: float
     finished_at: float | None
+    eta_seconds: int | None = None  # time left in the current phase, once known
 
 
 class FileSummary(BaseModel):
@@ -143,7 +148,11 @@ def scan_status(
 ) -> ScanStatus | None:
     _library(db, library_id)
     progress = _scanner(request).progress(library_id)
-    return None if progress is None else ScanStatus(**asdict(progress))
+    return (
+        None
+        if progress is None
+        else ScanStatus(**asdict(progress), eta_seconds=progress.eta_seconds(time.time()))
+    )
 
 
 @router.get("/libraries/{library_id}/files")

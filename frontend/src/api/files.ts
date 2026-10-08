@@ -3,8 +3,10 @@ import { api } from './client';
 
 export interface ScanStatus {
   state: 'scanning' | 'done' | 'error';
-  phase: 'listing' | 'probing' | 'saving' | 'languages';
+  phase: 'listing' | 'matching' | 'probing' | 'saving' | 'languages';
   found: number;
+  to_match: number;
+  matched: number;
   to_probe: number;
   probed: number;
   failed: number;
@@ -17,7 +19,9 @@ export interface ScanStatus {
   language_errors: string[];
   error: string | null;
   started_at: number;
+  phase_started_at: number;
   finished_at: number | null;
+  eta_seconds: number | null;
 }
 
 export interface FileSummary {

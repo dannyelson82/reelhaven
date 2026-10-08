@@ -78,6 +78,15 @@ def fingerprint(path: Path, size: int, mtime_ns: int) -> str:
     return f"{size}:{mtime_ns}:{digest.hexdigest()[:32]}"
 
 
+def _safe_fingerprint(item: "Found") -> tuple["Found", str]:
+    """The fingerprint, or one without a content hash if the file can't be read
+    (ffprobe then reports the problem; such a file never matches a move)."""
+    try:
+        return item, fingerprint(item.path, item.size, item.mtime_ns)
+    except OSError:
+        return item, f"{item.size}:{item.mtime_ns}:"
+
+
 def content_key(fp: str) -> str:
     """The part of a fingerprint that survives a move (mtime may change)."""
     size, _mtime, digest = fp.split(":", 2)
@@ -102,8 +111,15 @@ class Found:
     mtime_ns: int
 
 
-def walk(root: Path, stable_seconds: float, now: float) -> tuple[list[Found], int]:
-    """Video files under ``root``; also returns how many were skipped as still changing."""
+def walk(
+    root: Path,
+    stable_seconds: float,
+    now: float,
+    on_found: Callable[[int], None] | None = None,
+) -> tuple[list[Found], int]:
+    """Video files under ``root``; also returns how many were skipped as still changing.
+
+    ``on_found`` is told the running count, so a large library shows progress."""
     found: list[Found] = []
     unstable = 0
     for dirpath, dirnames, filenames in os.walk(root, followlinks=False):
@@ -127,15 +143,26 @@ def walk(root: Path, stable_seconds: float, now: float) -> tuple[list[Found], in
                 unstable += 1  # probably still being copied; next scan picks it up
                 continue
             found.append(Found(real, real.relative_to(root).as_posix(), st.st_size, st.st_mtime_ns))
+            if on_found is not None:
+                on_found(len(found))
     return found, unstable
+
+
+def eta_seconds(done: int, total: int, elapsed: float) -> int | None:
+    """Time left at the rate so far; None until the rate means something."""
+    if done < 10 or elapsed < 5 or total <= done:
+        return None
+    return round(elapsed / done * (total - done))
 
 
 @dataclass
 class ScanProgress:
     library_id: int
     state: str = "scanning"  # scanning | done | error
-    phase: str = "listing"  # listing | probing | saving | languages
+    phase: str = "listing"  # listing | matching | probing | saving | languages
     found: int = 0
+    to_match: int = 0  # new paths checked against vanished files (moves)
+    matched: int = 0
     to_probe: int = 0
     probed: int = 0
     failed: int = 0
@@ -148,7 +175,20 @@ class ScanProgress:
     language_errors: list[str] = field(default_factory=list)
     error: str | None = None
     started_at: float = field(default_factory=time.time)
+    phase_started_at: float = field(default_factory=time.time)
     finished_at: float | None = None
+
+    def enter(self, phase: str) -> None:
+        self.phase = phase
+        self.phase_started_at = time.time()
+
+    def eta_seconds(self, now: float) -> int | None:
+        elapsed = now - self.phase_started_at
+        if self.phase == "probing":
+            return eta_seconds(self.probed, self.to_probe, elapsed)
+        if self.phase == "matching":
+            return eta_seconds(self.matched, self.to_match, elapsed)
+        return None
 
 
 class Scanner:
@@ -223,7 +263,7 @@ class Scanner:
         """Work out each title's original language (never fails the scan)."""
         if self._resolve_languages is None:
             return
-        progress.phase = "languages"
+        progress.enter("languages")
         try:
             summary = self._resolve_languages(library_id, force)
         except Exception as exc:
@@ -249,39 +289,53 @@ class Scanner:
         if not root.is_dir():
             raise FileNotFoundError(f"library folder is missing: {root}")
 
-        found, progress.unstable = walk(root, self._stable_seconds, time.time())
+        def counted(n: int) -> None:
+            progress.found = n
+
+        found, progress.unstable = walk(root, self._stable_seconds, time.time(), counted)
         progress.found = len(found)
         seen = {f.path.as_posix() for f in found}
         vanished = {p: v for p, v in existing.items() if p not in seen}
-        vanished_by_content = {content_key(v[3]): (p, v) for p, v in vanished.items()}
+        vanished_by_content = {
+            content_key(v[3]): (p, v) for p, v in vanished.items() if v[4] == "ok"
+        }
 
-        to_probe: list[tuple[Found, str]] = []
-        moves: list[tuple[int, Found, str]] = []
+        # Fingerprints read each file, which is slow on a large array: only new
+        # paths that might be a vanished file moved are checked up front; every
+        # other file gets its fingerprint while it is read (in parallel).
+        to_probe: list[tuple[Found, str | None]] = []
+        to_match: list[Found] = []
         touched: list[int] = []
         for item in found:
-            key = item.path.as_posix()
-            known = existing.get(key)
+            known = existing.get(item.path.as_posix())
             if known is not None and known[1] == item.size and known[2] == item.mtime_ns:
                 touched.append(known[0])
                 progress.unchanged += 1
-                continue
-            fp = fingerprint(item.path, item.size, item.mtime_ns)
-            if known is None:  # a new path might be a file that moved
-                moved_from = vanished_by_content.get(content_key(fp))
-                if moved_from is not None and moved_from[1][4] == "ok":
-                    del vanished_by_content[content_key(fp)]
+            elif known is None and vanished_by_content:
+                to_match.append(item)
+            else:
+                to_probe.append((item, None))
+
+        moves: list[tuple[int, Found, str]] = []
+        if to_match:
+            progress.enter("matching")
+            progress.to_match = len(to_match)
+            for item, fp in self._fingerprints(to_match, progress):
+                moved_from = vanished_by_content.pop(content_key(fp), None)
+                if moved_from is not None:
                     del vanished[moved_from[0]]
                     moves.append((moved_from[1][0], item, fp))
                     progress.moved += 1
-                    continue
-            to_probe.append((item, fp))
+                else:
+                    to_probe.append((item, fp))
+        to_probe.sort(key=lambda entry: entry[0].relative)
         progress.to_probe = len(to_probe)
 
         self._save_unchanged_and_moves(touched, moves)
-        progress.phase = "probing"
+        progress.enter("probing")
         self._probe_and_save(library_id, to_probe, progress)
 
-        progress.phase = "saving"
+        progress.enter("saving")
         if vanished:
             ids = [v[0] for v in vanished.values()]
             with self._db.write() as session:
@@ -309,15 +363,24 @@ class Scanner:
                         moved.fingerprint = fp
                         moved.last_seen_at = now
 
+    def _fingerprints(self, items: list[Found], progress: ScanProgress) -> list[tuple[Found, str]]:
+        results: list[tuple[Found, str]] = []
+        with ThreadPoolExecutor(max_workers=PROBE_WORKERS, thread_name_prefix="match") as pool:
+            for result in pool.map(_safe_fingerprint, items):
+                results.append(result)
+                progress.matched += 1
+        return results
+
     def _probe_and_save(
-        self, library_id: int, items: list[tuple[Found, str]], progress: ScanProgress
+        self, library_id: int, items: list[tuple[Found, str | None]], progress: ScanProgress
     ) -> None:
         settings = self._settings
 
         def work(
-            item: tuple[Found, str],
+            item: tuple[Found, str | None],
         ) -> tuple[Found, str, dict[str, object] | None, str | None]:
-            found, fp = item
+            found, known_fp = item
+            found, fp = (found, known_fp) if known_fp else _safe_fingerprint(found)
             try:
                 info = probe(found.path, settings.ffprobe, settings.probe_timeout_s)
                 return found, fp, info.model_dump(mode="json"), None
