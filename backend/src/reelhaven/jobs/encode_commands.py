@@ -14,6 +14,8 @@ from reelhaven.encoders import (
     Device,
     device_select_args,
     encoder_name,
+    gpu_decode_args,
+    gpu_video_filters,
     hw_init_args,
     profile_args,
     upload_filters,
@@ -122,7 +124,11 @@ def encode_command(
     info: MediaInfo,
     plan: Plan,
     profile: ProfileSettings,
+    gpu_decode: bool = False,
 ) -> list[str]:
+    """The encode's ffmpeg arguments. With ``gpu_decode`` the source is decoded and scaled
+    on the GPU too (ADR-0029); callers decide with ``gpu_decodes`` and fall back to CPU
+    decoding if that fails."""
     fmt = remux_format(source)
     if remux_format(output) != fmt:
         raise ValueError("an encode keeps the container (ADR-0018)")
@@ -146,7 +152,7 @@ def encode_command(
         "pipe:1",
         "-nostats",
     ]
-    args += hw_init_args(device)
+    args += gpu_decode_args(device) if gpu_decode else hw_init_args(device)
     args += ["-i", ffmpeg_input(source)]
     for s in streams:
         args += ["-map", f"0:{s.source_index}"]
@@ -163,11 +169,12 @@ def encode_command(
 
     # --- video -------------------------------------------------------------------------
     out_video = next(i for i, s in enumerate(streams) if s.action == "encode-video")
-    filters: list[str] = []
     height = target_height(video, profile)
-    if height is not None:
-        filters.append(f"scale=-2:{height}:flags=lanczos")
-    filters += upload_filters(device, ten_bit)
+    if gpu_decode:
+        filters = gpu_video_filters(height, ten_bit)
+    else:
+        filters = [f"scale=-2:{height}:flags=lanczos"] if height is not None else []
+        filters += upload_filters(device, ten_bit)
     value = quality_value(device.family, codec, profile.quality)
     args += ["-filter:v:0", ",".join(filters), "-c:v:0", encoder_name(device, codec)]
     args += device_select_args(device)

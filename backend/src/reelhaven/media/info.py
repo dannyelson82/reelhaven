@@ -38,6 +38,7 @@ class Stream(BaseModel):
     width: int | None = None
     height: int | None = None
     bit_depth: int | None = None
+    pix_fmt: str | None = None  # e.g. "yuv420p10le"; None in scans before ADR-0029
     frame_rate: float | None = None
     hdr: HdrType | None = None
     # audio
@@ -163,6 +164,7 @@ def parse(probe: dict[str, Any], frame_side_data: list[dict[str, Any]] | None = 
             stream.width = _int(raw.get("width"))
             stream.height = _int(raw.get("height"))
             stream.bit_depth = _bit_depth(raw)
+            stream.pix_fmt = raw.get("pix_fmt") or None
             stream.frame_rate = _frame_rate(raw.get("avg_frame_rate")) or _frame_rate(
                 raw.get("r_frame_rate")
             )

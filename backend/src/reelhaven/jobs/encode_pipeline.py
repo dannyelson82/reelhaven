@@ -14,11 +14,11 @@ from reelhaven.db.types import utcnow
 from reelhaven.encode_planner import profile_fingerprint
 from reelhaven.encoders import Device
 from reelhaven.jobs.encode_commands import (
-    encode_command,
     expected_codecs,
     expected_encode_layout,
     expected_video,
 )
+from reelhaven.jobs.encode_run import run_encode
 from reelhaven.jobs.pipeline import JobFailedError, _is_cancelled, _set, record_replacement
 from reelhaven.jobs.replace import (
     ReplaceError,
@@ -27,7 +27,7 @@ from reelhaven.jobs.replace import (
     remove_tree,
     replace_with,
 )
-from reelhaven.jobs.runner import CancelledError, RunError, run_ffmpeg
+from reelhaven.jobs.runner import CancelledError, RunError
 from reelhaven.jobs.storage import recycle_path, work_dir
 from reelhaven.jobs.verify import VerificationError, verify_output
 from reelhaven.media.info import MediaInfo
@@ -92,13 +92,19 @@ def process_encode(db: Database, settings: Settings, job_id: int, device: Device
         def progress(fraction: float, fps: float | None = None, speed: float | None = None) -> None:
             if fps:
                 speed_stats["fps"] = fps
-            if fraction - last[0] >= 0.01 or fraction >= 1.0:
+            # abs(): a retry with CPU decoding (ADR-0029) starts again from 0.
+            if abs(fraction - last[0]) >= 0.01 or fraction >= 1.0:
                 last[0] = fraction
                 _set(db, job_id, progress=round(fraction * 0.85, 3), fps=fps, speed=speed)
 
-        run_ffmpeg(
-            encode_command(settings.ffmpeg, device, source, encoded, info, plan, profile),
-            duration or None,
+        run_encode(
+            settings.ffmpeg,
+            device,
+            source,
+            encoded,
+            info,
+            plan,
+            profile,
             # Generous: a slow CPU encode of a long film can take many hours.
             timeout_s=3600 + duration * 30,
             on_progress=progress,
