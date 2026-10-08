@@ -136,6 +136,9 @@ export function ScanStep({ libraryId, onNext, onBack }: StepProps) {
   const scan = status.data;
   const scanning = scan?.state === 'scanning' || start.isPending;
   const files = library?.file_count ?? 0;
+  // Once the files are listed the wizard can go on; reading continues (ADR-0027).
+  const listed = scanning && scan != null && scan.phase !== 'listing';
+  const canGoOn = listed ? (scan?.found ?? 0) > 0 : !scanning && files > 0;
   return (
     <Stack>
       <Text>ReelHaven reads every video file to see its picture, sound and subtitles.</Text>
@@ -143,7 +146,9 @@ export function ScanStep({ libraryId, onNext, onBack }: StepProps) {
         <Stack gap="xs">
           <ScanProgress status={scan} />
           <Text size="xs" c="dimmed">
-            Large libraries take a few minutes. You can leave this page; it carries on.
+            {listed
+              ? `Found ${scan.found.toLocaleString()} video files. You don't need to wait: reading carries on in the background while you continue.`
+              : 'Large libraries take a while. You can leave this page; it carries on.'}
           </Text>
         </Stack>
       )}
@@ -168,7 +173,7 @@ export function ScanStep({ libraryId, onNext, onBack }: StepProps) {
       <NavButtons
         onBack={onBack}
         next={
-          <Button disabled={scanning || files === 0} onClick={() => onNext()}>
+          <Button disabled={!canGoOn} onClick={() => onNext()}>
             Next
           </Button>
         }

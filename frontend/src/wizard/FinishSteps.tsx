@@ -21,6 +21,7 @@ import { Link, useSearchParams } from 'react-router';
 import { errorMessage } from '../api/client';
 import { useDevices } from '../api/devices';
 import { useDryRun } from '../api/dryrun';
+import { useScanStatus } from '../api/files';
 import { type WatchMode, useLibraries, useSetWatchMode } from '../api/libraries';
 import { useLibraryProfile, useProfiles } from '../api/profiles';
 import {
@@ -31,6 +32,7 @@ import {
   useTestRun,
 } from '../api/testRun';
 import { useLiveJobs } from '../api/live';
+import { ScanProgress } from '../components/ScanProgress';
 import { formatBytes, formatTimeLeft } from '../format';
 import { canEncode } from './choices';
 import type { StepProps } from './LibrarySteps';
@@ -226,18 +228,31 @@ export function AutomaticStep({ libraryId, onNext, onBack }: StepProps) {
     setParams(next, { replace: true });
   };
   const work = dry.data ? dry.data.encode + dry.data.remux : null;
+  const scan = useScanStatus(id, true).data;
 
   return (
     <Stack>
       <Text>
         Last step: should ReelHaven look after {library?.name ?? 'this library'} by itself?
       </Text>
-      {dry.data && (
-        <Alert color="blue">
-          {work === 0
-            ? 'Nothing needs changing right now; new files will be handled as they arrive.'
-            : `${work} ${work === 1 ? 'file needs' : 'files need'} work, saving about ${formatBytes(dry.data.saved_bytes)}.`}
+      {scan?.state === 'scanning' ? (
+        <Alert color="blue" title="Still reading your files">
+          <Stack gap="xs">
+            <ScanProgress status={scan} />
+            <Text size="sm">
+              Nothing in the library changes until ReelHaven has finished reading it and looked up
+              each title's original language. Your choice applies from then on.
+            </Text>
+          </Stack>
         </Alert>
+      ) : (
+        dry.data && (
+          <Alert color="blue">
+            {work === 0
+              ? 'Nothing needs changing right now; new files will be handled as they arrive.'
+              : `${work} ${work === 1 ? 'file needs' : 'files need'} work, saving about ${formatBytes(dry.data.saved_bytes)}.`}
+          </Alert>
+        )
       )}
       <SimpleGrid cols={{ base: 1, sm: 2 }}>
         {(
@@ -300,6 +315,7 @@ export function DoneStep({ libraryId }: StepProps) {
   const libraries = useLibraries();
   const library = libraries.data?.find((l) => l.id === libraryId);
   const automatic = library?.watch_mode === 'automatic' || params.get('mode') !== 'watch';
+  const reading = useScanStatus(libraryId ?? 0, true).data?.state === 'scanning';
   return (
     <Stack align="flex-start">
       <Group>
@@ -313,7 +329,11 @@ export function DoneStep({ libraryId }: StepProps) {
       <List size="sm">
         {automatic ? (
           <>
-            <List.Item>ReelHaven is working through the files now, a few at a time.</List.Item>
+            <List.Item>
+              {reading
+                ? 'ReelHaven finishes reading the library first, then works through the files, a few at a time.'
+                : 'ReelHaven is working through the files now, a few at a time.'}
+            </List.Item>
             <List.Item>New files are noticed within minutes and handled the same way.</List.Item>
           </>
         ) : (

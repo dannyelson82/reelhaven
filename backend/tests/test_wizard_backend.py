@@ -3,6 +3,7 @@
 from fastapi import FastAPI
 
 from reelhaven.config import Settings
+from reelhaven.scanner import ScanProgress
 from tests.helpers import API
 from tests.test_encode_pipeline import FAST, app, setup  # noqa: F401 - shared fixture
 
@@ -32,10 +33,26 @@ def test_estimate_compares_profiles_without_changing_anything(
     # Read-only: the library's profile and the queue are untouched.
     assert admin.get(f"{API}/libraries/{lib}/profile").json() == before
     assert admin.get(f"{API}/jobs").json()["total"] == 0
+    assert out["reading"] is None  # the scan has finished
 
     too_many = {"profiles": {str(i): None for i in range(7)}}
     assert admin.post(f"{API}/libraries/{lib}/estimate", json=too_many).status_code == 422
     assert admin.post(f"{API}/libraries/999/estimate", json=body).status_code == 404
+
+
+def test_estimate_reports_reading_progress_during_a_scan(
+    app: FastAPI,  # noqa: F811
+    settings: Settings,
+) -> None:
+    admin, lib, _path = setup(app, settings, FAST)
+    # A scan part-way through reading (set directly: real scans of tiny files end at once).
+    progress = ScanProgress(lib, phase="probing", probed=200, to_probe=3000, found_bytes=10**12)
+    app.state.scanner._progress[lib] = progress
+    body = {"profiles": {"balanced": {**FAST, "quality": 6}}}
+    out = admin.post(f"{API}/libraries/{lib}/estimate", json=body).json()
+    assert out["reading"] == {"probed": 200, "to_probe": 3000, "found_bytes": 10**12}
+    progress.enter("languages")  # reading is over; only the language lookup remains
+    assert admin.post(f"{API}/libraries/{lib}/estimate", json=body).json()["reading"] is None
 
 
 def test_onboarding_state(app: FastAPI, settings: Settings) -> None:  # noqa: F811

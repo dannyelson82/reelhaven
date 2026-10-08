@@ -37,14 +37,19 @@ Later runs go straight to the library steps.
    name and whether it's movies or TV shows from the folder name; change them
    if they're wrong. Nothing is changed yet.
 2. **Read files**: ReelHaven reads every file to see its picture, sound and
-   subtitles. Big libraries take a few minutes; you can leave the page and
-   come back.
+   subtitles. You don't have to wait for it: once the files have been found,
+   **Next** unlocks and reading carries on in the background. (A first read
+   takes a few minutes for a few thousand films, up to an hour for a very
+   large TV library.)
 3. **Languages**: *Which language do you speak?* (taken from your browser)
    and *Also keep each title's original language* (recommended). See
    [Languages](languages.md).
 4. **Size and quality**: three cards, **Smallest**, **Balanced**
    (recommended) and **Best quality**, each showing roughly how much space it
-   would save on *this* library. **More options** lets you pick another
+   would save on *this* library. While the library is still being read, the
+   estimates appear after the first 200 files and are worked out from the
+   files read so far (the step says how many); they get more accurate as
+   reading continues. **More options** lets you pick another
    profile, for example one made with [Mimic a file](mimic.md), or *Don't
    re-encode video* to only change languages.
 5. **Audio**: **Keep audio as it is** (recommended), **Shrink big audio
@@ -60,6 +65,9 @@ Later runs go straight to the library steps.
    file, a few at a time, and handles new files as they arrive. **Not yet,
    just watch** finds and plans new files but changes nothing. See
    [Automatic processing](automation.md).
+   If the library is still being read, nothing changes until ReelHaven has
+   finished reading it and looked up each title's original language; your
+   choice applies from then on.
 
 The last screen links to the **Jobs** page to watch the progress, or lets you
 set up another library.
