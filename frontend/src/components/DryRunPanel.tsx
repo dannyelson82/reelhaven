@@ -18,6 +18,7 @@ import { IconPlayerPlay, IconWand } from '@tabler/icons-react';
 import { notifications } from '@mantine/notifications';
 import { Link } from 'react-router';
 import { useApplyLibrary } from '../api/jobs';
+import { OriginalsNote } from './KeepOriginals';
 import { useTestRun } from '../api/testRun';
 import { useState } from 'react';
 import { errorMessage } from '../api/client';
@@ -194,7 +195,9 @@ export function DryRunPanel({ libraryId }: { libraryId: number }) {
           </Text>
           <List size="sm">
             <List.Item>Each new file is checked before it replaces the original.</List.Item>
-            <List.Item>Originals go to the recycle bin for 14 days and can be restored.</List.Item>
+            <List.Item>
+              <OriginalsNote />
+            </List.Item>
             <List.Item>Files that need review are not touched.</List.Item>
           </List>
           {apply.isError && <Alert color="red">{errorMessage(apply.error)}</Alert>}

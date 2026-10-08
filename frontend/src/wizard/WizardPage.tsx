@@ -4,7 +4,7 @@ import { useEffect } from 'react';
 import { useSearchParams } from 'react-router';
 import { useOnboarding, useSaveOnboarding } from '../api/wizard';
 import { FolderStep, LanguagesStep, ScanStep, type StepProps } from './LibrarySteps';
-import { AutomaticStep, DoneStep, TryStep } from './FinishSteps';
+import { AutomaticStep, DoneStep, SafetyNetStep, TryStep } from './FinishSteps';
 import { AudioStep, QualityStep } from './QualitySteps';
 import { AppsStep, HardwareStep } from './ServerSteps';
 
@@ -31,6 +31,7 @@ function wizardSteps(newLibrary: boolean, reencode: boolean, serverSteps: boolea
     ...(reencode ? [{ key: 'audio', label: 'Audio', component: AudioStep }] : []),
     // Nothing to try when the video isn't re-encoded.
     ...(reencode ? [{ key: 'try', label: 'Try it', component: TryStep }] : []),
+    { key: 'undo', label: 'Safety net', component: SafetyNetStep },
     { key: 'automatic', label: 'Go automatic', component: AutomaticStep },
     { key: 'done', label: 'Done', component: DoneStep },
   ];

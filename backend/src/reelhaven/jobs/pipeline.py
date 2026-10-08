@@ -18,15 +18,14 @@ from reelhaven.jobs.replace import (
     replace_with,
 )
 from reelhaven.jobs.runner import CancelledError, RunError, run_ffmpeg
-from reelhaven.jobs.storage import recycle_path, work_dir
+from reelhaven.jobs.storage import delete_stored, recycle_path, work_dir
 from reelhaven.jobs.verify import VerificationError, verify_output
 from reelhaven.media.info import MediaInfo
 from reelhaven.planner import Plan
+from reelhaven.recycle_settings import keep_days
 from reelhaven.scanner import fingerprint
 
 logger = logging.getLogger(__name__)
-
-RECYCLE_DAYS = 14
 
 
 class JobFailedError(Exception):
@@ -147,19 +146,21 @@ def record_replacement(
     """After a successful replace: recycle entry, result, refreshed file record, audit."""
     st = source.stat()
     now = utcnow()
+    keep = keep_days(db)
     with db.write() as session:
-        session.add(
-            RecycleItem(
-                library_id=library_id,
-                job_id=job_id,
-                original_path=str(source),
-                stored_path=str(stored),
-                size=snapshot.size,
-                reason="replaced",
-                created_at=now,
-                expires_at=now + timedelta(days=RECYCLE_DAYS),
-            )
+        item = RecycleItem(
+            library_id=library_id,
+            job_id=job_id,
+            original_path=str(source),
+            stored_path=str(stored),
+            size=snapshot.size,
+            reason="replaced",
+            created_at=now,
+            expires_at=now + timedelta(days=keep),
         )
+        session.add(item)
+        session.flush()
+        item_id = item.id
         session.add(
             JobResult(
                 job_id=job_id,
@@ -198,3 +199,28 @@ def record_replacement(
         "replaced file",
         extra={"job": job_id, "path": str(source), "before": snapshot.size, "after": st.st_size},
     )
+    if keep == 0:
+        discard_now(db, item_id)
+
+
+def discard_now(db: Database, item_id: int) -> None:
+    """Recycle bin off (ADR-0028): delete a recycled file straight away.
+
+    The item was saved as already expired, so if this fails (or ReelHaven stops
+    first) the regular purge removes it.
+    """
+    with db.read() as session:
+        item = session.get(RecycleItem, item_id)
+        if item is None:
+            return
+        stored, original = Path(item.stored_path), item.original_path
+    try:
+        delete_stored(stored)
+    except OSError:
+        logger.warning("could not delete a recycled original", extra={"item": item_id})
+        return
+    with db.write() as session:
+        row = session.get(RecycleItem, item_id)
+        if row is not None and row.purged_at is None:
+            row.purged_at = utcnow()
+            audit.record(session, "system", "recycle.skipped", original, {"item": item_id})

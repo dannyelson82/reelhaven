@@ -51,7 +51,8 @@ Click **Apply to N files**, read the summary and confirm. The files are
 queued on the [Jobs](jobs.md) page.
 
 - Each new file is checked before it replaces the original.
-- Originals go to the [recycle bin](recycle-bin.md) for 14 days.
+- Originals go to the [recycle bin](recycle-bin.md) (for 14 days, unless you
+  changed that or turned the bin off).
 - If the library changed since you looked, nothing is queued and you're asked
   to look again.
 

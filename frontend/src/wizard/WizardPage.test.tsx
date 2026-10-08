@@ -158,6 +158,8 @@ it('walks a new library from folder to automatic', async () => {
     },
     'PATCH libraries/4': { body: { ...library, watch_mode: 'automatic' } },
     'GET onboarding': { body: { wizard_seen: false, server_steps_done: true } },
+    'GET settings/recycle': { body: { keep_days: 14 } },
+    'PUT settings/recycle': (init) => ({ body: JSON.parse(String(init?.body)) }),
     'PUT onboarding': (init) => ({ body: JSON.parse(String(init?.body)) }),
     'GET profiles': { body: PROFILES },
     'POST libraries/4/estimate': (init) => {
@@ -245,6 +247,16 @@ it('walks a new library from folder to automatic', async () => {
   await userEvent.click(screen.getByRole('button', { name: 'Looks good' }));
   expect(calls.some((c) => c.key === 'POST test-runs/3/approve')).toBe(true);
 
+  // Safety net: turning the recycle bin off needs a confirmation.
+  expect(await screen.findByText(/How long should originals be kept/)).toBeInTheDocument();
+  await userEvent.click(screen.getByText('Off'));
+  expect(screen.getByText('No undo')).toBeInTheDocument();
+  expect(screen.getByRole('button', { name: 'Next' })).toBeDisabled();
+  await userEvent.click(screen.getByRole('checkbox', { name: /can't be put back/ }));
+  await userEvent.click(screen.getByRole('button', { name: 'Next' }));
+  const kept = calls.find((c) => c.key === 'PUT settings/recycle');
+  expect(JSON.parse(String(kept?.init?.body))).toEqual({ keep_days: 0 });
+
   // Go automatic.
   expect(await screen.findByText('12 files need work, saving about 50.0 GB.')).toBeInTheDocument();
   await userEvent.click(screen.getByRole('button', { name: 'Start' }));
@@ -271,6 +283,7 @@ it('skips the audio step when video is not re-encoded', async () => {
     'GET libraries/4/dry-run?show=changes&offset=0&limit=100': {
       body: { ...DRY, files: 3, encode: 0, remux: 2, saved_bytes: 1e9 },
     },
+    'GET settings/recycle': { body: { keep_days: 14 } },
     'GET onboarding': { body: { wizard_seen: true, server_steps_done: true } },
   });
   render(<App />);
@@ -279,6 +292,8 @@ it('skips the audio step when video is not re-encoded', async () => {
   await userEvent.click(
     await screen.findByRole('option', { name: /Don't re-encode video/, hidden: true }),
   );
+  await userEvent.click(screen.getByRole('button', { name: 'Next' }));
+  await screen.findByText(/How long should originals be kept/); // safety net, unchanged
   await userEvent.click(screen.getByRole('button', { name: 'Next' }));
   expect(await screen.findByText(/Last step/)).toBeInTheDocument(); // no audio, no test run
   expect(await screen.findByText('2 files need work, saving about 1.0 GB.')).toBeInTheDocument();

@@ -15,3 +15,15 @@ def work_dir(library_root: Path, job_id: int) -> Path:
 
 def recycle_path(library_root: Path, item_key: str, relative: str) -> Path:
     return internal_dir(library_root) / "recycle" / item_key / relative
+
+
+def delete_stored(stored: Path) -> None:
+    """Delete a recycled file and its now-empty folders up to ``.reelhaven/recycle``."""
+    stored.unlink(missing_ok=True)
+    parent = stored.parent
+    while parent.name and parent.name != "recycle":
+        try:
+            parent.rmdir()
+        except OSError:
+            break
+        parent = parent.parent
