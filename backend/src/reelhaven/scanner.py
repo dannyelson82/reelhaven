@@ -161,6 +161,7 @@ class ScanProgress:
     state: str = "scanning"  # scanning | done | error
     phase: str = "listing"  # listing | matching | probing | saving | languages
     found: int = 0
+    found_bytes: int = 0
     to_match: int = 0  # new paths checked against vanished files (moves)
     matched: int = 0
     to_probe: int = 0
@@ -294,6 +295,7 @@ class Scanner:
 
         found, progress.unstable = walk(root, self._stable_seconds, time.time(), counted)
         progress.found = len(found)
+        progress.found_bytes = sum(f.size for f in found)
         seen = {f.path.as_posix() for f in found}
         vanished = {p: v for p, v in existing.items() if p not in seen}
         vanished_by_content = {

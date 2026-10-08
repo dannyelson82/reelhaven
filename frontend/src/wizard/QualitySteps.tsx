@@ -24,7 +24,9 @@ import {
   useSaveProfile,
   useSetLibraryProfile,
 } from '../api/profiles';
-import { type EstimateSummary, useEstimate } from '../api/wizard';
+import { useScanStatus } from '../api/files';
+import { type Estimate, type EstimateSummary, useEstimate } from '../api/wizard';
+import { ScanProgress } from '../components/ScanProgress';
 import { formatBytes } from '../format';
 import {
   AUDIO_CHOICES,
@@ -55,10 +57,12 @@ function Saving({
   result,
   libraryBytes,
   extra = false,
+  scale = 1,
 }: {
   result?: EstimateSummary;
   libraryBytes?: number;
   extra?: boolean;
+  scale?: number;
 }) {
   if (!result) {
     return (
@@ -81,9 +85,49 @@ function Saving({
   return (
     <Text size="sm" fw={600} c="teal">
       {extra ? 'About ' : 'Saves about '}
-      {formatBytes(result.saved_bytes)}
+      {formatBytes(result.saved_bytes * scale)}
       {extra ? ' more' : ''}
       {pct !== null && !extra && ` (${pct}%)`}
+    </Text>
+  );
+}
+
+/** Files read before estimates are shown while a library is still being read (ADR-0027). */
+export const MIN_READ = 200;
+
+function readiness(estimate?: Estimate) {
+  const reading = estimate?.reading ?? null;
+  const ready =
+    estimate !== undefined &&
+    (reading === null ||
+      (reading.to_probe > 0 && reading.probed >= Math.min(MIN_READ, reading.to_probe)));
+  // Savings on the files read so far, scaled to the whole library by size.
+  const scale =
+    reading && estimate && estimate.library_bytes > 0
+      ? Math.max(1, reading.found_bytes / estimate.library_bytes)
+      : 1;
+  return { reading, ready, scale };
+}
+
+function ReadingNote({ libraryId, estimate }: { libraryId: number; estimate?: Estimate }) {
+  const { reading, ready } = readiness(estimate);
+  const scan = useScanStatus(libraryId, reading !== null);
+  if (!reading) return null;
+  if (!ready) {
+    return (
+      <Stack gap="xs">
+        <Text size="sm">
+          ReelHaven is still reading your files. The estimates appear once the first{' '}
+          {Math.min(MIN_READ, reading.to_probe || MIN_READ)} have been read.
+        </Text>
+        {scan.data?.state === 'scanning' && <ScanProgress status={scan.data} />}
+      </Stack>
+    );
+  }
+  return (
+    <Text size="sm" c="dimmed">
+      Estimated from {reading.probed.toLocaleString()} of {reading.to_probe.toLocaleString()} files
+      read so far. ReelHaven keeps reading in the background, and the numbers settle as it goes.
     </Text>
   );
 }
@@ -140,6 +184,7 @@ export function QualityStep({ libraryId, onNext, onBack }: StepProps) {
     presets.filter((p) => p.profile).map((p) => [String(p.profile.id), p.profile.settings]),
   );
   const estimate = useEstimate(id, candidates);
+  const { ready, scale } = readiness(estimate.data);
   const balancedId = builtins.Balanced ? String(builtins.Balanced.id) : null;
   const choice = params.get('choice') ?? balancedId;
   const others = (profiles.data ?? []).filter((p) => !presets.some((x) => x.profile?.id === p.id));
@@ -168,14 +213,16 @@ export function QualityStep({ libraryId, onNext, onBack }: StepProps) {
               onClick={() => choose(String(preset.profile.id))}
             >
               <Saving
-                result={estimate.data?.results[String(preset.profile.id)]}
+                result={ready ? estimate.data?.results[String(preset.profile.id)] : undefined}
                 libraryBytes={estimate.data?.library_bytes}
+                scale={scale}
               />
             </ChoiceCard>
           ) : null,
         )}
       </SimpleGrid>
       {estimate.isError && <Alert color="red">{errorMessage(estimate.error)}</Alert>}
+      <ReadingNote libraryId={id} estimate={estimate.data} />
       <Anchor component="button" size="sm" onClick={() => setMore(!more)} w="fit-content">
         {more ? 'Fewer options' : 'More options'}
       </Anchor>
@@ -234,6 +281,7 @@ export function AudioStep({ libraryId, onNext, onBack }: StepProps) {
     ? Object.fromEntries(AUDIO_CHOICES.map((c) => [c.key, withAudio(base.settings, c.key)]))
     : {};
   const estimate = useEstimate(id, candidates);
+  const { ready, scale } = readiness(estimate.data);
 
   if (!profiles.data) return <Loader />;
   if (!base) {
@@ -244,7 +292,7 @@ export function AudioStep({ libraryId, onNext, onBack }: StepProps) {
       </Alert>
     );
   }
-  const keep = estimate.data?.results.keep;
+  const keep = ready ? estimate.data?.results.keep : undefined;
   const extra = (key: AudioChoice): EstimateSummary | undefined => {
     const r = estimate.data?.results[key];
     return r && keep ? { ...r, saved_bytes: r.saved_bytes - keep.saved_bytes } : undefined;
@@ -289,10 +337,11 @@ export function AudioStep({ libraryId, onNext, onBack }: StepProps) {
             description={c.description}
             onClick={() => choose(c.key)}
           >
-            {c.key !== 'keep' && <Saving result={extra(c.key)} extra />}
+            {c.key !== 'keep' && <Saving result={extra(c.key)} extra scale={scale} />}
           </ChoiceCard>
         ))}
       </SimpleGrid>
+      <ReadingNote libraryId={id} estimate={estimate.data} />
       {audio === 'stereo' && (
         <Alert color="orange">
           Surround sound is gone for good once the original leaves the recycle bin (after 14 days).

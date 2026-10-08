@@ -1,6 +1,6 @@
 # 0026: A setup wizard for automatic compression
 
-- Status: accepted
+- Status: accepted (scan step amended by ADR-0027)
 - Date: 2026-10-08
 
 ## Context

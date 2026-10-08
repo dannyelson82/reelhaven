@@ -344,14 +344,27 @@ class EstimateIn(StrictModel):
     )
 
 
+class Reading(BaseModel):
+    """A scan still reading the library: estimates cover the files read so far."""
+
+    probed: int
+    to_probe: int
+    found_bytes: int  # size of every video file found, read or not
+
+
 class EstimateOut(BaseModel):
-    library_bytes: int
+    library_bytes: int  # size of the files known so far
     results: dict[str, DryRunSummary]
+    reading: Reading | None = None
 
 
 @router.post("/libraries/{library_id}/estimate")
 def estimate_profiles(
-    library_id: int, body: EstimateIn, db: DbDep, _principal: AnyPrincipalDep
+    library_id: int,
+    body: EstimateIn,
+    request: Request,
+    db: DbDep,
+    _principal: AnyPrincipalDep,
 ) -> EstimateOut:
     """What each candidate profile would save on this library (setup wizard). Changes nothing."""
     try:
@@ -364,4 +377,14 @@ def estimate_profiles(
                 MediaFile.library_id == library_id
             )
         )
-    return EstimateOut(library_bytes=int(total or 0), results=results)
+    progress = _scanner(request).progress(library_id)
+    reading = (
+        Reading(
+            probed=progress.probed, to_probe=progress.to_probe, found_bytes=progress.found_bytes
+        )
+        if progress is not None
+        and progress.state == "scanning"
+        and progress.phase in ("listing", "matching", "probing")
+        else None
+    )
+    return EstimateOut(library_bytes=int(total or 0), results=results, reading=reading)

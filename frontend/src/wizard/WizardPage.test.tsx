@@ -287,3 +287,76 @@ it('skips the audio step when video is not re-encoded', async () => {
   expect(screen.queryByText('Try it')).not.toBeInTheDocument();
   expect(screen.queryByText('Audio')).not.toBeInTheDocument(); // not in the stepper
 });
+
+const reading = (probed: number) => ({
+  state: 'scanning',
+  phase: 'probing',
+  found: 3000,
+  to_match: 0,
+  matched: 0,
+  to_probe: 3000,
+  probed,
+  failed: 0,
+  unchanged: 0,
+  moved: 0,
+  removed: 0,
+  unstable: 0,
+  languages_resolved: 0,
+  languages_unknown: 0,
+  language_errors: [],
+  error: null,
+  started_at: 0,
+  phase_started_at: 0,
+  finished_at: null,
+  eta_seconds: 1500,
+});
+
+it('goes on while the library is still being read', async () => {
+  window.location.hash = '#/wizard?library=4&step=scan';
+  mockApi({
+    'GET auth/state': loggedIn,
+    'GET libraries': { body: [{ ...library, last_scan_at: null, scanning: true, file_count: 40 }] },
+    'GET libraries/4/scan': { body: reading(40) },
+    'GET onboarding': { body: { wizard_seen: true, server_steps_done: true } },
+  });
+  render(<App />);
+  expect(await screen.findByText('Reading files: 40 of 3,000')).toBeInTheDocument();
+  expect(screen.getByText('about 25 min left')).toBeInTheDocument();
+  expect(screen.getByText(/You don't need to wait/)).toBeInTheDocument();
+  expect(screen.getByRole('button', { name: 'Next' })).toBeEnabled();
+});
+
+it('estimates from the files read so far, scaled to the whole library', async () => {
+  window.location.hash = '#/wizard?library=4&step=quality';
+  let probed = 50;
+  const results = Object.fromEntries(
+    PROFILES.map((p) => [
+      String(p.id),
+      { files: probed, encode: probed, remux: 0, savings_unknown: 0, saved_bytes: 4e9 },
+    ]),
+  );
+  mockApi({
+    'GET auth/state': loggedIn,
+    'GET libraries': { body: [library] },
+    'GET profiles': { body: PROFILES },
+    'GET libraries/4/scan': () => ({ body: reading(probed) }),
+    // 10 GB read so far of 100 GB found: savings scale by 10.
+    'POST libraries/4/estimate': () => ({
+      body: {
+        library_bytes: 10e9,
+        results,
+        reading: { probed, to_probe: 3000, found_bytes: 100e9 },
+      },
+    }),
+    'GET onboarding': { body: { wizard_seen: true, server_steps_done: true } },
+  });
+  const { unmount } = render(<App />);
+  expect(await screen.findByText(/estimates appear once the first 200/)).toBeInTheDocument();
+  expect(screen.queryByText(/Saves about/)).not.toBeInTheDocument();
+  unmount();
+
+  probed = 300;
+  render(<App />);
+  expect((await screen.findAllByText('Saves about 40.0 GB (40%)')).length).toBe(3);
+  expect(screen.getByText(/Estimated from 300 of 3,000 files read so far/)).toBeInTheDocument();
+});
