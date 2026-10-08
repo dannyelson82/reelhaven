@@ -5,6 +5,7 @@ import {
   Badge,
   Button,
   Card,
+  Checkbox,
   Group,
   Image,
   List,
@@ -16,9 +17,16 @@ import {
   ThemeIcon,
 } from '@mantine/core';
 import { IconCheck } from '@tabler/icons-react';
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Link, useSearchParams } from 'react-router';
 import { errorMessage } from '../api/client';
+import { KeepOriginalsControl, OriginalsNote } from '../components/KeepOriginals';
+import {
+  KEEP_DAYS,
+  type KeepDays,
+  useRecycleSettings,
+  useSaveRecycleSettings,
+} from '../api/recycleSettings';
 import { useDevices } from '../api/devices';
 import { useDryRun } from '../api/dryrun';
 import { useScanStatus } from '../api/files';
@@ -260,7 +268,7 @@ export function AutomaticStep({ libraryId, onNext, onBack }: StepProps) {
             {
               value: 'automatic',
               title: 'Yes, automatically (recommended)',
-              text: 'Works through every file, a few at a time, and handles new files as they arrive. Originals stay in the recycle bin for 14 days.',
+              text: 'Works through every file, a few at a time, and handles new files as they arrive.',
             },
             {
               value: 'watch',
@@ -291,8 +299,8 @@ export function AutomaticStep({ libraryId, onNext, onBack }: StepProps) {
         ))}
       </SimpleGrid>
       <Text size="sm" c="dimmed">
-        You can pause everything at any time from the Jobs page, and change this on the library's
-        page.
+        <OriginalsNote /> You can pause everything at any time from the Jobs page, and change this
+        on the library's page.
       </Text>
       {set.isError && <Alert color="red">{errorMessage(set.error)}</Alert>}
       <NavButtons
@@ -339,7 +347,9 @@ export function DoneStep({ libraryId }: StepProps) {
         ) : (
           <List.Item>New files are found and planned; apply them from the Dry run tab.</List.Item>
         )}
-        <List.Item>Every original stays in the recycle bin for 14 days.</List.Item>
+        <List.Item>
+          <OriginalsNote />
+        </List.Item>
       </List>
       <Group>
         <Button component={Link} to="/jobs">
@@ -352,6 +362,63 @@ export function DoneStep({ libraryId }: StepProps) {
           Dashboard
         </Button>
       </Group>
+    </Stack>
+  );
+}
+
+/** How long originals are kept (ADR-0028). One setting for the whole server. */
+export function SafetyNetStep({ onNext, onBack }: StepProps) {
+  const [params, setParams] = useSearchParams();
+  const setting = useRecycleSettings();
+  const save = useSaveRecycleSettings();
+  const [understood, setUnderstood] = useState(false);
+  if (!setting.data) return <Loader />;
+  const current = setting.data.keep_days;
+  const fromUrl = Number(params.get('keep'));
+  const keep =
+    (KEEP_DAYS as readonly number[]).includes(fromUrl) && params.has('keep')
+      ? (fromUrl as KeepDays)
+      : current;
+  const choose = (days: KeepDays) => {
+    const next = new URLSearchParams(params);
+    next.set('keep', String(days));
+    setParams(next, { replace: true });
+    setUnderstood(false);
+  };
+  return (
+    <Stack>
+      <Text>
+        When ReelHaven replaces a file, it can keep the original in a recycle bin for a while, so
+        you can put it back if you don't like the result. How long should originals be kept?
+      </Text>
+      <KeepOriginalsControl value={keep} onChange={choose} />
+      {keep === 0 && current !== 0 && (
+        <Checkbox
+          label="I understand that replaced files can't be put back"
+          checked={understood}
+          onChange={(e) => setUnderstood(e.currentTarget.checked)}
+        />
+      )}
+      <Text size="sm" c="dimmed">
+        This applies to every library. You can change it any time on the Recycle bin page.
+      </Text>
+      {save.isError && <Alert color="red">{errorMessage(save.error)}</Alert>}
+      <NavButtons
+        onBack={onBack}
+        next={
+          <Button
+            disabled={keep === 0 && current !== 0 && !understood}
+            loading={save.isPending}
+            onClick={() =>
+              keep === current
+                ? onNext()
+                : save.mutate({ keep_days: keep }, { onSuccess: () => onNext() })
+            }
+          >
+            Next
+          </Button>
+        }
+      />
     </Stack>
   );
 }

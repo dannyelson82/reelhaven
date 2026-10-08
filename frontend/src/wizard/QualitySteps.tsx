@@ -25,6 +25,7 @@ import {
   useSetLibraryProfile,
 } from '../api/profiles';
 import { useScanStatus } from '../api/files';
+import { useRecycleSettings } from '../api/recycleSettings';
 import { type Estimate, type EstimateSummary, useEstimate } from '../api/wizard';
 import { ScanProgress } from '../components/ScanProgress';
 import { formatBytes } from '../format';
@@ -276,6 +277,7 @@ export function AudioStep({ libraryId, onNext, onBack }: StepProps) {
   const save = useSaveProfile();
   const setProfile = useSetLibraryProfile(id);
   const base = profiles.data?.find((p) => String(p.id) === params.get('choice'));
+  const keepDays = useRecycleSettings().data?.keep_days ?? 14;
   const audio = (params.get('audio') as AudioChoice | null) ?? 'keep';
   const candidates: Record<string, ProfileSettings> = base
     ? Object.fromEntries(AUDIO_CHOICES.map((c) => [c.key, withAudio(base.settings, c.key)]))
@@ -344,7 +346,9 @@ export function AudioStep({ libraryId, onNext, onBack }: StepProps) {
       <ReadingNote libraryId={id} estimate={estimate.data} />
       {audio === 'stereo' && (
         <Alert color="orange">
-          Surround sound is gone for good once the original leaves the recycle bin (after 14 days).
+          {keepDays === 0
+            ? "Surround sound is gone for good: the recycle bin is off, so originals aren't kept."
+            : `Surround sound is gone for good once the original leaves the recycle bin (after ${keepDays} ${keepDays === 1 ? 'day' : 'days'}).`}{' '}
           Only choose this if every screen and speaker you watch on is stereo.
         </Alert>
       )}

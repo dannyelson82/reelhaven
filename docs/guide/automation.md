@@ -32,7 +32,8 @@ first: that's exactly the work it will do.
   readable and new files get their turn.
 - **No automatic retries**: a file whose job failed or that you cancelled is
   left alone until the file changes. Use **Try again** to retry it yourself.
-- Every original still goes to the [recycle bin](recycle-bin.md) for 14 days.
+- Every original still goes to the [recycle bin](recycle-bin.md) (14 days
+  unless you changed it).
 
 ## How new files are found
 

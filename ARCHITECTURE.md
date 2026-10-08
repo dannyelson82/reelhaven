@@ -213,7 +213,8 @@ A new file must pass every check before it can replace the original:
    same stem; notifiers are told about the rename.
 4. Record before/after sizes, durations and timings for stats.
 
-Recycle bin items are purged after N days (default 14). Restore is one click.
+Recycle bin items are purged after N days (default 14; 1–30, or Off to delete
+originals once their replacement is verified, ADR-0028). Restore is one click.
 
 ### 6.9 Notifiers
 After a successful replace (or quarantine):

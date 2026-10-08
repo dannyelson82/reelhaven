@@ -12,10 +12,11 @@ from reelhaven.db import Database, Job, Library, MediaFile, Profile, RecycleItem
 from reelhaven.db.types import utcnow
 from reelhaven.dryrun import FilePlan
 from reelhaven.jobs.commands import UnsupportedContainerError, remux_format
-from reelhaven.jobs.pipeline import RECYCLE_DAYS
+from reelhaven.jobs.pipeline import discard_now
 from reelhaven.jobs.replace import ReplaceError, restore
-from reelhaven.jobs.storage import recycle_path
+from reelhaven.jobs.storage import delete_stored, recycle_path
 from reelhaven.profiles import ProfileSettings
+from reelhaven.recycle_settings import keep_days
 
 logger = logging.getLogger(__name__)
 
@@ -113,25 +114,28 @@ def restore_item(db: Database, item_id: int, actor: str) -> RecycleItem:
     had_current = original.exists()
     size_current = original.stat().st_size if had_current else 0
 
+    keep = keep_days(db)
     restore(stored, original, current_to, root)
 
     now = utcnow()
+    swap_id: int | None = None
     with db.write() as session:
         row = session.get(RecycleItem, item_id)
         assert row is not None  # noqa: S101
         row.restored_at = now
         if had_current:
-            session.add(
-                RecycleItem(
-                    library_id=row.library_id,
-                    original_path=str(original),
-                    stored_path=str(current_to),
-                    size=size_current,
-                    reason="restore-swap",
-                    created_at=now,
-                    expires_at=now + timedelta(days=RECYCLE_DAYS),
-                )
+            swap = RecycleItem(
+                library_id=row.library_id,
+                original_path=str(original),
+                stored_path=str(current_to),
+                size=size_current,
+                reason="restore-swap",
+                created_at=now,
+                expires_at=now + timedelta(days=keep),
             )
+            session.add(swap)
+            session.flush()
+            swap_id = swap.id
         # The library file changed: forget its probe so the next scan reads it again.
         media_file = session.scalars(
             select(MediaFile).where(MediaFile.path == str(original))
@@ -139,7 +143,9 @@ def restore_item(db: Database, item_id: int, actor: str) -> RecycleItem:
         if media_file is not None:
             media_file.mtime_ns = -1
         audit.record(session, actor, "recycle.restored", str(original), {"item": item_id})
-        return row
+    if swap_id is not None and keep == 0:
+        discard_now(db, swap_id)
+    return row
 
 
 def purge_item(db: Database, item_id: int, actor: str) -> None:
@@ -148,7 +154,7 @@ def purge_item(db: Database, item_id: int, actor: str) -> None:
         if item is None:
             raise LookupError("recycle_item_not_found")
         stored = Path(item.stored_path)
-    _delete_stored(stored)
+    delete_stored(stored)
     with db.write() as session:
         row = session.get(RecycleItem, item_id)
         if row is not None and row.purged_at is None:
@@ -171,22 +177,10 @@ def purge_expired(db: Database) -> int:
             )
         ]
     for item_id, stored in expired:
-        _delete_stored(stored)
+        delete_stored(stored)
         with db.write() as session:
             row = session.get(RecycleItem, item_id)
             if row is not None:
                 row.purged_at = now
                 audit.record(session, "system", "recycle.expired", row.original_path)
     return len(expired)
-
-
-def _delete_stored(stored: Path) -> None:
-    stored.unlink(missing_ok=True)
-    # Remove the now-empty per-job folders up to .reelhaven/recycle.
-    parent = stored.parent
-    while parent.name and parent.name != "recycle":
-        try:
-            parent.rmdir()
-        except OSError:
-            break
-        parent = parent.parent

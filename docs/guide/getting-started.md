@@ -10,7 +10,8 @@ ReelHaven makes your video library smaller and tidier. It re-encodes video into
 a more efficient format and removes audio and subtitle tracks in languages you
 don't want. It never changes a file until you ask it to. Every new file is
 checked before it replaces the original, and originals are kept in a
-[recycle bin](recycle-bin.md) for 14 days.
+[recycle bin](recycle-bin.md) for 14 days (you can choose a different time,
+or turn it off).
 
 ## Install on Unraid
 

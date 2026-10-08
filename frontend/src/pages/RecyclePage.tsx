@@ -15,6 +15,8 @@ import { notifications } from '@mantine/notifications';
 import { useState } from 'react';
 import { errorMessage } from '../api/client';
 import { type RecycleItem, usePurge, useRecycle, useRestore } from '../api/jobs';
+import { type KeepDays, useRecycleSettings, useSaveRecycleSettings } from '../api/recycleSettings';
+import { KeepOriginalsControl } from '../components/KeepOriginals';
 import { formatBytes } from '../format';
 
 export function RecyclePage() {
@@ -30,9 +32,10 @@ export function RecyclePage() {
     <Stack maw={960}>
       <Title order={2}>Recycle bin</Title>
       <Text size="sm" c="dimmed">
-        Every file ReelHaven replaces is kept here for 14 days, on the same disk as your library, in
-        a hidden <code>.reelhaven</code> folder. Restoring puts it back exactly as it was.
+        Files ReelHaven replaces are kept here, on the same disk as your library, in a hidden{' '}
+        <code>.reelhaven</code> folder. Restoring puts a file back exactly as it was.
       </Text>
+      <KeepSetting />
       <Group justify="space-between">
         <Text size="sm">Using {formatBytes(total)}</Text>
         <Switch
@@ -140,6 +143,58 @@ function RecycleCard({ item, onPurge }: { item: RecycleItem; onPurge: () => void
           </Group>
         )}
       </Group>
+    </Card>
+  );
+}
+
+/** How long originals are kept (ADR-0028). Shortening it asks first; it only affects new files. */
+function KeepSetting() {
+  const setting = useRecycleSettings();
+  const save = useSaveRecycleSettings();
+  const [asking, setAsking] = useState<KeepDays | null>(null);
+  if (!setting.data) return null;
+  const current = setting.data.keep_days;
+  const choose = (days: KeepDays) => {
+    if (days === current) return;
+    if (days < current) setAsking(days);
+    else save.mutate({ keep_days: days });
+  };
+  return (
+    <Card withBorder>
+      <Stack gap="xs">
+        <Text fw={500}>Keep originals for</Text>
+        <KeepOriginalsControl value={current} onChange={choose} />
+        {save.isError && <Alert color="red">{errorMessage(save.error)}</Alert>}
+      </Stack>
+      <Modal
+        opened={asking !== null}
+        onClose={() => setAsking(null)}
+        title={asking === 0 ? 'Turn the recycle bin off?' : 'Keep originals for less time?'}
+      >
+        <Stack>
+          <Text size="sm">
+            {asking === 0
+              ? "From now on, originals are deleted as soon as the new file passes its checks. They can't be restored."
+              : `From now on, originals are kept for ${asking} ${asking === 1 ? 'day' : 'days'}.`}{' '}
+            Files already in the bin keep their date; you can still delete them here.
+          </Text>
+          <Group justify="flex-end">
+            <Button variant="default" onClick={() => setAsking(null)}>
+              Cancel
+            </Button>
+            <Button
+              color={asking === 0 ? 'red' : undefined}
+              loading={save.isPending}
+              onClick={() =>
+                asking !== null &&
+                save.mutate({ keep_days: asking }, { onSuccess: () => setAsking(null) })
+              }
+            >
+              {asking === 0 ? 'Turn off' : 'Change'}
+            </Button>
+          </Group>
+        </Stack>
+      </Modal>
     </Card>
   );
 }

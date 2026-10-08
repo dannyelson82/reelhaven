@@ -2,6 +2,7 @@ import { Button, Group, List, Modal, Select, Stack, Text } from '@mantine/core';
 import { notifications } from '@mantine/notifications';
 import { useState } from 'react';
 import { errorMessage } from '../api/client';
+import { OriginalsNote } from './KeepOriginals';
 import { type Library, WATCH_MODES, type WatchMode, useSetWatchMode } from '../api/libraries';
 
 /** Off / Watch / Automatic for one library (ADR-0025). Automatic asks first. */
@@ -53,7 +54,9 @@ export function WatchModeSelect({ library }: { library: Library }) {
             <List.Item>
               Files that need review (wrong language, unreadable) are never touched.
             </List.Item>
-            <List.Item>Every original still goes to the recycle bin for 14 days.</List.Item>
+            <List.Item>
+              <OriginalsNote />
+            </List.Item>
             <List.Item>You can pause all processing from the Jobs page at any time.</List.Item>
           </List>
           <Text size="sm">Tip: look at the Dry run tab first to see what it will do.</Text>

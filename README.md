@@ -31,8 +31,8 @@ Plex, Jellyfin, Sonarr and Radarr in sync.
   **test run** (sizes, XPSNR/SSIM, side-by-side stills) that you approve
   before a whole library is re-encoded
 - **Apply** per file or per library; every result is verified before it
-  replaces the original, and originals stay in a 14-day recycle bin with
-  one-click restore
+  replaces the original, and originals stay in a recycle bin (14 days by
+  default; 1 to 30 days, or off) with one-click restore
 - **Live progress** for every job (fps, speed, time left)
 - **Automatic processing**: set a library to Watch or Automatic; new files are
   noticed by a folder watcher, Sonarr/Radarr webhooks and a nightly rescan,

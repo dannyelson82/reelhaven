@@ -61,7 +61,11 @@ Later runs go straight to the library steps.
    touched. Compare the pictures: if you can't tell them apart, click **Looks
    good**. Otherwise **Try another setting** takes you back to step 4. This is
    the [test run](test-run.md) that unlocks re-encoding the library.
-7. **Go automatic**: **Yes, automatically** (recommended) works through every
+7. **Safety net**: how long replaced originals stay in the
+   [recycle bin](recycle-bin.md): Off, 1, 3, 7, **14** (recommended) or 30
+   days. This applies to every library. Choosing **Off** means files can't be
+   put back, so the wizard asks you to tick *I understand* first.
+8. **Go automatic**: **Yes, automatically** (recommended) works through every
    file, a few at a time, and handles new files as they arrive. **Not yet,
    just watch** finds and plans new files but changes nothing. See
    [Automatic processing](automation.md).

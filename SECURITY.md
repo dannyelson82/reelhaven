@@ -117,7 +117,9 @@ Not strictly security, but the same mindset:
 
 - No file is replaced until the new file passes verification
   (ARCHITECTURE.md §6.7).
-- Originals go to a recycle bin; deletes go to the recycle bin too.
+- Originals go to a recycle bin; deletes go to the recycle bin too. The owner
+  can shorten how long they are kept or turn the bin off (ADR-0028); that
+  asks for confirmation and is audited.
 - New libraries require a successful test run before automatic processing.
 - Destructive settings changes (enabling delete, bulk actions) require
   confirmation and are written to the audit log.
