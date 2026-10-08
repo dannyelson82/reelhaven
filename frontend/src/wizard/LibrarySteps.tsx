@@ -5,7 +5,6 @@ import {
   Code,
   Group,
   Loader,
-  Progress,
   SegmentedControl,
   Select,
   Stack,
@@ -20,6 +19,7 @@ import { LIBRARY_TYPES, type LibraryType, useCreateLibrary, useLibraries } from 
 import { type LanguagePolicy, usePolicy, useSavePolicy } from '../api/policy';
 import { type LanguageOption, useLanguages } from '../api/titles';
 import { FolderPicker } from '../components/FolderPicker';
+import { ScanProgress } from '../components/ScanProgress';
 import { browserLanguage, guessLibrary } from './guess';
 
 export interface StepProps {
@@ -141,17 +141,7 @@ export function ScanStep({ libraryId, onNext, onBack }: StepProps) {
       <Text>ReelHaven reads every video file to see its picture, sound and subtitles.</Text>
       {scanning && scan && (
         <Stack gap="xs">
-          <Text size="sm">
-            {scan.phase === 'listing'
-              ? 'Looking for video files…'
-              : scan.phase === 'languages'
-                ? 'Looking up original languages…'
-                : `Reading files: ${scan.probed} of ${scan.to_probe}`}
-          </Text>
-          <Progress
-            value={scan.to_probe ? (100 * scan.probed) / scan.to_probe : 0}
-            animated={scan.phase === 'listing'}
-          />
+          <ScanProgress status={scan} />
           <Text size="xs" c="dimmed">
             Large libraries take a few minutes. You can leave this page; it carries on.
           </Text>

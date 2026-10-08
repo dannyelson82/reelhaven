@@ -8,10 +8,11 @@ from fastapi import FastAPI
 from fastapi.testclient import TestClient
 from sqlalchemy import select
 
+from reelhaven import scanner as scanner_module
 from reelhaven.app import create_app
 from reelhaven.config import Settings
 from reelhaven.db import Database, Library, MediaFile
-from reelhaven.scanner import Scanner, ScanProgress, is_ignored_file, walk
+from reelhaven.scanner import Scanner, ScanProgress, eta_seconds, is_ignored_file, walk
 from tests.helpers import API, admin_client
 from tests.media_fixtures import FFMPEG, Audio, Spec, Sub, make
 
@@ -114,6 +115,9 @@ def test_scan_lifecycle(db: Database, settings: Settings, library: Library, samp
 
     first = run_scan(scanner, library.id)
     assert (first.found, first.probed, first.failed) == (3, 3, 1)
+    # Nothing vanished, so no file is read up front: fingerprints come with the probe.
+    assert first.to_match == 0
+    assert all(r.fingerprint.split(":")[2] for r in rows(db) if r.status == "ok")
     files = {r.relative_path: r for r in rows(db)}
     assert files["broken.mkv"].status == "probe_failed"
     assert files["broken.mkv"].probe_error
@@ -137,6 +141,8 @@ def test_scan_lifecycle(db: Database, settings: Settings, library: Library, samp
 
     third = run_scan(scanner, library.id)
     assert (third.moved, third.probed, third.removed) == (1, 1, 1)
+    # Only the new path is checked against the vanished ones; the changed file is not.
+    assert (third.to_match, third.matched) == (1, 1)
     after = {r.relative_path: r for r in rows(db)}
     assert set(after) == {"One/one.mkv", "Renamed/two.mkv"}
     assert after["Renamed/two.mkv"].id == files["Two/two.mkv"].id
@@ -207,3 +213,61 @@ def test_scan_endpoints_404_and_auth(app: FastAPI) -> None:
     assert admin.post(f"{API}/libraries/999/scan").status_code == 404
     assert admin.get(f"{API}/files/999").status_code == 404
     assert TestClient(app).get(f"{API}/libraries/1/files").status_code == 401
+
+
+def test_walk_reports_a_running_count(sample: Path, tmp_path: Path) -> None:
+    for name in ("a", "b", "c"):
+        put(sample, tmp_path / name / f"{name}.mkv")
+    counts: list[int] = []
+    found, _ = walk(tmp_path.resolve(), stable_seconds=120, now=time.time(), on_found=counts.append)
+    assert counts == [1, 2, 3]
+    assert len(found) == 3
+
+
+@pytest.mark.parametrize(
+    ("done", "total", "elapsed", "expected"),
+    [
+        (0, 100, 60, None),  # nothing done yet
+        (9, 100, 60, None),  # too few to judge the rate
+        (50, 100, 2, None),  # too early
+        (50, 100, 60, 60),
+        (25, 100, 10, 30),
+        (100, 100, 60, None),  # finished
+    ],
+)
+def test_eta_seconds(done: int, total: int, elapsed: float, expected: int | None) -> None:
+    assert eta_seconds(done, total, elapsed) == expected
+
+
+def test_progress_eta_follows_the_phase() -> None:
+    progress = ScanProgress(1)
+    progress.enter("probing")
+    progress.to_probe, progress.probed = 100, 50
+    assert progress.eta_seconds(progress.phase_started_at + 60) == 60
+    progress.enter("languages")
+    assert progress.eta_seconds(progress.phase_started_at + 60) is None
+
+
+def test_unreadable_fingerprint_does_not_stop_the_scan(
+    db: Database,
+    settings: Settings,
+    library: Library,
+    sample: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    root = Path(library.path)
+    put(sample, root / "One" / "one.mkv")
+    put(sample, root / "Two" / "two.mkv")
+    real = scanner_module.fingerprint
+
+    def flaky(path: Path, size: int, mtime_ns: int) -> str:
+        if path.name == "two.mkv":
+            raise OSError("I/O error")
+        return real(path, size, mtime_ns)
+
+    monkeypatch.setattr(scanner_module, "fingerprint", flaky)
+    progress = run_scan(scanner_for(db, settings), library.id)
+    assert progress.probed == 2
+    files = {r.relative_path: r for r in rows(db)}
+    assert files["Two/two.mkv"].fingerprint.endswith(":")  # no content hash: never matches a move
+    assert files["One/one.mkv"].fingerprint.split(":")[2]

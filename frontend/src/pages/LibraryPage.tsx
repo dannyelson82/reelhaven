@@ -10,7 +10,6 @@ import {
   Loader,
   Pagination,
   Select,
-  Progress,
   Stack,
   Table,
   Tabs,
@@ -48,6 +47,7 @@ import {
   useSetTitleLanguage,
 } from '../api/titles';
 import { DryRunPanel } from '../components/DryRunPanel';
+import { ScanProgress } from '../components/ScanProgress';
 import { LibraryProfileSelect } from '../components/LibraryProfileSelect';
 import { WatchModeSelect } from '../components/WatchModeSelect';
 import { PlanView } from '../components/PlanView';
@@ -251,19 +251,9 @@ function RefreshLanguagesButton({ libraryId, scanning }: { libraryId: number; sc
 
 function ScanPanel({ status }: { status: ScanStatus }) {
   if (status.state === 'scanning') {
-    const pct = status.to_probe ? (100 * status.probed) / status.to_probe : 0;
-    const label =
-      status.phase === 'listing'
-        ? 'Looking for video files…'
-        : status.phase === 'languages'
-          ? 'Looking up original languages…'
-          : `Reading files: ${status.probed} of ${status.to_probe}`;
     return (
       <Card withBorder>
-        <Stack gap="xs">
-          <Text size="sm">{label}</Text>
-          <Progress value={pct} animated={status.phase === 'listing'} />
-        </Stack>
+        <ScanProgress status={status} />
       </Card>
     );
   }

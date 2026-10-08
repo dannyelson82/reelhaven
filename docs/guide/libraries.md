@@ -34,11 +34,19 @@ The Libraries page shows *Watching* or *Automatic* next to the library's name.
 
 Open a library and click **Scan library**. ReelHaven:
 
-1. looks for video files,
-2. reads each new or changed file (codec, resolution, HDR, audio and subtitle
-   tracks),
-3. looks up the original language of each title (see
+1. looks for video files (counting them as it goes),
+2. if files have disappeared since the last scan, checks whether the new ones
+   are the same files moved or renamed, so they don't need reading again,
+3. reads each new or changed file (codec, resolution, HDR, audio and subtitle
+   tracks), with a progress bar and the time left,
+4. looks up the original language of each title (see
    [Languages](languages.md)).
+
+The first scan of a library takes longest, because every file is read: roughly
+a few minutes for a few thousand films, and up to an hour for a TV library of
+30,000 episodes, more if the array's disks have to spin up. You can leave the
+page; the scan carries on. Later scans only read new or changed files, so they
+are much quicker.
 
 When it finishes, a summary shows how many files were found, read, moved or
 gone, and any that couldn't be read. Files that are still being copied are
