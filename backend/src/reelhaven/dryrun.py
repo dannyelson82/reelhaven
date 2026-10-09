@@ -33,6 +33,7 @@ class _Source:
     original_language: str | None
     info: MediaInfo | None
     no_gain_profile: str | None
+    no_gain_audio: str | None
     language_pending: bool
 
 
@@ -66,6 +67,7 @@ def _load(
                 if media_file.status == "ok" and media_file.probe is not None
                 else None,
                 media_file.no_gain_profile,
+                media_file.no_gain_audio,
                 _language_pending(title),
             )
             for media_file, title in rows
@@ -84,7 +86,9 @@ def _plan(
             s.original_language,
             None
             if s.info is None
-            else plan_file(s.info, s.original_language, policy, profile, s.no_gain_profile),
+            else plan_file(
+                s.info, s.original_language, policy, profile, s.no_gain_profile, s.no_gain_audio
+            ),
             s.language_pending,
         )
         for s in sources

@@ -5,6 +5,8 @@ Phase 0.3 decides track removals and default flags (a ``remux``); video
 encoding decisions are added in phase 0.4.
 """
 
+import hashlib
+import json
 from typing import Literal
 
 from pydantic import BaseModel
@@ -389,6 +391,7 @@ def plan_file(
     policy: LanguagePolicy,
     profile: ProfileSettings | None,
     no_gain_profile: str | None = None,
+    no_gain_audio: str | None = None,
 ) -> Plan:
     """Language changes (§8) plus the video decision (§7.4), done in one pass."""
     result = plan(info, original_language, policy)
@@ -403,6 +406,10 @@ def plan_file(
         video.reason = "The file needs review first."
         return result
     audio_saved = _plan_audio(info, result, profile)
+    if no_gain_audio is not None and conversion_signature(result.tracks) == no_gain_audio:
+        # This exact conversion was tried and didn't make the file smaller.
+        _drop_conversions(result.tracks)
+        audio_saved = 0
     converted = any(t.convert_codec for t in result.tracks)
     if converted and video.decision == "encode":
         # Converted in the same pass: count the audio in the saving estimate.
@@ -450,3 +457,42 @@ def plan_file(
             " and apply the track changes." if any(not t.keep for t in result.tracks) else "."
         )
     return result
+
+
+def conversion_signature(tracks: list[TrackPlan]) -> str | None:
+    """A short fingerprint of the planned audio conversions; None when there are none."""
+    converted = sorted(
+        (t.index, t.convert_codec, t.convert_kbps, t.convert_channels)
+        for t in tracks
+        if t.convert_codec is not None
+    )
+    if not converted:
+        return None
+    return hashlib.sha256(json.dumps(converted).encode()).hexdigest()[:16]
+
+
+def _drop_conversions(tracks: list[TrackPlan]) -> None:
+    for track in tracks:
+        track.convert_codec = track.convert_kbps = track.convert_channels = None
+
+
+def has_track_changes(plan: Plan) -> bool:
+    """Whether the plan removes tracks or changes default or forced flags."""
+    return any(
+        not t.keep
+        or t.default_before != t.default_after
+        or (t.forced_after is not None and t.forced_after != t.forced_before)
+        for t in plan.tracks
+    )
+
+
+def without_conversions(plan: Plan) -> Plan:
+    """The same plan with every audio track copied: what's left when converting the audio
+    didn't make the file smaller. ``skip`` if nothing else changes."""
+    stripped = plan.model_copy(deep=True)
+    _drop_conversions(stripped.tracks)
+    stripped.audio_saved_bytes = 0
+    stripped.details = [d for d in stripped.details if not d.startswith("Convert audio:")]
+    if not has_track_changes(stripped):
+        stripped.action = "skip"
+    return stripped

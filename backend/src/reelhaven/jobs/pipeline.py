@@ -26,7 +26,7 @@ from reelhaven.jobs.runner import CancelledError, RunError, run_ffmpeg
 from reelhaven.jobs.storage import delete_stored, recycle_path, work_dir
 from reelhaven.jobs.verify import VerificationError, verify_output
 from reelhaven.media.info import MediaInfo
-from reelhaven.planner import Plan
+from reelhaven.planner import Plan, conversion_signature, without_conversions
 from reelhaven.recycle_settings import keep_days
 from reelhaven.scanner import fingerprint
 
@@ -83,26 +83,42 @@ def process(db: Database, settings: Settings, job_id: int) -> None:
                 last[0] = fraction
                 _set(db, job_id, progress=round(fraction * 0.8, 3))  # remux = first 80 %
 
-        run_ffmpeg(
-            remux_command(settings.ffmpeg, source, output, info, plan),
-            duration or None,
-            timeout_s=600 + duration * 2,
-            on_progress=progress,
-            should_cancel=lambda: _is_cancelled(db, job_id),
-        )
-        _set(db, job_id, status="verifying", progress=0.8)
-        new_info = verify_output(
-            output,
-            info,
-            expected_layout(source, info, plan),
-            settings.ffmpeg,
-            settings.ffprobe,
-            timeout_s=300 + duration,
-            expected_codecs=expected_remux_codecs(source, info, plan),
-            expected_forced=expected_remux_forced(source, info, plan),
-        )
-        if any(t.convert_codec for t in plan.tracks) and output.stat().st_size >= snapshot.size:
-            raise VerificationError("converting the audio didn't make the file smaller")
+        def remux_and_verify(plan: Plan) -> MediaInfo:
+            run_ffmpeg(
+                remux_command(settings.ffmpeg, source, output, info, plan),
+                duration or None,
+                timeout_s=600 + duration * 2,
+                on_progress=progress,
+                should_cancel=lambda: _is_cancelled(db, job_id),
+            )
+            _set(db, job_id, status="verifying", progress=0.8)
+            return verify_output(
+                output,
+                info,
+                expected_layout(source, info, plan),
+                settings.ffmpeg,
+                settings.ffprobe,
+                timeout_s=300 + duration,
+                expected_codecs=expected_remux_codecs(source, info, plan),
+                expected_forced=expected_remux_forced(source, info, plan),
+            )
+
+        new_info = remux_and_verify(plan)
+        signature = conversion_signature(plan.tracks)
+        attempt = output.stat().st_size
+        if signature is not None and attempt >= snapshot.size:
+            # Converting the audio didn't help: remember not to try it again, and still
+            # carry out the track changes (languages, default and forced flags) if any.
+            _remember_audio_no_gain(db, media_file_id, signature)
+            output.unlink(missing_ok=True)
+            plan = without_conversions(plan)
+            if plan.action == "skip":
+                remove_tree(workdir)
+                _record_audio_no_gain(db, job_id, snapshot.size, attempt, started, actor, source)
+                return
+            last[0] = 0.0
+            _set(db, job_id, status="running", progress=0.0)
+            new_info = remux_and_verify(plan)
         if _is_cancelled(db, job_id):
             raise CancelledError
 
@@ -230,3 +246,37 @@ def discard_now(db: Database, item_id: int) -> None:
         if row is not None and row.purged_at is None:
             row.purged_at = utcnow()
             audit.record(session, "system", "recycle.skipped", original, {"item": item_id})
+
+
+def _remember_audio_no_gain(db: Database, media_file_id: int | None, signature: str) -> None:
+    """The planner won't convert this file's audio this way again."""
+    if media_file_id is None:
+        return
+    with db.write() as session:
+        row = session.get(MediaFile, media_file_id)
+        if row is not None:
+            row.no_gain_audio = signature
+
+
+def _record_audio_no_gain(
+    db: Database, job_id: int, before: int, after: int, started: float, actor: str, source: Path
+) -> None:
+    """Converting the audio was the only change and it didn't help: the original stays."""
+    with db.write() as session:
+        session.add(
+            JobResult(
+                job_id=job_id, bytes_before=before, bytes_after=after, duration_s=None,
+                process_seconds=round(time.monotonic() - started, 2), outcome="no_gain",
+            )
+        )  # fmt: skip
+        job = session.get(Job, job_id)
+        if job is not None:
+            job.status = "done"
+            job.progress = 1.0
+            job.finished_at = utcnow()
+        audit.record(session, actor, "file.no_gain", str(source),
+                     {"job": job_id, "before": before, "after": after})  # fmt: skip
+    logger.info(
+        "converting the audio saved nothing; original kept",
+        extra={"job": job_id, "path": str(source)},
+    )

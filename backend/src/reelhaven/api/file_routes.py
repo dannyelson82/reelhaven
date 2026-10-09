@@ -218,8 +218,9 @@ def get_plan(file_id: int, db: DbDep, _principal: AnyPrincipalDep) -> Plan:
         policy = LanguagePolicy.model_validate(library.language_policy or {})
         profile_row = session.get(Profile, library.profile_id) if library.profile_id else None
         profile = ProfileSettings.model_validate(profile_row.settings) if profile_row else None
-        no_gain = row.no_gain_profile
-    return plan_file(info, title.original_language if title else None, policy, profile, no_gain)
+        no_gain, no_gain_audio = row.no_gain_profile, row.no_gain_audio
+    original = title.original_language if title else None
+    return plan_file(info, original, policy, profile, no_gain, no_gain_audio)
 
 
 class MimicOut(BaseModel):
