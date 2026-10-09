@@ -115,13 +115,31 @@ def measure(
     return Quality(xpsnr=xpsnr, ssim=ssim, rating=rate(xpsnr, ssim))
 
 
+# HDR stills are tone-mapped for display, the same way on both sides, so they compare
+# fairly on an ordinary screen.
+_TONEMAP = "tonemapx=tonemap=bt2390:transfer=bt709:matrix=bt709:primaries=bt709:range=tv"
+
+
 def extract_frame(
-    ffmpeg: str, video: Path, at: float, output: Path, width: int, timeout: float = 120
+    ffmpeg: str,
+    video: Path,
+    at: float,
+    output: Path,
+    size: tuple[int, int],
+    hdr: bool = False,
+    timeout: float = 120,
 ) -> None:
-    """One JPEG still at ``at`` seconds, scaled to ``width`` (tone-mapped HDR isn't attempted)."""
+    """One lossless WebP still at ``at`` seconds, at exactly ``size`` (width, height).
+
+    Lossless and full size, so zooming in shows the encode, not a JPEG's own blur; the new
+    file is scaled to the original's size so both line up pixel for pixel."""
+    filters = [f"scale={size[0]}:{size[1]}:flags=lanczos"]
+    if hdr:
+        filters.insert(0, _TONEMAP)
     args = [
         ffmpeg, "-hide_banner", "-nostdin", "-loglevel", "error", "-ss", f"{at:.3f}",
-        "-i", ffmpeg_input(video), "-frames:v", "1", "-vf", f"scale={width}:-2",
-        "-q:v", "3", "-y", ffmpeg_input(output),
+        "-i", ffmpeg_input(video), "-frames:v", "1", "-vf", ",".join(filters),
+        "-c:v", "libwebp", "-lossless", "1", "-compression_level", "4", "-y",
+        ffmpeg_input(output),
     ]  # fmt: skip
     subprocess.run(args, capture_output=True, timeout=timeout, check=True)  # noqa: S603

@@ -1,4 +1,4 @@
-import { fireEvent, render, screen } from '@testing-library/react';
+import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { App } from '../App';
 import { mockApi, state } from '../test/mockApi';
@@ -244,6 +244,11 @@ it('walks a new library from folder to automatic', async () => {
   expect(JSON.parse(String(startRun?.init?.body))).toEqual({ samples: 2 });
   expect(await screen.findAllByText('20.0 GB → 6.0 GB (70% smaller)')).toHaveLength(2);
   expect(screen.getAllByRole('img', { name: 'Original' })).toHaveLength(2);
+  await userEvent.click(screen.getAllByRole('button', { name: /Look closer/ })[0]);
+  const viewer = await screen.findByRole('dialog');
+  expect(within(viewer).getByRole('img', { name: 'Smaller at 10:00' })).toBeInTheDocument();
+  await userEvent.keyboard('{Escape}');
+  await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument());
   await userEvent.click(screen.getByRole('button', { name: 'Looks good' }));
   expect(calls.some((c) => c.key === 'POST test-runs/3/approve')).toBe(true);
 

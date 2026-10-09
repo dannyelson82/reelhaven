@@ -1,4 +1,4 @@
-import { render, screen } from '@testing-library/react';
+import { render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { App } from '../App';
 import { mockApi, state } from '../test/mockApi';
@@ -90,10 +90,15 @@ it('shows a finished test run and approves it', async () => {
   expect(await screen.findByText('Very good')).toBeInTheDocument();
   expect(screen.getByText('30.0 GB → 9.0 GB')).toBeInTheDocument();
   expect(screen.getByText('XPSNR 38.4 dB · SSIM 0.981')).toBeInTheDocument();
-  expect(screen.getAllByRole('img', { name: /Original at/ })).toHaveLength(2);
-  expect(screen.getAllByRole('img', { name: /Original at/ })[0]).toHaveAttribute(
+  // One moment at a time inline; the row of times picks another.
+  expect(screen.getByRole('img', { name: /Original at/ })).toHaveAttribute(
     'src',
-    'api/v1/test-run-samples/5/frames/0/source.jpg',
+    'api/v1/test-run-samples/5/frames/0/source',
+  );
+  await userEvent.click(screen.getByText('30:00'));
+  expect(screen.getByRole('img', { name: /Re-encoded at/ })).toHaveAttribute(
+    'src',
+    'api/v1/test-run-samples/5/frames/1/encoded',
   );
   expect(screen.queryByText('Weakest quality')).not.toBeInTheDocument();
   await userEvent.click(screen.getByRole('button', { name: /Looks good/ }));
@@ -150,4 +155,32 @@ it('asks for a profile first', async () => {
   render(<App />);
   await userEvent.click(await screen.findByRole('tab', { name: 'Test run' }));
   expect(await screen.findByText(/Choose a compression profile/)).toBeInTheDocument();
+});
+
+it('compares stills full screen', async () => {
+  window.location.hash = '#/libraries/1';
+  mockApi({ ...page, 'GET libraries/1/test-run': { body: { samples: 1, run } } });
+  render(<App />);
+  await userEvent.click(await screen.findByRole('tab', { name: 'Test run' }));
+  await userEvent.click(await screen.findByRole('button', { name: 'Compare full screen' }));
+  const dialog = await screen.findByRole('dialog');
+  const images = within(dialog).getAllByRole('img');
+  expect(images.map((img) => img.getAttribute('src'))).toEqual([
+    'api/v1/test-run-samples/5/frames/0/source',
+    'api/v1/test-run-samples/5/frames/0/encoded',
+  ]);
+  expect(within(dialog).getByText('Loading full-size stills…')).toBeInTheDocument();
+
+  // The arrow keys switch moments; S switches to the swipe view with its divider.
+  await userEvent.keyboard('{ArrowRight}');
+  expect(within(dialog).getAllByRole('img')[0]).toHaveAttribute(
+    'src',
+    'api/v1/test-run-samples/5/frames/1/source',
+  );
+  await userEvent.keyboard('s');
+  const divider = within(dialog).getByRole('slider', { name: 'Divider' });
+  expect(divider).toHaveAttribute('aria-valuenow', '50');
+  divider.focus();
+  await userEvent.keyboard('{ArrowLeft}');
+  expect(divider).toHaveAttribute('aria-valuenow', '45');
 });
