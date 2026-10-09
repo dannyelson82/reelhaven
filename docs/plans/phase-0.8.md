@@ -1,7 +1,7 @@
 # Phase 0.8: Compare and tune
 
 Planned with the owner on 2026-10-09. Decisions: ADR-0031.
-Release: **v0.8.0** (one release at the end). *Insight and safety* moves to 0.9.
+Release: **v0.8.0** (one release at the end). Done: all 10 chunks (#77, #80–#86, release). *Insight and safety* moves to 0.9.
 
 Goal: make it easy to *see* what a setting does before trusting it with a
 library, and to find the smallest files that still look right.
