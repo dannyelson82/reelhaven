@@ -138,3 +138,22 @@ def test_formats_the_card_cant_decode_go_straight_to_the_cpu(
     calls, go = _run(monkeypatch, [None], bit_depth=10, pix_fmt="yuv422p10le")
     assert go() is False
     assert len(calls) == 1 and "-hwaccel" not in calls[0]
+
+
+def test_the_decoder_is_reported_for_each_attempt(monkeypatch: pytest.MonkeyPatch) -> None:
+    outcomes: list[Exception | None] = [RunError("gpu"), None]
+
+    def fake(_args: list[str], *_a: object, **_k: object) -> None:
+        outcome = outcomes.pop(0)
+        if outcome is not None:
+            raise outcome
+
+    monkeypatch.setattr(encode_run, "run_ffmpeg", fake)
+    info = media(bit_depth=10)
+    decoders: list[str] = []
+    encode_run.run_encode(
+        "ffmpeg", NVIDIA, Path("/m/a.mkv"), Path("/nonexistent/a.mkv"), info,
+        plan(info, "eng", LanguagePolicy()), ProfileSettings(), timeout_s=60,
+        on_progress=lambda *_: None, should_cancel=lambda: False, on_decoder=decoders.append,
+    )  # fmt: skip
+    assert decoders == ["gpu", "cpu"]  # the job's record ends on what really decoded it

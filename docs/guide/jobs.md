@@ -52,6 +52,11 @@ watch: progress, frames per second, speed (× real time) and an estimate of
 the time left, which appears a few seconds into each job. The **Jobs** menu
 item shows how many jobs are in progress.
 
+Each re-encode also shows which device encodes it and whether the original
+video was **Decoded on GPU** or **Decoded on CPU** (see
+[Hardware](hardware.md#decoding-on-the-gpu-too)). If a file can't be decoded on
+the graphics card, the job switches to the CPU by itself and the label follows.
+
 If you use ReelHaven without logging in (local network access, see
 [Security](security.md)), pages still update, just every few seconds instead
 of instantly.

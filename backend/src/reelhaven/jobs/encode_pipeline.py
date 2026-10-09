@@ -109,6 +109,7 @@ def process_encode(db: Database, settings: Settings, job_id: int, device: Device
             timeout_s=3600 + duration * 30,
             on_progress=progress,
             should_cancel=lambda: _is_cancelled(db, job_id),
+            on_decoder=lambda decoder: _set(db, job_id, decoder=decoder),
         )
         _set(db, job_id, status="verifying", progress=0.85)
         new_info = verify_output(

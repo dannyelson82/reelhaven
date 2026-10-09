@@ -133,6 +133,7 @@ def test_encode_single_file(app: FastAPI, settings: Settings) -> None:
         "cpu",
     ), job
     info = probe(path)
+    assert job["decoder"] == "cpu"  # the CPU encoder decodes on the CPU
     assert info.video is not None
     assert (info.video.codec, info.video.bit_depth) == ("hevc", 10)
     assert [a.language for a in info.of_kind("audio")] == ["eng"]  # French dropped in the same pass

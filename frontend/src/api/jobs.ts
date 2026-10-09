@@ -23,6 +23,7 @@ export interface Job {
   process_seconds: number | null;
   outcome: 'replaced' | 'no_gain' | null;
   device: string | null;
+  decoder: 'gpu' | 'cpu' | null;
   fps: number | null;
   speed: number | null;
   eta_seconds: number | null;

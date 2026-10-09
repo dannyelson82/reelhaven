@@ -26,16 +26,19 @@ def run_encode(
     timeout_s: float,
     on_progress: ProgressCallback,
     should_cancel: Callable[[], bool],
+    on_decoder: Callable[[str], None] = lambda _decoder: None,
 ) -> bool:
     """Encode ``source`` to ``output``; returns whether the GPU decoded it.
 
     A GPU-decoded attempt that fails (a format the card can't decode after all, a driver
     hiccup) is retried once with CPU decoding, so a file is never lost to the speed-up.
     Cancelling stops both.
+    ``on_decoder`` hears "gpu" or "cpu" as each attempt starts, for the job's record.
     """
     video = info.video
     duration = info.duration_s or None
     if video is not None and gpu_decodes(device, video.codec, video.bit_depth, video.pix_fmt):
+        on_decoder("gpu")
         try:
             run_ffmpeg(
                 encode_command(ffmpeg, device, source, output, info, plan, profile, True),
@@ -51,6 +54,7 @@ def run_encode(
                 extra={"path": str(source), "device": device.id, "error": str(exc)[-300:]},
             )
             output.unlink(missing_ok=True)
+    on_decoder("cpu")
     run_ffmpeg(
         encode_command(ffmpeg, device, source, output, info, plan, profile),
         duration,
