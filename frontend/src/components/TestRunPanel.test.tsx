@@ -68,6 +68,7 @@ const page = {
 
 afterEach(() => {
   vi.unstubAllGlobals();
+  vi.restoreAllMocks();
   window.location.hash = '';
 });
 
@@ -183,4 +184,39 @@ it('compares stills full screen', async () => {
   divider.focus();
   await userEvent.keyboard('{ArrowLeft}');
   expect(divider).toHaveAttribute('aria-valuenow', '45');
+});
+
+it('plays both comparison clips together', async () => {
+  const play = vi.fn(() => Promise.resolve());
+  const pause = vi.fn();
+  vi.spyOn(HTMLMediaElement.prototype, 'play').mockImplementation(play);
+  vi.spyOn(HTMLMediaElement.prototype, 'pause').mockImplementation(pause);
+  window.location.hash = '#/libraries/1';
+  const withClip = { ...sample, result: { ...result, clip: { start: 1792.5, seconds: 15 } } };
+  mockApi({
+    ...page,
+    'GET libraries/1/test-run': { body: { samples: 1, run: { ...run, samples: [withClip] } } },
+  });
+  render(<App />);
+  await userEvent.click(await screen.findByRole('tab', { name: 'Test run' }));
+  await userEvent.click(
+    await screen.findByRole('button', { name: 'Compare full screen, stills and video' }),
+  );
+  const dialog = await screen.findByRole('dialog');
+  await userEvent.click(within(dialog).getByText('Video'));
+  expect(within(dialog).getByLabelText('Original clip')).toHaveAttribute(
+    'src',
+    'api/v1/test-run-samples/5/clips/source',
+  );
+  expect(within(dialog).getByLabelText('Re-encoded clip')).toHaveAttribute(
+    'src',
+    'api/v1/test-run-samples/5/clips/encoded',
+  );
+  expect(within(dialog).getByText('29:53 in the film')).toBeInTheDocument();
+  await userEvent.click(within(dialog).getByRole('button', { name: 'Play' }));
+  expect(play).toHaveBeenCalledTimes(2); // both at once
+  expect(await within(dialog).findByRole('button', { name: 'Pause' })).toBeInTheDocument();
+  await userEvent.keyboard(' ');
+  expect(pause).toHaveBeenCalledTimes(2);
+  expect(await within(dialog).findByRole('button', { name: 'Play' })).toBeInTheDocument();
 });

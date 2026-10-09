@@ -70,7 +70,7 @@ Later runs go straight to the library steps.
 6. **Try it**: ReelHaven tries your choice on 2 files, one after the other, so
    you can look at the first result while the second is encoding. Your
    originals aren't touched. Compare the pictures (**Look closer, full
-   screen** zooms in on five moments; see
+   screen** zooms in on five moments and plays the same scene from both; see
    [Compare full screen](test-run.md#compare-full-screen)): if you can't tell
    them apart, click **Looks good**. Otherwise **Try another setting** takes you
    back to step 4. This is the [test run](test-run.md) that unlocks

@@ -39,6 +39,7 @@ For each file:
   counts as indistinguishable).
 - **Video**: the new codec, bit depth, resolution and HDR type, plus which
   device encoded it and how fast.
+- **Clips**: a short scene from both, to [watch them play](#watch-them-play).
 - **Still frames**: the original and the re-encode side by side at five
   moments spread through the file, at full resolution (up to 4K) and without
   any compression of their own. Pick a moment with the row of times above
@@ -63,6 +64,27 @@ Click a still (or **Compare full screen**) to look closely:
 
 Look at faces, dark areas, skies and fine texture such as hair or grass;
 that's where a smaller file shows first.
+
+### Watch them play
+
+Some problems only show in motion: blocky dark scenes, smeared fast action,
+shimmering grain. So each test file also gets two short **clips** of the same
+15-second scene from the middle of the file, one from the original and one
+from the re-encode. In the full-screen view, switch **Stills** to **Video**
+(or press **V**):
+
+- **Play** starts both together; they pause, jump and loop together too. The
+  slider moves through the scene and shows where you are in the film.
+- Side by side and Swipe, zooming and dragging all work while they play.
+- Keys: **Space** plays or pauses, ← → jump a second, **V** goes back to the
+  stills.
+
+Browsers can't play most MKV, HEVC or AV1 files, so the clips are converted
+to H.264 at a far higher quality than the encode being judged (what you see
+is the re-encode, not the clip). They have no sound, and HDR is shown
+converted to normal colours. The clips are made on a graphics card when
+there is one and take a few seconds; together they use about 20 to 150 MB
+per test file in the transcode folder, removed with the test run.
 
 With several files, a summary shows the total saving and the **Weakest
 quality**. The re-encoded files of the latest test run stay in

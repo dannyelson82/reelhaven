@@ -33,13 +33,14 @@ from reelhaven.jobs.verify import VerificationError, verify_output
 from reelhaven.media.info import MediaInfo
 from reelhaven.planner import Plan
 from reelhaven.profiles import ProfileSettings
-from reelhaven.quality_metrics import extract_frame, measure
+from reelhaven.quality_metrics import extract_clip, extract_frame, measure
 from reelhaven.sampling import MAX_SAMPLES, Candidate, choose_samples
 
 logger = logging.getLogger(__name__)
 
 MAX_STILL_WIDTH = 3840  # stills are full size, up to 4K
 STILLS = 5
+CLIP_SECONDS = 15.0  # comparison clips: the same scene from both files (ADR-0031)
 _ENDED_JOB = ("failed", "cancelled")
 
 
@@ -57,6 +58,11 @@ def frame_path(settings: Settings, run: TestRun, sample_id: int, index: int, whi
     folder = sample_dir(settings, run.library_id, run.id, sample_id)
     webp = folder / f"frame-{index}-{which}.webp"
     return webp if webp.is_file() else folder / f"frame-{index}-{which}.jpg"
+
+
+def clip_path(settings: Settings, run: TestRun, sample_id: int, which: str) -> Path:
+    folder = sample_dir(settings, run.library_id, run.id, sample_id)
+    return folder / f"clip-{which}.mp4"
 
 
 def sample_status(sample: TestRunSample, job_status: str | None) -> str:
@@ -246,6 +252,9 @@ def process_test(db: Database, settings: Settings, job_id: int, device: Device) 
             # Numbered by the stills that worked, so times and pictures stay paired.
             if _stills(settings, source, encoded, folder, len(times), at, size, hdr):
                 times.append(at)
+        _set(db, job_id, progress=0.95)
+        window = clip_window(duration)
+        clip = _clips(settings, source, encoded, folder, window, size, hdr, device)
     except CancelledError:
         remove_tree(folder)
         _finish(db, job_id, sample_id, "failed", error="Cancelled.")
@@ -267,6 +276,7 @@ def process_test(db: Database, settings: Settings, job_id: int, device: Device) 
         "ssim": quality.ssim,
         "rating": quality.rating,
         "frame_times": times,
+        "clip": clip,
         "codec": out_video.codec,
         "height_before": info.video.height if info.video else None,
         "height_after": out_video.height,
@@ -284,6 +294,14 @@ def frame_times(duration: float, count: int = STILLS) -> list[float]:
     if duration <= 1:
         return [round(duration / 2, 2)]
     return [round(duration * (i + 1) / (count + 1), 2) for i in range(count)]
+
+
+def clip_window(duration: float, seconds: float = CLIP_SECONDS) -> tuple[float, float]:
+    """Start and length of the comparison clip: centred on the middle of the video, which
+    is also the middle still."""
+    if duration <= seconds:
+        return 0.0, round(max(duration, 0.1), 2)
+    return round(duration / 2 - seconds / 2, 2), seconds
 
 
 def still_size(info: MediaInfo) -> tuple[int, int]:
@@ -314,6 +332,30 @@ def _stills(
         logger.warning("could not extract a comparison still", extra={"at": at})
         return False
     return True
+
+
+def _clips(
+    settings: Settings,
+    source: Path,
+    encoded: Path,
+    folder: Path,
+    window: tuple[float, float],
+    size: tuple[int, int],
+    hdr: bool,
+    device: Device,
+) -> dict[str, float] | None:
+    """Both comparison clips; a failure only means there is nothing to play."""
+    start, seconds = window
+    try:
+        for which, video in (("source", source), ("encoded", encoded)):
+            output = folder / f"clip-{which}.mp4"
+            extract_clip(settings.ffmpeg, video, start, seconds, output, size, hdr, device)
+    except Exception:
+        logger.warning("could not make the comparison clips", extra={"start": start})
+        for which in ("source", "encoded"):
+            (folder / f"clip-{which}.mp4").unlink(missing_ok=True)
+        return None
+    return {"start": start, "seconds": seconds}
 
 
 def _finish(

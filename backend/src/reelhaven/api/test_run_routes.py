@@ -23,6 +23,7 @@ from reelhaven.encode_planner import profile_fingerprint
 from reelhaven.jobs.service import NotApplicableError, library_profile
 from reelhaven.jobs.test_run import (
     approve,
+    clip_path,
     create_test_run,
     frame_path,
     latest,
@@ -155,6 +156,30 @@ def approve_test_run(run_id: int, db: DbDep, principal: InteractiveDep) -> TestR
         except NotApplicableError as exc:
             raise HTTPException(status.HTTP_409_CONFLICT, exc.code) from exc
         return _out(session, run)
+
+
+@router.get("/test-run-samples/{sample_id}/clips/{which}", include_in_schema=False)
+def test_run_clip(
+    sample_id: int,
+    request: Request,
+    db: DbDep,
+    _principal: AnyPrincipalDep,
+    which: Literal["source", "encoded"],
+) -> FileResponse:
+    """A comparison clip; the browser seeks in it with range requests."""
+    settings: Settings = request.app.state.settings
+    with db.read() as session:
+        sample = session.get(TestRunSample, sample_id)
+        run = session.get(TestRun, sample.test_run_id) if sample else None
+        if sample is None or run is None:
+            raise HTTPException(status.HTTP_404_NOT_FOUND, "test_run_not_found")
+        # Built only from integers and a fixed word: no user text reaches the path.
+        path = clip_path(settings, run, sample.id, which)
+    if not path.is_file():
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "clip_not_found")
+    return FileResponse(
+        path, media_type="video/mp4", headers={"Cache-Control": "private, max-age=3600"}
+    )
 
 
 @router.get("/test-run-samples/{sample_id}/frames/{index}/{which}", include_in_schema=False)

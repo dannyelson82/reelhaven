@@ -11,7 +11,7 @@ from sqlalchemy import select
 
 from reelhaven.config import Settings
 from reelhaven.db import Database, Job, TestRun, TestRunSample
-from reelhaven.jobs.test_run import frame_times, run_status, sample_status, still_size
+from reelhaven.jobs.test_run import clip_window, frame_times, run_status, sample_status, still_size
 from reelhaven.media.info import MediaInfo, Stream
 from reelhaven.media.probe import probe
 from reelhaven.quality_metrics import rate, segment_starts
@@ -46,6 +46,8 @@ def test_segments_and_frame_times() -> None:
     assert segment_starts(100) == [22.5, 45.0, 67.5]
     assert frame_times(1) == [0.5]  # inside a very short video
     assert frame_times(60) == [10.0, 20.0, 30.0, 40.0, 50.0]  # spread through it
+    assert clip_window(7200) == (3592.5, 15.0)  # centred on the middle still
+    assert clip_window(8) == (0.0, 8)  # a short video: all of it
 
 
 def test_status_rules() -> None:
@@ -115,6 +117,18 @@ def test_test_run_then_approve(app: FastAPI, settings: Settings) -> None:  # noq
     assert admin.get(f"{frames}/0/other").status_code == 422
     assert admin.get(f"{frames}/99/source").status_code == 422
     assert admin.get(f"{API}/test-run-samples/999/frames/0/source").status_code == 404
+
+    # The same scene from both files, as MP4 clips a browser can play and seek in.
+    assert result["clip"]["seconds"] > 0
+    clips = f"{API}/test-run-samples/{sample['id']}/clips"
+    for which in ("source", "encoded"):
+        clip = admin.get(f"{clips}/{which}")
+        assert clip.status_code == 200 and clip.headers["content-type"] == "video/mp4"
+        assert clip.content[4:8] == b"ftyp"
+        part = admin.get(f"{clips}/{which}", headers={"Range": "bytes=0-99"})
+        assert part.status_code == 206 and len(part.content) == 100
+    assert admin.get(f"{clips}/other").status_code == 422
+    assert admin.get(f"{API}/test-run-samples/999/clips/source").status_code == 404
 
     # Bulk encoding is locked until the owner approves.
     dry = admin.get(f"{API}/libraries/{lib}/dry-run").json()
