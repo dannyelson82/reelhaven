@@ -71,3 +71,25 @@ it('pauses and resumes all processing', async () => {
   expect(await screen.findByRole('button', { name: 'Pause all processing' })).toBeInTheDocument();
   expect(screen.queryByText('Processing is paused')).not.toBeInTheDocument();
 });
+
+it('says when re-encoding waits for a test run', async () => {
+  const waiting = { ...library, watch_mode: 'automatic', needs_test_run: true };
+  const api = {
+    'GET auth/state': loggedIn,
+    'GET libraries': { body: [waiting] },
+    'GET libraries/1/scan': { body: null },
+    'GET libraries/1/files?q=&problems=false&offset=0&limit=50': { body: { total: 0, items: [] } },
+    'GET libraries/1/profile': { body: { profile_id: null } },
+    'GET profiles': { body: [] },
+  };
+  window.location.hash = '#/libraries';
+  mockApi(api);
+  const { unmount } = render(<App />);
+  expect(await screen.findByText('Re-encoding waits for a test run')).toBeInTheDocument();
+  unmount();
+
+  window.location.hash = '#/libraries/1';
+  mockApi(api);
+  render(<App />);
+  expect(await screen.findByText('Re-encoding is waiting for a test run')).toBeInTheDocument();
+});

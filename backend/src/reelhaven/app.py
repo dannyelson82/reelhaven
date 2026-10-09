@@ -108,6 +108,7 @@ def create_app(
         start_scan=lambda library_id: app.state.scanner.start(library_id),
         notify_queue=lambda: app.state.queue.notify(),
         encode_slots=lambda: app.state.queue.encode_slots(),
+        remux_slots=lambda: app.state.queue.remux_slots(),
     )
     app.state.watcher = FolderWatcher(
         db,

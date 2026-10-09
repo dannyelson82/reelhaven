@@ -30,6 +30,7 @@ export interface Library {
   last_scan_error: string | null;
   scanning: boolean;
   watch_mode: WatchMode;
+  needs_test_run: boolean;
 }
 
 export interface BrowseResult {

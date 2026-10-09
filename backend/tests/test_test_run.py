@@ -245,3 +245,28 @@ def test_samples_run_one_at_a_time(app: FastAPI, settings: Settings) -> None:  #
     (_first_start, first_end), (second_start, _second_end) = runs
     assert first_end is not None and second_start is not None
     assert second_start >= first_end  # the second began after the first finished
+
+
+def test_library_says_when_reencoding_waits_for_a_test_run(
+    app: FastAPI,  # noqa: F811
+    settings: Settings,
+) -> None:
+    admin, lib, _path = setup(app, settings, FAST)
+    assert admin.get(f"{API}/libraries/{lib}").json()["needs_test_run"] is True
+    run = admin.post(f"{API}/libraries/{lib}/test-run", json={"samples": 1}).json()
+    assert app.state.queue.wait_idle(300)
+    assert admin.post(f"{API}/test-runs/{run['id']}/approve").status_code == 200
+    assert admin.get(f"{API}/libraries/{lib}").json()["needs_test_run"] is False
+    listed = next(item for item in admin.get(f"{API}/libraries").json() if item["id"] == lib)
+    assert listed["needs_test_run"] is False
+
+    # Changing what the encode does (here the speed) needs a new test run.
+    profile_id = admin.get(f"{API}/libraries/{lib}/profile").json()["profile_id"]
+    faster = {**FAST, "speed": "balanced" if FAST.get("speed") == "fast" else "fast"}
+    assert (
+        admin.put(
+            f"{API}/profiles/{profile_id}", json={"name": "Test", "settings": faster}
+        ).status_code
+        == 200
+    )
+    assert admin.get(f"{API}/libraries/{lib}").json()["needs_test_run"] is True

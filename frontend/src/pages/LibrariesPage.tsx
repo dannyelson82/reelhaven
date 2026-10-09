@@ -81,6 +81,11 @@ export function LibrariesPage() {
                     {library.watch_mode === 'automatic' ? 'Automatic' : 'Watching'}
                   </Badge>
                 )}
+                {library.needs_test_run && library.watch_mode === 'automatic' && (
+                  <Badge variant="light" color="yellow">
+                    Re-encoding waits for a test run
+                  </Badge>
+                )}
               </Group>
               <Code>{library.path}</Code>
               <Text size="xs" c="dimmed">

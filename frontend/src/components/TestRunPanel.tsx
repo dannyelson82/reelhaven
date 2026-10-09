@@ -17,6 +17,7 @@ import { notifications } from '@mantine/notifications';
 import { IconCheck, IconPlayerPlay } from '@tabler/icons-react';
 import { useState } from 'react';
 import { errorMessage } from '../api/client';
+import { useDeviceName } from '../api/devices';
 import type { Job } from '../api/jobs';
 import { useLibraryProfile } from '../api/profiles';
 import {
@@ -198,6 +199,7 @@ function SampleView({
   liveJob?: Job;
   upNext: boolean;
 }) {
+  const deviceName = useDeviceName();
   if (sample.status === 'running') {
     const progress = liveJob?.progress ?? sample.progress;
     const fps = liveJob ? liveJob.fps : sample.fps;
@@ -264,7 +266,7 @@ function SampleView({
           />
         </SimpleGrid>
         <Text size="xs" c="dimmed">
-          Encoded on {r.device}
+          Encoded on {deviceName(r.device)}
           {r.fps !== null && ` at ${r.fps.toFixed(0)} fps`} in {formatDuration(r.seconds)}.
         </Text>
         {!enough && (

@@ -1,6 +1,7 @@
 import { Anchor, Button, Card, Group, Progress, Stack, Text, Title } from '@mantine/core';
 import { IconWand } from '@tabler/icons-react';
 import { Link, Navigate } from 'react-router';
+import { useDeviceName } from '../api/devices';
 import { useJobs } from '../api/jobs';
 import { useLibraries } from '../api/libraries';
 import { useOnboarding } from '../api/wizard';
@@ -42,6 +43,7 @@ export function DashboardPage() {
 
 function ActiveJobs() {
   const jobs = useJobs('active', 1);
+  const deviceName = useDeviceName();
   const live = useLiveJobs();
   const running = (jobs.data?.items ?? [])
     .map((job) => withLive(job, live))
@@ -75,7 +77,8 @@ function ActiveJobs() {
             </Text>
             <Progress value={job.progress * 100} animated />
             <Text size="xs" c="dimmed">
-              {Math.round(job.progress * 100)}%{job.device && ` · ${job.device}`}
+              {Math.round(job.progress * 100)}%{job.device && ` · ${deviceName(job.device)}`}
+              {job.decoder && ` · decoded on ${job.decoder.toUpperCase()}`}
               {job.fps !== null && ` · ${job.fps.toFixed(0)} fps`}
               {job.speed !== null && ` · ${job.speed.toFixed(1)}× real time`}
               {job.eta_seconds !== null && ` · ${formatTimeLeft(job.eta_seconds)} left`}
