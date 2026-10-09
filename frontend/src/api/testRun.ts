@@ -92,3 +92,16 @@ export const useApproveTestRun = (libraryId: number) =>
 
 export const frameUrl = (sampleId: number, index: number, which: 'source' | 'encoded') =>
   `api/v1/test-run-samples/${sampleId}/frames/${index}/${which}.jpg`;
+
+/** Whether another sample of the run is encoding: samples go one at a time, so a queued
+ * one is simply next in line. */
+export function isUpNext(sample: TestSample, samples: TestSample[]): boolean {
+  return (
+    sample.job_status === 'queued' &&
+    samples.some(
+      (other) =>
+        other.id !== sample.id &&
+        (other.job_status === 'running' || other.job_status === 'verifying'),
+    )
+  );
+}

@@ -13,11 +13,12 @@ from functools import partial
 from pathlib import Path
 
 from sqlalchemy import select, update
+from sqlalchemy.orm import Session
 
 from reelhaven import device_settings
 from reelhaven.automation_settings import is_paused
 from reelhaven.config import Settings
-from reelhaven.db import Database, Job, Library
+from reelhaven.db import Database, Job, Library, TestRunSample
 from reelhaven.db.types import utcnow
 from reelhaven.devices import DeviceRegistry, DeviceReport
 from reelhaven.encoders import Device
@@ -195,6 +196,8 @@ class JobQueue:
             return None  # ADR-0025: paused, so nothing new starts; running jobs finish
         with self._claim_lock, self._db.write() as session:
             for job in self._queued(session, types):
+                if job.type == "test" and _test_run_busy(session, job):
+                    continue  # a test run's samples go one at a time
                 if accept(job):
                     job.status = "running"
                     job.started_at = utcnow()
@@ -268,3 +271,23 @@ class JobQueue:
                 job.status = "failed"
                 job.error = error[:4000]
                 job.finished_at = utcnow()
+
+
+def _test_run_busy(session: Session, job: Job) -> bool:
+    """Whether another sample of this job's test run is being encoded right now. Samples
+    go one at a time, so the first result shows as soon as possible (owner request)."""
+    if job.test_run_sample_id is None:
+        return False
+    sample = session.get(TestRunSample, job.test_run_sample_id)
+    if sample is None:
+        return False
+    running = session.scalars(
+        select(Job.id)
+        .join(TestRunSample, TestRunSample.id == Job.test_run_sample_id)
+        .where(
+            TestRunSample.test_run_id == sample.test_run_id,
+            Job.status.in_(("running", "verifying")),
+            Job.id != job.id,
+        )
+    ).first()
+    return running is not None
