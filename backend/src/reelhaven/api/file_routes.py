@@ -51,6 +51,7 @@ class ScanStatus(BaseModel):
     languages_resolved: int
     languages_unknown: int
     language_errors: list[str]
+    folders: list[str] = []  # a partial scan of these top-level folders (ADR-0030)
     error: str | None
     started_at: float
     phase_started_at: float

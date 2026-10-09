@@ -11,9 +11,10 @@ import os
 import re
 import threading
 import time
-from collections.abc import Callable
+from collections.abc import Callable, Iterable
 from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass, field
+from functools import partial
 from pathlib import Path
 from typing import Protocol
 
@@ -85,6 +86,14 @@ def _safe_fingerprint(item: "Found") -> tuple["Found", str]:
         return item, fingerprint(item.path, item.size, item.mtime_ns)
     except OSError:
         return item, f"{item.size}:{item.mtime_ns}:"
+
+
+def _offset(report: Callable[[int], None], before: int, n: int) -> None:
+    report(before + n)
+
+
+def _in_folders(relative_path: str, folders: list[str]) -> bool:
+    return any(relative_path == f or relative_path.startswith(f"{f}/") for f in folders)
 
 
 def content_key(fp: str) -> str:
@@ -174,6 +183,7 @@ class ScanProgress:
     languages_resolved: int = 0
     languages_unknown: int = 0
     language_errors: list[str] = field(default_factory=list)
+    folders: list[str] = field(default_factory=list)  # a partial scan (ADR-0030); [] = all
     error: str | None = None
     started_at: float = field(default_factory=time.time)
     phase_started_at: float = field(default_factory=time.time)
@@ -219,16 +229,25 @@ class Scanner:
             thread = self._threads.get(library_id)
             return thread is not None and thread.is_alive()
 
-    def start(self, library_id: int, languages_only: bool = False) -> bool:
-        """Start a scan (or only a language refresh); False if one is already running."""
+    def start(
+        self,
+        library_id: int,
+        languages_only: bool = False,
+        folders: Iterable[str] | None = None,
+    ) -> bool:
+        """Start a scan (or only a language refresh); False if one is already running.
+
+        ``folders`` (top-level folders under the library root) limits the scan to them
+        (ADR-0030); None scans the whole library."""
+        only = None if folders is None else sorted(set(folders))
         with self._lock:
             thread = self._threads.get(library_id)
             if thread is not None and thread.is_alive():
                 return False
-            self._progress[library_id] = ScanProgress(library_id)
+            self._progress[library_id] = ScanProgress(library_id, folders=only or [])
             thread = threading.Thread(
                 target=self._run,
-                args=(library_id, languages_only),
+                args=(library_id, languages_only, only),
                 name=f"scan-{library_id}",
                 daemon=True,
             )
@@ -241,11 +260,13 @@ class Scanner:
         if thread is not None:
             thread.join(timeout)
 
-    def _run(self, library_id: int, languages_only: bool = False) -> None:
+    def _run(
+        self, library_id: int, languages_only: bool = False, folders: list[str] | None = None
+    ) -> None:
         progress = self._progress[library_id]
         try:
             if not languages_only:
-                self.scan(library_id, progress)
+                self.scan(library_id, progress, folders)
             self.languages(library_id, progress, force=languages_only)
             progress.state = "done"
             error = None
@@ -275,7 +296,9 @@ class Scanner:
         progress.languages_unknown = summary.unknown
         progress.language_errors.extend(summary.errors)
 
-    def scan(self, library_id: int, progress: ScanProgress) -> None:
+    def scan(
+        self, library_id: int, progress: ScanProgress, folders: list[str] | None = None
+    ) -> None:
         with self._db.read() as session:
             library = session.get(Library, library_id)
             if library is None:
@@ -286,6 +309,7 @@ class Scanner:
                 for row in session.scalars(
                     select(MediaFile).where(MediaFile.library_id == library_id)
                 )
+                if folders is None or _in_folders(row.relative_path, folders)
             }
         if not root.is_dir():
             raise FileNotFoundError(f"library folder is missing: {root}")
@@ -293,7 +317,10 @@ class Scanner:
         def counted(n: int) -> None:
             progress.found = n
 
-        found, progress.unstable = walk(root, self._stable_seconds, time.time(), counted)
+        if folders is None:
+            found, progress.unstable = walk(root, self._stable_seconds, time.time(), counted)
+        else:
+            found, progress.unstable = self._walk_folders(root, folders, counted)
         progress.found = len(found)
         progress.found_bytes = sum(f.size for f in found)
         seen = {f.path.as_posix() for f in found}
@@ -343,6 +370,32 @@ class Scanner:
             with self._db.write() as session:
                 session.execute(delete(MediaFile).where(MediaFile.id.in_(ids)))
             progress.removed = len(ids)
+
+    def _walk_folders(
+        self, root: Path, folders: list[str], counted: Callable[[int], None]
+    ) -> tuple[list[Found], int]:
+        """``walk`` over some top-level folders; paths stay relative to the library root.
+        A folder that no longer exists simply has nothing in it (its files are gone)."""
+        found: list[Found] = []
+        unstable = 0
+        for folder in folders:
+            try:
+                sub = resolve_within(root, root / folder)
+            except PathNotAllowedError:
+                logger.warning("ignoring a folder outside the library", extra={"folder": folder})
+                continue
+            if not sub.is_dir():
+                continue
+            items, skipped = walk(
+                sub, self._stable_seconds, time.time(), partial(_offset, counted, len(found))
+            )
+            unstable += skipped
+            prefix = sub.relative_to(root).as_posix()
+            found += [
+                Found(item.path, f"{prefix}/{item.relative}", item.size, item.mtime_ns)
+                for item in items
+            ]
+        return found, unstable
 
     def _save_unchanged_and_moves(
         self, touched: list[int], moves: list[tuple[int, Found, str]]

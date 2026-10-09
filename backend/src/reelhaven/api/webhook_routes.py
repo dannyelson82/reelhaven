@@ -18,6 +18,7 @@ from reelhaven import audit, settings_store
 from reelhaven.api.deps import AnyPrincipalDep, DbDep, csrf_protect, require_setup_done
 from reelhaven.db import Integration, Library
 from reelhaven.db.types import utcnow
+from reelhaven.watcher import title_folder
 from reelhaven.webhooks import CHANGE_EVENTS, Kind, match_library, remote_paths
 
 router = APIRouter(dependencies=[Depends(require_setup_done), Depends(csrf_protect)])
@@ -96,10 +97,14 @@ async def webhook(
                     library=library.name,
                 )
             else:
-                request.app.state.watcher.changed(library.id)
+                # Sonarr/Radarr name the series or film folder (or a file in it): only that
+                # folder is rescanned (ADR-0030). Such a path is a folder, even if it's gone.
+                folder = title_folder(library.path, local, is_directory=True)
+                request.app.state.watcher.changed(library.id, folder)
+                where = library.name if folder is None else f"{folder} in {library.name}"
                 result = WebhookResult(
                     outcome="rescan",
-                    message=f"{library.name} will be rescanned shortly.",
+                    message=f"{where} will be rescanned shortly.",
                     library=library.name,
                 )
 

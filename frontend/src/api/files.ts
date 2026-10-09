@@ -17,6 +17,7 @@ export interface ScanStatus {
   languages_resolved: number;
   languages_unknown: number;
   language_errors: string[];
+  folders: string[];
   error: string | null;
   started_at: number;
   phase_started_at: number;
