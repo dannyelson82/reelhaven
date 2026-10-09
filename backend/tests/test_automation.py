@@ -9,11 +9,16 @@ from fastapi import FastAPI
 from fastapi.testclient import TestClient
 from sqlalchemy import select
 
-from reelhaven.automation import Automation, FileState, pick, rescan_due
+from reelhaven import device_settings
+from reelhaven.automation import Automation, FileState, pick, queue_target, rescan_due
 from reelhaven.config import Settings
 from reelhaven.db import Database, Job, Library
+from reelhaven.device_settings import DeviceConfig, DeviceSettings
+from reelhaven.devices import CPU
 from reelhaven.dryrun import FilePlan
 from reelhaven.encode_planner import profile_fingerprint
+from reelhaven.encoders import Device
+from reelhaven.jobs.queue import JobQueue
 from reelhaven.media.probe import probe
 from reelhaven.planner import Action, Plan
 from reelhaven.profiles import ProfileSettings
@@ -228,3 +233,76 @@ def test_nightly_rescan_starts_watched_libraries(app: FastAPI, settings: Setting
     assert started == ["Watched"]  # Off is never scanned; Auto already ran today
     with db.read() as session:
         assert session.scalars(select(Job)).first() is None
+
+
+# --- keeping every GPU busy (owner request) ------------------------------------------------
+
+
+def test_queue_target_covers_every_slot_plus_spare() -> None:
+    assert queue_target(0) == 4  # no devices known yet: the old minimum
+    assert queue_target(2) == 4
+    assert queue_target(4) == 6  # RTX + iGPU at 2 each, plus 2 waiting
+    assert queue_target(8) == 10
+
+
+class FakeDevices:
+    def __init__(self, *devices: Device) -> None:
+        self._devices = devices
+
+    def usable(self) -> list[tuple[Device, object]]:
+        return [(d, None) for d in self._devices]
+
+
+def test_encode_slots_add_up_the_enabled_devices(db: Database, settings: Settings) -> None:
+    nvidia = Device(id="nvidia:0", kind="nvidia", name="RTX", family="nvenc", index=0)
+    intel = Device(id="intel:0000:00:02.0", kind="intel", name="UHD", family="qsv")
+    queue = JobQueue(db, settings, FakeDevices(nvidia, intel, CPU))  # type: ignore[arg-type]
+    assert queue.encode_slots() == 4  # 2 + 2; the CPU is off by default
+    with db.write() as session:
+        device_settings.save(
+            session,
+            DeviceSettings(
+                cpu_enabled=True,
+                cpu_concurrency=1,
+                devices={
+                    nvidia.id: DeviceConfig(concurrency=6),
+                    intel.id: DeviceConfig(enabled=False),
+                },
+            ),
+        )
+    assert queue.encode_slots() == 7  # 6 on the RTX, the iGPU switched off, 1 on the CPU
+
+
+@needs_ffmpeg
+def test_top_up_fills_every_gpu_slot(app: FastAPI, settings: Settings) -> None:  # noqa: F811
+    admin, lib, _big = setup(app, settings, FAST)
+    for n in range(9):
+        add_remux_file(settings, f"Film {n} (2019)")
+    rescan(app, admin, lib)
+    # Paused: the app's own Automatic round mustn't queue anything first.
+    pause = {"paused": True, "rescan_enabled": False, "rescan_at": "03:00"}
+    assert admin.put(f"{API}/automation", json=pause).status_code == 200
+    admin.patch(f"{API}/libraries/{lib}", json={"watch_mode": "automatic"})
+    db: Database = app.state.db
+    automation = Automation(
+        db, start_scan=lambda _lib: True, notify_queue=lambda: None, encode_slots=lambda: 6
+    )
+    assert automation.top_up(lib) == 8  # 6 slots + 2 spare, not the old 4
+
+
+@needs_ffmpeg
+def test_a_finished_job_refills_the_queue_at_once(app: FastAPI, settings: Settings) -> None:  # noqa: F811
+    admin, lib, _big = setup(app, settings, FAST)
+    add_remux_file(settings, "Small (2019)")
+    rescan(app, admin, lib)
+    pokes: list[int] = []
+    app.state.automation.poke = lambda: pokes.append(1)
+    app.state.queue.on_job_finished = app.state.automation.poke  # as wired at startup
+    admin.patch(f"{API}/libraries/{lib}", json={"watch_mode": "automatic"})
+    app.state.automation.tick()
+    assert app.state.queue.wait_idle(120)
+    assert pokes  # Automatic was asked to queue more without waiting for the next round
+
+
+def test_startup_connects_the_queue_to_automatic(app: FastAPI) -> None:  # noqa: F811
+    assert app.state.queue.on_job_finished == app.state.automation.poke

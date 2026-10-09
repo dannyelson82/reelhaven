@@ -59,6 +59,8 @@ class JobQueue:
         self._claim_lock = threading.Lock()
         self._idle = threading.Condition()
         self._active = 0
+        # Called after every job (e.g. so Automatic can queue the next one at once).
+        self.on_job_finished: Callable[[], None] = lambda: None
 
     # --- lifecycle -------------------------------------------------------------------
 
@@ -154,6 +156,10 @@ class JobQueue:
                     self._active -= 1
                     self._idle.notify_all()
                 self._wake.set()  # another worker may now have something to do
+                try:
+                    self.on_job_finished()
+                except Exception:
+                    logger.exception("after-job hook failed")
 
     def _run_remux(self, job_id: int) -> None:
         process(self._db, self._settings, job_id)
@@ -238,6 +244,21 @@ class JobQueue:
             ):
                 return True
         return False
+
+    def encode_slots(self) -> int:
+        """How many encodes the enabled devices run at once, all together."""
+        if self._devices is None:
+            return 0
+        with self._db.read() as session:
+            settings = device_settings.load(session)
+        total = 0
+        for device, _report in self._devices.usable():
+            if device.kind == "cpu":
+                total += settings.cpu_concurrency if settings.cpu_enabled else 0
+            else:
+                config = settings.config_for(device.id)
+                total += config.concurrency if config.enabled else 0
+        return total
 
     def _fail(self, job_id: int, error: str) -> None:
         logger.warning("job failed", extra={"job": job_id, "error": error[:300]})

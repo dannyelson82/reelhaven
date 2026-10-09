@@ -27,6 +27,10 @@ job. The owner asked for GPU decoding as the priority.
 - Verification, HDR checks and everything after the encode are unchanged.
 - **Intel (QSV) and AMD (VAAPI)** decoding follow in a second step with the same
   fallback.
+- **Keep every GPU busy** (owner request): an Automatic library keeps as many jobs
+  queued as all enabled devices run at once, plus two waiting (at least four,
+  as before; ADR-0025 said "a few"), and a finished job wakes Automatic so the
+  next one is queued at once instead of on the next 30-second round.
 
 ## Consequences
 - Much lower CPU use per GPU job, so the CPU stays free for other containers.
