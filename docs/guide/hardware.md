@@ -58,13 +58,14 @@ little less space.
 ### Decoding on the GPU too
 
 To re-encode a file, ReelHaven first has to decode (unpack) the original
-video. With an NVIDIA card it does that on the card as well, so the CPU stays
-almost idle. This works for nearly every file: H.264, HEVC (including 10-bit
-and HDR), VP9, AV1 (RTX 30 series and newer), MPEG-2 and VC-1. The few files
-the card can't decode, such as 10-bit H.264 ("Hi10P", common in anime), are
-decoded by the CPU instead. If decoding on the card fails for any reason, the
-file is simply tried again with the CPU, so nothing is lost. Intel and AMD
-graphics will get the same in a later update.
+video. It does that on the same graphics card that encodes, NVIDIA, Intel or
+AMD, so the CPU stays almost idle. This works for nearly every file: H.264,
+HEVC (including 10-bit and HDR), VP9, AV1 (on newer cards: RTX 30, Intel 11th
+generation, AMD RX 6000 and later), MPEG-2 and VC-1. The few files a card
+can't decode, such as 10-bit H.264 ("Hi10P", common in anime), are decoded by
+the CPU instead. If decoding on the card fails for any reason, the file is
+simply tried again with the CPU, so nothing is lost. The [Jobs](jobs.md) page
+shows which was used.
 
 ## Check that your GPUs really work
 

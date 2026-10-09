@@ -103,8 +103,6 @@ def test_gpu_test_run(gpu_app: FastAPI, settings: Settings, gpu: str) -> None:
 
 # --- GPU decoding (ADR-0029) ---------------------------------------------------------------
 
-NVIDIA_GPUS = [g for g in GPUS if g.startswith("nvidia:")]
-
 
 def spy_ffmpeg(monkeypatch: pytest.MonkeyPatch) -> list[list[str]]:
     """Record every encode command while still running it for real."""
@@ -119,8 +117,8 @@ def spy_ffmpeg(monkeypatch: pytest.MonkeyPatch) -> list[list[str]]:
     return calls
 
 
-@pytest.mark.parametrize("gpu", NVIDIA_GPUS)
-def test_nvidia_decodes_on_the_gpu(
+@pytest.mark.parametrize("gpu", GPUS)
+def test_jobs_decode_on_the_gpu(
     gpu_app: FastAPI, settings: Settings, gpu: str, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     calls = spy_ffmpeg(monkeypatch)
@@ -130,11 +128,11 @@ def test_nvidia_decodes_on_the_gpu(
     assert gpu_app.state.queue.wait_idle(180)
     job = last_job(admin)
     assert (job["status"], job["outcome"]) == ("done", "replaced"), job
-    assert len(calls) == 1 and "cuda" in calls[0]  # decoded on the card
+    assert len(calls) == 1 and "-hwaccel" in calls[0]  # decoded on the card
     assert job["decoder"] == "gpu"  # and the Jobs page says so
 
 
-@pytest.mark.parametrize("gpu", NVIDIA_GPUS)
+@pytest.mark.parametrize("gpu", GPUS)
 def test_hdr10_survives_gpu_decoding(
     tmp_path: Path, registry: DeviceRegistry, gpu: str, monkeypatch: pytest.MonkeyPatch
 ) -> None:
@@ -151,14 +149,14 @@ def test_hdr10_survives_gpu_decoding(
         FFMPEG or "ffmpeg", device, source, output, info, p, profile,
         timeout_s=300, on_progress=lambda *_: None, should_cancel=lambda: False,
     )  # fmt: skip
-    assert "cuda" in calls[0]
+    assert "-hwaccel" in calls[0]
     verify_output(
         output, info, expected_encode_layout(source, info, p, profile),
         FFMPEG or "ffmpeg", "ffprobe", expected_video=expected_video(info, profile),
     )  # fmt: skip  # raises if HDR10 was lost
 
 
-@pytest.mark.parametrize("gpu", NVIDIA_GPUS)
+@pytest.mark.parametrize("gpu", GPUS)
 def test_a_file_the_card_cant_decode_falls_back_to_the_cpu(
     tmp_path: Path, registry: DeviceRegistry, gpu: str, monkeypatch: pytest.MonkeyPatch
 ) -> None:
@@ -183,6 +181,6 @@ def test_a_file_the_card_cant_decode_falls_back_to_the_cpu(
         timeout_s=300, on_progress=lambda *_: None, should_cancel=lambda: False,
     )  # fmt: skip
     assert decoded_on_gpu is False
-    assert ["cuda" in c for c in calls] == [True, False]
+    assert ["-hwaccel" in c for c in calls] == [True, False]
     out = probe(output)
     assert out.video is not None and out.video.codec == "hevc"

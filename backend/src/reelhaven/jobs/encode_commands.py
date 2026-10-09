@@ -18,6 +18,7 @@ from reelhaven.encoders import (
     gpu_video_filters,
     hw_init_args,
     profile_args,
+    scaled_width,
     upload_filters,
 )
 from reelhaven.jobs.commands import MARKER_TAG, disposition_value, remux_format
@@ -173,7 +174,12 @@ def encode_command(
     out_video = next(i for i, s in enumerate(streams) if s.action == "encode-video")
     height = target_height(video, profile)
     if gpu_decode:
-        filters = gpu_video_filters(height, ten_bit)
+        size = (
+            (scaled_width(video.width or 0, video.height or 1, height), height)
+            if height is not None and video.width and video.height
+            else None
+        )
+        filters = gpu_video_filters(device, size, ten_bit)
     else:
         filters = [f"scale=-2:{height}:flags=lanczos"] if height is not None else []
         filters += upload_filters(device, ten_bit)

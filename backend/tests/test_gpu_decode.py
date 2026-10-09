@@ -6,14 +6,14 @@ from pathlib import Path
 import pytest
 
 from reelhaven.devices import CPU
-from reelhaven.encoders import gpu_decodes
+from reelhaven.encoders import Device, gpu_decodes, scaled_width
 from reelhaven.jobs import encode_run
 from reelhaven.jobs.encode_commands import encode_command
 from reelhaven.jobs.runner import CancelledError, RunError
 from reelhaven.planner import plan
 from reelhaven.policy import LanguagePolicy
 from reelhaven.profiles import ProfileSettings
-from tests.test_encode_commands import INTEL, NVIDIA, media
+from tests.test_encode_commands import AMD, INTEL, NVIDIA, media
 
 
 @pytest.mark.parametrize(
@@ -40,9 +40,61 @@ def test_nvenc_decodes_what_nvdec_can(
     assert gpu_decodes(NVIDIA, codec, bit_depth, pix_fmt) is expected
 
 
-def test_other_devices_keep_cpu_decoding_for_now() -> None:
-    assert not gpu_decodes(INTEL, "h264", 8, "yuv420p")
+def test_intel_and_amd_decode_on_the_gpu_too() -> None:
+    for device in (INTEL, AMD):
+        assert gpu_decodes(device, "h264", 8, "yuv420p")
+        assert gpu_decodes(device, "hevc", 10, "yuv420p10le")
+        assert not gpu_decodes(device, "hevc", 12, "yuv420p12le")  # only recent chips
+        assert not gpu_decodes(device, "h264", 10, "yuv420p10le")
+        assert not gpu_decodes(device, "mpeg4", 8, "yuv420p")
     assert not gpu_decodes(CPU, "h264", 8, "yuv420p")
+
+
+def _gpu_command(device: Device, **profile: object) -> list[str]:
+    info = media(hdr="hdr10")
+    settings = ProfileSettings(**profile)  # type: ignore[arg-type]
+    p = plan(info, "eng", LanguagePolicy())
+    return encode_command(
+        "ffmpeg", device, Path("/m/a.mkv"), Path("/w/a.mkv"), info, p, settings, True
+    )
+
+
+def test_quick_sync_decodes_and_scales_on_the_igpu() -> None:
+    args = _gpu_command(INTEL, max_height=1080)
+    before_input = args[: args.index("-i")]
+    assert before_input[-12:] == [
+        "-init_hw_device", "vaapi=va:/dev/dri/renderD128",
+        "-init_hw_device", "qsv=hw@va",
+        "-filter_hw_device", "hw",
+        "-hwaccel", "qsv", "-hwaccel_device", "hw",
+        "-hwaccel_output_format", "qsv",
+    ]  # fmt: skip
+    # 3840x2160 to 1080 lines: the width is worked out (Intel's scaler needs it).
+    assert args[args.index("-filter:v:0") + 1] == "vpp_qsv=w=1920:h=1080:format=p010"
+    assert "hwupload" not in " ".join(args)  # the frames are already on the GPU
+
+
+def test_amd_decodes_and_scales_with_vaapi() -> None:
+    args = _gpu_command(AMD, max_height=1080)
+    assert args[args.index("-i") - 6 : args.index("-i")] == [
+        "-hwaccel", "vaapi", "-hwaccel_device", "va", "-hwaccel_output_format", "vaapi",
+    ]  # fmt: skip
+    assert args[args.index("-filter:v:0") + 1] == "scale_vaapi=w=1920:h=1080:format=p010"
+
+
+@pytest.mark.parametrize(
+    ("width", "height", "target", "expected"),
+    [
+        (3840, 2160, 1080, 1920),
+        (1920, 800, 720, 1728),
+        (1440, 1080, 720, 960),
+        (1998, 1080, 720, 1332),
+    ],
+)
+def test_scaled_width_keeps_proportions_and_is_even(
+    width: int, height: int, target: int, expected: int
+) -> None:
+    assert scaled_width(width, height, target) == expected
 
 
 def _command(gpu_decode: bool, **profile: object) -> list[str]:

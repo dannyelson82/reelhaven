@@ -80,15 +80,34 @@ def profile_args(device: Device, codec: Codec, ten_bit: bool) -> list[str]:
 
 # --- GPU decoding (ADR-0029) ------------------------------------------------------------
 
-# What NVDEC decodes on every NVENC card from Pascal on, as (codec -> bit depths), in 4:2:0.
-# AV1 needs an RTX 30 or newer; on older cards the encode falls back to CPU decoding.
-_NVDEC: dict[str, tuple[int, ...]] = {
-    "h264": (8,),
-    "hevc": (8, 10, 12),
-    "vp9": (8, 10, 12),
-    "av1": (8, 10),
-    "mpeg2video": (8,),
-    "vc1": (8,),
+# What each family's decoder handles, as (codec -> bit depths), in 4:2:0. Generations
+# differ (AV1 needs an RTX 30, an Intel 11th gen or an AMD RX 6000 or newer; 12-bit HEVC
+# needs a recent Intel): a file the device can't decode after all falls back to the CPU.
+_HW_DECODE: dict[Family, dict[str, tuple[int, ...]]] = {
+    "nvenc": {
+        "h264": (8,),
+        "hevc": (8, 10, 12),
+        "vp9": (8, 10, 12),
+        "av1": (8, 10),
+        "mpeg2video": (8,),
+        "vc1": (8,),
+    },
+    "qsv": {
+        "h264": (8,),
+        "hevc": (8, 10),
+        "vp9": (8, 10),
+        "av1": (8, 10),
+        "mpeg2video": (8,),
+        "vc1": (8,),
+    },
+    "vaapi": {
+        "h264": (8,),
+        "hevc": (8, 10),
+        "vp9": (8, 10),
+        "av1": (8, 10),
+        "mpeg2video": (8,),
+        "vc1": (8,),
+    },
 }
 
 
@@ -97,15 +116,22 @@ def gpu_decodes(
 ) -> bool:
     """Whether to decode the source on ``device`` itself. Unknown chroma (older scans) is
     taken as 4:2:0, the norm; a wrong guess only costs a retry with CPU decoding."""
-    if device.family != "nvenc" or codec not in _NVDEC:
+    table = _HW_DECODE.get(device.family)
+    if table is None or codec not in table:
         return False
     if pix_fmt is not None and ("422" in pix_fmt or "444" in pix_fmt or "440" in pix_fmt):
         return False
-    return (bit_depth or 8) in _NVDEC[codec]
+    return (bit_depth or 8) in table[codec]
 
 
 def gpu_decode_args(device: Device) -> list[str]:
     """Arguments before ``-i`` that decode on the GPU and keep the frames there."""
+    if device.family == "qsv":
+        return [*hw_init_args(device), "-hwaccel", "qsv", "-hwaccel_device", "hw",
+                "-hwaccel_output_format", "qsv"]  # fmt: skip
+    if device.family == "vaapi":
+        return [*hw_init_args(device), "-hwaccel", "vaapi", "-hwaccel_device", "va",
+                "-hwaccel_output_format", "vaapi"]  # fmt: skip
     return [
         "-hwaccel",
         "cuda",
@@ -116,8 +142,22 @@ def gpu_decode_args(device: Device) -> list[str]:
     ]
 
 
-def gpu_video_filters(height: int | None, ten_bit: bool) -> list[str]:
-    """Scale and set the bit depth on the GPU (frames never leave it)."""
-    options = [f"w=-2:h={height}:interp_algo=lanczos"] if height is not None else []
+def scaled_width(width: int, height: int, target_height: int) -> int:
+    """The width keeping the picture's proportions at ``target_height``, rounded to even."""
+    return max(2, round(width * target_height / height / 2) * 2)
+
+
+def gpu_video_filters(device: Device, size: tuple[int, int] | None, ten_bit: bool) -> list[str]:
+    """Scale (to ``size`` = width, height) and set the bit depth on the GPU, so the frames
+    never leave it."""
+    if device.family == "qsv":
+        options = [f"w={size[0]}:h={size[1]}"] if size else []
+        options.append(f"format={'p010' if ten_bit else 'nv12'}")
+        return [f"vpp_qsv={':'.join(options)}"]
+    if device.family == "vaapi":
+        options = [f"w={size[0]}:h={size[1]}"] if size else []
+        options.append(f"format={'p010' if ten_bit else 'nv12'}")
+        return [f"scale_vaapi={':'.join(options)}"]
+    options = [f"w=-2:h={size[1]}:interp_algo=lanczos"] if size else []
     options.append(f"format={'p010le' if ten_bit else 'nv12'}")
     return [f"scale_cuda={':'.join(options)}"]
