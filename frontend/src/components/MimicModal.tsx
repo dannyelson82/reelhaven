@@ -15,7 +15,7 @@ import {
 } from '@mantine/core';
 import { useDebouncedValue } from '@mantine/hooks';
 import { IconSearch } from '@tabler/icons-react';
-import { useState } from 'react';
+import { type ReactNode, useState } from 'react';
 import { errorMessage } from '../api/client';
 import { useFiles } from '../api/files';
 import { useLibraries } from '../api/libraries';
@@ -26,19 +26,29 @@ import { HDR_LABELS, formatBytes, resolutionLabel } from '../format';
 export function MimicModal({
   onClose,
   onUse,
+  only,
+  title = 'Mimic a file',
+  useLabel = 'Use these settings',
+  extra,
 }: {
   onClose: () => void;
-  onUse: (file: string, report: MimicReport) => void;
+  onUse: (file: string, report: MimicReport, fileId: number) => void;
+  /** Pick from this library only (the wizard's library). */
+  only?: number;
+  title?: string;
+  useLabel?: string;
+  /** More about the result, e.g. what it would save. */
+  extra?: (report: MimicReport) => ReactNode;
 }) {
   const libraries = useLibraries();
-  const [libraryId, setLibraryId] = useState<number | null>(null);
+  const [libraryId, setLibraryId] = useState<number | null>(only ?? null);
   const [query, setQuery] = useState('');
   const [debounced] = useDebouncedValue(query, 300);
   const [fileId, setFileId] = useState<number | null>(null);
   const library = libraryId ?? libraries.data?.[0]?.id ?? null;
 
   return (
-    <Modal opened onClose={onClose} title="Mimic a file" size="lg">
+    <Modal opened onClose={onClose} title={title} size="lg">
       {fileId === null ? (
         <Stack>
           <Text size="sm" c="dimmed">
@@ -50,13 +60,15 @@ export function MimicModal({
             <Alert color="yellow">Add a library first: the sample must be in one.</Alert>
           )}
           <Group grow>
-            <Select
-              label="Library"
-              data={(libraries.data ?? []).map((l) => ({ value: String(l.id), label: l.name }))}
-              value={library === null ? null : String(library)}
-              onChange={(v) => setLibraryId(v === null ? null : Number(v))}
-              allowDeselect={false}
-            />
+            {only === undefined && (
+              <Select
+                label="Library"
+                data={(libraries.data ?? []).map((l) => ({ value: String(l.id), label: l.name }))}
+                value={library === null ? null : String(library)}
+                onChange={(v) => setLibraryId(v === null ? null : Number(v))}
+                allowDeselect={false}
+              />
+            )}
             <TextInput
               label="Search"
               placeholder="Part of the file name"
@@ -73,7 +85,9 @@ export function MimicModal({
         <MimicResult
           fileId={fileId}
           onBack={() => setFileId(null)}
-          onUse={(file, report) => onUse(file, report)}
+          onUse={(file, report) => onUse(file, report, fileId)}
+          useLabel={useLabel}
+          extra={extra}
         />
       )}
     </Modal>
@@ -143,10 +157,14 @@ function MimicResult({
   fileId,
   onBack,
   onUse,
+  useLabel,
+  extra,
 }: {
   fileId: number;
   onBack: () => void;
   onUse: (file: string, report: MimicReport) => void;
+  useLabel: string;
+  extra?: (report: MimicReport) => ReactNode;
 }) {
   const mimic = useMimic(fileId);
   if (mimic.isPending) {
@@ -200,12 +218,13 @@ function MimicResult({
         <Text size="sm" fw={500}>
           {describe(report.settings)}
         </Text>
+        {extra?.(report)}
       </Card>
       <Group justify="space-between">
         <Button variant="default" onClick={onBack}>
           Pick another file
         </Button>
-        <Button onClick={() => onUse(file, report)}>Use these settings</Button>
+        <Button onClick={() => onUse(file, report)}>{useLabel}</Button>
       </Group>
     </Stack>
   );

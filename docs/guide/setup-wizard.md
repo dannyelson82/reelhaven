@@ -46,12 +46,16 @@ Later runs go straight to the library steps.
    [Languages](languages.md).
 4. **Size and quality**: three cards, **Smallest**, **Balanced**
    (recommended) and **Best quality**, each showing roughly how much space it
-   would save on *this* library. While the library is still being read, the
+   would save on *this* library. A fourth card, **Copy a file I like**, lets
+   you pick a file from this library whose size and picture you like:
+   ReelHaven reads how it was made, shows what it found and what it would
+   save, and **Choose this** makes it the choice (click the card again to pick
+   another file). On **Next** it is saved as a profile named *Like <file
+   name>* (see [Mimic a file](mimic.md)). While the library is still being read, the
    estimates appear after the first 200 files and are worked out from the
    files read so far (the step says how many); they get more accurate as
    reading continues. **More options** lets you pick another
-   profile, for example one made with [Mimic a file](mimic.md), or *Don't
-   re-encode video* to only change languages.
+   profile you made, or *Don't re-encode video* to only change languages.
 5. **Audio**: **Keep audio as it is** (recommended), **Shrink big audio
    tracks, keep surround**, or **Stereo only (smallest)**, each with the extra
    space it saves. Stereo removes surround sound for good once the originals

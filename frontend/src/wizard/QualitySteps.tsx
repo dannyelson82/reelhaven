@@ -15,11 +15,13 @@ import {
   UnstyledButton,
 } from '@mantine/core';
 import { useState } from 'react';
-import { Link, useSearchParams } from 'react-router';
+import { useSearchParams } from 'react-router';
 import { errorMessage } from '../api/client';
 import {
   type Profile,
+  describe,
   describeAudio,
+  useMimic,
   type ProfileSettings,
   useProfiles,
   useSaveProfile,
@@ -42,6 +44,23 @@ import {
 } from './choices';
 import type { StepProps } from './LibrarySteps';
 import { AudioGuide } from '../components/AudioGuide';
+import { MimicModal } from '../components/MimicModal';
+
+/** The quality step's "Copy a file I like" choice. */
+const MIMIC = 'mimic';
+
+/** What a file's settings would save on the library, inside the Mimic result. */
+function MimicSaving({ libraryId, settings }: { libraryId: number; settings: ProfileSettings }) {
+  const estimate = useEstimate(libraryId, { [MIMIC]: settings });
+  const { ready, scale } = readiness(estimate.data);
+  return (
+    <Saving
+      result={ready ? estimate.data?.results[MIMIC] : undefined}
+      libraryBytes={estimate.data?.library_bytes}
+      scale={scale}
+    />
+  );
+}
 
 function NavButtons({ onBack, next }: { onBack?: () => void; next: React.ReactNode }) {
   return (
@@ -180,25 +199,48 @@ export function QualityStep({ libraryId, onNext, onBack }: StepProps) {
   const [params, setParams] = useSearchParams();
   const profiles = useProfiles();
   const setProfile = useSetLibraryProfile(id);
+  const save = useSaveProfile();
   const [more, setMore] = useState(false);
+  const [picking, setPicking] = useState(false);
+  const mimicFile = params.get('mimic');
+  const mimic = useMimic(mimicFile ? Number(mimicFile) : null);
   const builtins = Object.fromEntries(
     (profiles.data ?? []).filter((p) => p.builtin).map((p) => [p.name, p]),
   );
   const presets = PRESETS.map((preset) => ({ ...preset, profile: builtins[preset.builtin] }));
-  const candidates = Object.fromEntries(
+  const candidates: Record<string, ProfileSettings> = Object.fromEntries(
     presets.filter((p) => p.profile).map((p) => [String(p.profile.id), p.profile.settings]),
   );
+  if (mimic.data) candidates[MIMIC] = mimic.data.report.settings;
   const estimate = useEstimate(id, candidates);
   const { ready, scale } = readiness(estimate.data);
   const balancedId = builtins.Balanced ? String(builtins.Balanced.id) : null;
   const choice = params.get('choice') ?? balancedId;
   const others = (profiles.data ?? []).filter((p) => !presets.some((x) => x.profile?.id === p.id));
+  const isPreset = presets.some((p) => String(p.profile?.id) === choice);
 
   if (!profiles.data) return <Loader />;
-  const choose = (value: string) => {
+  const choose = (value: string, mimicId?: number) => {
     const next = new URLSearchParams(params);
     next.set('choice', value);
+    if (mimicId !== undefined) next.set('mimic', String(mimicId));
     setParams(next, { replace: true });
+  };
+  // The file's settings become a profile (or an identical existing one) on Next.
+  const saveMimic = async () => {
+    if (!mimic.data) return;
+    const { file, report } = mimic.data;
+    if (findProfile(profiles.data, report.settings)) return;
+    const stem = (file.split('/').pop() ?? file).replace(/\.[^.]+$/, '');
+    await save.mutateAsync({
+      name: profileName(
+        `Like ${stem}`.slice(0, 90),
+        'keep',
+        profiles.data.map((p) => p.name),
+      ),
+      settings: report.settings,
+      mimic: { file, sources: report.sources, notes: report.notes },
+    });
   };
 
   return (
@@ -207,7 +249,7 @@ export function QualityStep({ libraryId, onNext, onBack }: StepProps) {
         How small should your files get? Each choice shows what it would save on this library; the
         test run in a moment shows the real result.
       </Text>
-      <SimpleGrid cols={{ base: 1, sm: 3 }}>
+      <SimpleGrid cols={{ base: 1, sm: 2, lg: 4 }}>
         {presets.map((preset) =>
           preset.profile ? (
             <ChoiceCard
@@ -225,7 +267,47 @@ export function QualityStep({ libraryId, onNext, onBack }: StepProps) {
             </ChoiceCard>
           ) : null,
         )}
+        <ChoiceCard
+          selected={choice === MIMIC}
+          title="Copy a file I like"
+          description={
+            mimic.data
+              ? `Like ${mimic.data.file.split('/').pop()}: ${describe(mimic.data.report.settings)}.`
+              : 'Pick a file in this library whose size and quality you like; ReelHaven matches it.'
+          }
+          onClick={() => (mimic.data && choice !== MIMIC ? choose(MIMIC) : setPicking(true))}
+        >
+          {mimic.data ? (
+            <>
+              <Saving
+                result={ready ? estimate.data?.results[MIMIC] : undefined}
+                libraryBytes={estimate.data?.library_bytes}
+                scale={scale}
+              />
+              {choice === MIMIC && (
+                <Text size="xs" c="dimmed">
+                  Click again to pick another file.
+                </Text>
+              )}
+            </>
+          ) : mimic.isFetching ? (
+            <Loader size="xs" />
+          ) : null}
+        </ChoiceCard>
       </SimpleGrid>
+      {picking && (
+        <MimicModal
+          only={id}
+          title="Copy a file I like"
+          useLabel="Choose this"
+          extra={(report) => <MimicSaving libraryId={id} settings={report.settings} />}
+          onClose={() => setPicking(false)}
+          onUse={(_file, _report, fileId) => {
+            setPicking(false);
+            choose(MIMIC, fileId);
+          }}
+        />
+      )}
       {estimate.isError && <Alert color="red">{errorMessage(estimate.error)}</Alert>}
       <ReadingNote libraryId={id} estimate={estimate.data} />
       <Anchor component="button" size="sm" onClick={() => setMore(!more)} w="fit-content">
@@ -240,29 +322,28 @@ export function QualityStep({ libraryId, onNext, onBack }: StepProps) {
               { value: 'none', label: "Don't re-encode video (only language changes)" },
               ...others.map((p) => ({ value: String(p.id), label: p.name })),
             ]}
-            value={presets.some((p) => String(p.profile?.id) === choice) ? null : choice}
+            value={isPreset || choice === MIMIC ? null : choice}
             onChange={(v) => v && choose(v)}
           />
-          <Text size="xs" c="dimmed">
-            To copy the size and quality of a file you like, use{' '}
-            <Anchor component={Link} to="/profiles" size="xs">
-              Mimic a file
-            </Anchor>{' '}
-            on the Profiles page, then come back here.
-          </Text>
         </Stack>
       </Collapse>
       {setProfile.isError && <Alert color="red">{errorMessage(setProfile.error)}</Alert>}
+      {save.isError && <Alert color="red">{errorMessage(save.error)}</Alert>}
       <NavButtons
         onBack={onBack}
         next={
           <Button
-            disabled={!choice}
-            loading={setProfile.isPending}
+            disabled={!choice || (choice === MIMIC && !mimic.data)}
+            loading={setProfile.isPending || save.isPending}
             onClick={() => {
               if (choice === 'none') {
                 // No video re-encoding: no profile, so no audio step either.
                 setProfile.mutate(null, { onSuccess: () => onNext() });
+              } else if (choice === MIMIC) {
+                saveMimic().then(
+                  () => onNext(),
+                  () => undefined,
+                );
               } else onNext();
             }}
           >
@@ -280,7 +361,12 @@ export function AudioStep({ libraryId, onNext, onBack }: StepProps) {
   const profiles = useProfiles();
   const save = useSaveProfile();
   const setProfile = useSetLibraryProfile(id);
-  const base = profiles.data?.find((p) => String(p.id) === params.get('choice'));
+  const mimicFile = params.get('mimic');
+  const mimic = useMimic(params.get('choice') === MIMIC && mimicFile ? Number(mimicFile) : null);
+  const base =
+    params.get('choice') === MIMIC
+      ? mimic.data && profiles.data && findProfile(profiles.data, mimic.data.report.settings)
+      : profiles.data?.find((p) => String(p.id) === params.get('choice'));
   const keepDays = useRecycleSettings().data?.keep_days ?? 14;
   // A profile with its own audio setup (e.g. from Mimic a file) offers it first.
   const choices =
@@ -303,7 +389,9 @@ export function AudioStep({ libraryId, onNext, onBack }: StepProps) {
   const estimate = useEstimate(id, candidates);
   const { ready, scale } = readiness(estimate.data);
 
-  if (!profiles.data) return <Loader />;
+  // A file's settings just saved as a profile: the list is still refreshing.
+  const settling = params.get('choice') === MIMIC && (mimic.isLoading || profiles.isFetching);
+  if (!profiles.data || (!base && settling)) return <Loader />;
   if (!base) {
     return (
       <Alert color="yellow">

@@ -381,3 +381,78 @@ it('estimates from the files read so far, scaled to the whole library', async ()
   expect((await screen.findAllByText('Saves about 40.0 GB (40%)')).length).toBe(3);
   expect(screen.getByText(/Estimated from 300 of 3,000 files read so far/)).toBeInTheDocument();
 });
+
+it('copies a file the owner likes', async () => {
+  window.location.hash = '#/wizard?library=4&step=quality';
+  const liked = { ...SETTINGS, quality: 5, audio: 'convert', audio_kbps_per_channel: 96 };
+  const profiles = [...PROFILES];
+  const calls = mockApi({
+    'GET auth/state': loggedIn,
+    'GET libraries': { body: [library] },
+    'GET profiles': () => ({ body: profiles }),
+    'POST libraries/4/estimate': (init) => {
+      const asked = Object.keys(JSON.parse(String(init?.body)).profiles);
+      const results = Object.fromEntries(
+        asked.map((key) => [key, { saved_bytes: key === 'mimic' ? 4e9 : 2e9, files: 12 }]),
+      );
+      return { body: { library_bytes: 10e9, results } };
+    },
+    'GET libraries/4/files?q=&problems=false&offset=0&limit=15': {
+      body: {
+        total: 1,
+        items: [
+          {
+            id: 77,
+            relative_path: 'Show/S02E01.mkv',
+            status: 'ok',
+            video_codec: 'hevc',
+            width: 1920,
+            height: 1080,
+            hdr: null,
+            size: 2e9,
+          },
+        ],
+      },
+    },
+    'GET files/77/mimic': {
+      body: {
+        file: 'TV Shows/Show/S02E01.mkv',
+        report: {
+          settings: liked,
+          sources: { quality: 'estimated' },
+          notes: ['Quality estimated from the video bitrate.'],
+          sample: { codec: 'hevc', bit_depth: 10, width: 1920, height: 1080, video_kbps: 4000 },
+        },
+      },
+    },
+    'POST profiles': (init) => {
+      const created = { ...PROFILES[0], id: 9, builtin: false, ...JSON.parse(String(init?.body)) };
+      profiles.push(created);
+      return { status: 201, body: created };
+    },
+    'GET settings/recycle': { body: { keep_days: 14 } },
+    'GET onboarding': { body: { wizard_seen: true, server_steps_done: true } },
+  });
+  render(<App />);
+  await userEvent.click(await screen.findByRole('button', { name: /Copy a file I like/ }));
+  // The picker shows only this library's files, then what was read and what it would save.
+  expect(screen.queryByLabelText('Library')).not.toBeInTheDocument();
+  await userEvent.click(await screen.findByText('S02E01.mkv'));
+  expect(await screen.findByText('Quality estimated from the video bitrate.')).toBeInTheDocument();
+  expect(await screen.findByText('Saves about 4.0 GB (40%)')).toBeInTheDocument();
+  await userEvent.click(screen.getByRole('button', { name: 'Choose this' }));
+
+  const card = await screen.findByRole('button', { name: /Copy a file I like.*Chosen/s });
+  expect(card).toHaveTextContent('Like S02E01.mkv');
+  expect(card).toHaveTextContent('Saves about 4.0 GB (40%)');
+  await userEvent.click(screen.getByRole('button', { name: 'Next' }));
+
+  // Next saved it as a profile; the audio step offers its own audio first.
+  expect(await screen.findByText('As set in this profile')).toBeInTheDocument();
+  const post = calls.find((c) => c.key === 'POST profiles');
+  expect(JSON.parse(String(post?.init?.body))).toMatchObject({
+    name: 'Like S02E01',
+    settings: liked,
+    mimic: { file: 'TV Shows/Show/S02E01.mkv' },
+  });
+});
