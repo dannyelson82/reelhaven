@@ -35,6 +35,7 @@ import { useLibraryProfile, useProfiles } from '../api/profiles';
 import {
   type TestSample,
   frameUrl,
+  isUpNext,
   useApproveTestRun,
   useStartTestRun,
   useTestRun,
@@ -69,7 +70,7 @@ function NavButtons({ onBack, next }: { onBack?: () => void; next: React.ReactNo
   );
 }
 
-function SampleResult({ sample }: { sample: TestSample }) {
+function SampleResult({ sample, upNext }: { sample: TestSample; upNext: boolean }) {
   const live = useLiveJobs();
   const job = live?.active.find((j) => j.id === sample.job_id);
   if (sample.status === 'running') {
@@ -82,9 +83,11 @@ function SampleResult({ sample }: { sample: TestSample }) {
           </Text>
           <Progress value={progress * 100} animated />
           <Text size="xs" c="dimmed">
-            {sample.job_status === 'queued' && !job
-              ? 'Waiting for a free encoder…'
-              : `${Math.round(progress * 100)}%`}
+            {upNext
+              ? 'Up next, once the file before it is done'
+              : sample.job_status === 'queued' && !job
+                ? 'Waiting for a free encoder…'
+                : `${Math.round(progress * 100)}%`}
             {job?.eta_seconds != null && ` · ${formatTimeLeft(job.eta_seconds)} left`}
           </Text>
         </Stack>
@@ -182,7 +185,7 @@ export function TryStep({ libraryId, onNext, onBack }: StepProps) {
       {fresh && run && (
         <SimpleGrid cols={{ base: 1, sm: 2 }}>
           {run.samples.map((sample) => (
-            <SampleResult key={sample.id} sample={sample} />
+            <SampleResult key={sample.id} sample={sample} upNext={isUpNext(sample, run.samples)} />
           ))}
         </SimpleGrid>
       )}

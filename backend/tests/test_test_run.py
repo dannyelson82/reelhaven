@@ -7,9 +7,10 @@ from pathlib import Path
 import pytest
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
+from sqlalchemy import select
 
 from reelhaven.config import Settings
-from reelhaven.db import TestRun, TestRunSample
+from reelhaven.db import Database, Job, TestRun, TestRunSample
 from reelhaven.jobs.test_run import frame_times, run_status, sample_status
 from reelhaven.media.probe import probe
 from reelhaven.quality_metrics import rate, segment_starts
@@ -221,3 +222,26 @@ def test_track_changes_need_no_test_run(app: FastAPI, settings: Settings) -> Non
     assert app.state.queue.wait_idle(120)
     assert [a.language for a in probe(small).of_kind("audio")] == ["eng"]
     assert len(probe(big).of_kind("audio")) == 2  # waits for the test run
+
+
+def test_samples_run_one_at_a_time(app: FastAPI, settings: Settings) -> None:  # noqa: F811
+    """Owner request: the first result shows while the next file encodes."""
+    admin, lib, _path = setup(app, settings, FAST)
+    add_film(admin, app, settings, lib, "Other (2021)")
+    # Two CPU slots: without the rule both samples would run together.
+    admin.put(
+        f"{API}/devices/settings", json={"cpu_enabled": True, "cpu_concurrency": 2, "devices": {}}
+    )
+    started = admin.post(f"{API}/libraries/{lib}/test-run", json={"samples": 2})
+    assert started.status_code == 201, started.text
+    assert app.state.queue.wait_idle(300)
+    db: Database = app.state.db
+    with db.read() as session:
+        runs = sorted(
+            (job.started_at, job.finished_at)
+            for job in session.scalars(select(Job).where(Job.type == "test"))
+        )
+    assert len(runs) == 2 and all(start and end for start, end in runs)
+    (_first_start, first_end), (second_start, _second_end) = runs
+    assert first_end is not None and second_start is not None
+    assert second_start >= first_end  # the second began after the first finished

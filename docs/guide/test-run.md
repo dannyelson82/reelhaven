@@ -20,7 +20,10 @@ files and approve the result. **Originals are never touched by a test run.**
 
 ReelHaven picks the files itself: the largest files that would be
 re-encoded, mixing resolutions, HDR and different titles where it can. Test
-runs go ahead of other queued work, and progress is shown live.
+runs go ahead of other queued work, and progress is shown live. The files
+are encoded one after the other, so each result appears as soon as it's
+ready (the next one shows **up next**) and you can start comparing straight
+away.
 
 ## Read the results
 

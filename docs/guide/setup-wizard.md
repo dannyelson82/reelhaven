@@ -60,10 +60,12 @@ Later runs go straight to the library steps.
    audio setup (for example one made with [Mimic a file](mimic.md)), a fourth
    choice, **As set in this profile**, comes first and is preselected. Shrink
    and Stereo then keep that profile's audio format and bitrate.
-6. **Try it**: ReelHaven tries your choice on 2 files. Your originals aren't
-   touched. Compare the pictures: if you can't tell them apart, click **Looks
-   good**. Otherwise **Try another setting** takes you back to step 4. This is
-   the [test run](test-run.md) that unlocks re-encoding the library.
+6. **Try it**: ReelHaven tries your choice on 2 files, one after the other, so
+   you can look at the first result while the second is encoding. Your
+   originals aren't touched. Compare the pictures: if you can't tell them
+   apart, click **Looks good**. Otherwise **Try another setting** takes you
+   back to step 4. This is the [test run](test-run.md) that unlocks
+   re-encoding the library.
 7. **Safety net**: how long replaced originals stay in the
    [recycle bin](recycle-bin.md): Off, 1, 3, 7, **14** (recommended) or 30
    days. This applies to every library. Choosing **Off** means files can't be

@@ -24,6 +24,7 @@ import {
   type TestRun,
   type TestSample,
   frameUrl,
+  isUpNext,
   useApproveTestRun,
   useStartTestRun,
   useTestRun,
@@ -128,6 +129,7 @@ function TestRunView({ libraryId, run }: { libraryId: number; run: TestRun }) {
           key={sample.id}
           sample={sample}
           liveJob={live?.active.find((j) => j.id === sample.job_id)}
+          upNext={isUpNext(sample, run.samples)}
         />
       ))}
       {run.status === 'approved' && (
@@ -187,7 +189,15 @@ function Summary({ samples }: { samples: TestSample[] }) {
   );
 }
 
-function SampleView({ sample, liveJob }: { sample: TestSample; liveJob?: Job }) {
+function SampleView({
+  sample,
+  liveJob,
+  upNext,
+}: {
+  sample: TestSample;
+  liveJob?: Job;
+  upNext: boolean;
+}) {
   if (sample.status === 'running') {
     const progress = liveJob?.progress ?? sample.progress;
     const fps = liveJob ? liveJob.fps : sample.fps;
@@ -197,7 +207,9 @@ function SampleView({ sample, liveJob }: { sample: TestSample; liveJob?: Job }) 
         <Stack gap="xs">
           <Text size="sm">
             Test-encoding <b>{sample.file}</b>…{' '}
-            {(liveJob?.status ?? sample.job_status) === 'queued' && 'waiting for a free encoder'}
+            {upNext
+              ? 'up next, once the file before it is done'
+              : (liveJob?.status ?? sample.job_status) === 'queued' && 'waiting for a free encoder'}
           </Text>
           <Progress value={progress * 100} animated />
           <Text size="xs" c="dimmed">
