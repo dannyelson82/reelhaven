@@ -21,6 +21,7 @@ from reelhaven.encoders import Device
 from reelhaven.jobs.encode_commands import (
     expected_codecs,
     expected_encode_layout,
+    expected_forced,
     expected_video,
 )
 from reelhaven.jobs.encode_run import run_encode
@@ -226,6 +227,7 @@ def process_test(db: Database, settings: Settings, job_id: int, device: Device) 
             encoded, info, expected_encode_layout(source, info, plan, profile),
             settings.ffmpeg, settings.ffprobe, timeout_s=600 + duration, expected_video=target,
             expected_codecs=expected_codecs(source, info, plan, profile),
+            expected_forced=expected_forced(source, info, plan, profile),
         )  # fmt: skip
         out_video = new_info.video
         assert out_video is not None and out_video.width is not None  # noqa: S101

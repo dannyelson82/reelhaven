@@ -45,7 +45,10 @@ def sub(
     sdh: bool = False,
     image: bool = False,
     commentary: bool = False,
+    forced_flag: bool | None = None,  # the container flag; defaults to ``forced``
 ) -> Stream:
+    """A subtitle stream as a scan reports it (``forced`` may also come from the title)."""
+    flag = forced if forced_flag is None else forced_flag
     return Stream(
         index=index,
         kind="subtitle",
@@ -56,6 +59,7 @@ def sub(
         hearing_impaired=sdh,
         image_based=image,
         commentary=commentary,
+        dispositions=[d for d, on in (("default", default), ("forced", flag)) if on],
     )
 
 
@@ -86,7 +90,13 @@ def apply(info: MediaInfo, p: Plan) -> MediaInfo:
         if track is None:
             streams.append(s)
         elif track.keep:
-            streams.append(s.model_copy(update={"default": track.default_after}))
+            flags = {d for d in s.dispositions if d != "default"}
+            if track.default_after:
+                flags.add("default")
+            if track.forced_after is not None:
+                flags = (flags | {"forced"}) if track.forced_after else (flags - {"forced"})
+            update = {"default": track.default_after, "dispositions": sorted(flags)}
+            streams.append(s.model_copy(update=update))
     return info.model_copy(update={"streams": streams})
 
 
@@ -401,3 +411,62 @@ def test_mp4_always_has_a_default_subtitle() -> None:
     assert defaults(p) == [1, 2]
     assert not any("Clear default" in d for d in p.details)
     assert plan(apply(info, p), "eng", DEFAULT).action == "skip"
+
+
+# --- forced subtitle flags (owner request) -------------------------------------------------
+
+
+def forced_flags(p: Plan) -> dict[int, bool]:
+    return {t.index: t.forced_after for t in p.tracks if t.forced_after is not None}
+
+
+def test_english_forced_subtitles_named_forced_get_the_flag() -> None:
+    """'Forced' only in the title: players won't show it until the flag is set."""
+    info = media(
+        audio(1, "eng", default=True),
+        sub(2, "eng"),
+        sub(3, "eng", forced=True, forced_flag=False),
+    )
+    p = plan(info, "eng", DEFAULT)
+    assert defaults(p) == [1, 3]
+    assert forced_flags(p) == {3: True}
+    assert p.action == "remux"
+    assert "show subtitles automatically" in p.summary
+    assert "Show automatically (forced): subtitle English (forced)." in p.details
+
+
+def test_already_flagged_forced_subtitles_need_nothing() -> None:
+    info = media(audio(1, "eng", default=True), sub(2, "eng", default=True, forced=True))
+    assert plan(info, "eng", DEFAULT).action == "skip"
+
+
+def test_films_that_need_subtitles_get_them_forced() -> None:
+    """A Japanese film: the full English subtitles always show."""
+    info = media(audio(1, "jpn", default=True), sub(2, "eng"), sub(3, "jpn"))
+    p = plan(info, "jpn", DEFAULT)
+    assert defaults(p) == [1, 2]
+    assert forced_flags(p) == {2: True}
+
+
+def test_only_the_preferred_language_is_forced() -> None:
+    info = media(
+        audio(1, "eng", default=True),
+        audio(2, "fra"),
+        sub(3, "fra", forced=True, forced_flag=False),
+    )
+    p = plan(info, "eng", LanguagePolicy(keep_languages=["eng", "fra"]))
+    assert forced_flags(p) == {}  # French forced subtitles aren't touched
+
+
+def test_forced_flags_can_be_switched_off() -> None:
+    info = media(audio(1, "jpn", default=True), sub(2, "eng"))
+    p = plan(info, "jpn", LanguagePolicy(force_subtitles=False))
+    assert defaults(p) == [1, 2]
+    assert forced_flags(p) == {}
+
+
+def test_files_needing_review_get_no_forced_flags() -> None:
+    info = media(audio(1, "fra", default=True), sub(2, "eng"))
+    p = plan(info, "jpn", DEFAULT)  # no wanted audio: review
+    assert p.action == "skip"
+    assert forced_flags(p) == {}

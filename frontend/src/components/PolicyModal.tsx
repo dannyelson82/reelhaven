@@ -104,6 +104,12 @@ function PolicyForm({
           description="Original-language audio; forced subtitles for your language, or full subtitles for foreign audio."
           {...form.getInputProps('set_defaults', { type: 'checkbox' })}
         />
+        <Switch
+          label="Show my language's subtitles automatically"
+          description="Marks the default subtitle in your language as forced, so Plex and other players show it without you switching it on: forced subtitles for foreign lines, or full subtitles when the film is in another language."
+          disabled={!form.values.set_defaults}
+          {...form.getInputProps('force_subtitles', { type: 'checkbox' })}
+        />
         {save.isError && <Alert color="red">{errorMessage(save.error)}</Alert>}
         <Group justify="flex-end">
           <Button variant="default" onClick={onClose}>

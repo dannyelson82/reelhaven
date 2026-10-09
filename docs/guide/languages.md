@@ -46,6 +46,7 @@ policy**. Nothing changes until you apply a [dry run](dry-run.md).
 | **Keep commentary tracks** | On | Director's commentary and similar audio. |
 | **Tracks without a language tag** | Always keep them | Keep untagged tracks (safest), or treat them as a language you choose. |
 | **Set the default audio and subtitle tracks** | On | Original-language audio plays by default. Your language's forced subtitles are on by default, or full subtitles when the audio is foreign. |
+| **Show my language's subtitles automatically** | On | Also marks that default subtitle as **forced**, so Plex and other players show it without you switching it on: forced subtitles for the foreign lines in a film in your language, or the full subtitles for a film in another language (say, a Japanese film). Only subtitles in your own language are marked. Files ReelHaven already processed are picked up by the next scan as a quick flag change (no re-encode). |
 
 ## Safety rules
 

@@ -31,6 +31,10 @@ class TrackPlan(BaseModel):
     default_before: bool
     default_after: bool
     reason: str
+    # Subtitles only: the container's forced flag before, and the planned one (None = left
+    # as it is). Players show a forced subtitle automatically.
+    forced_before: bool = False
+    forced_after: bool | None = None
     # Audio conversion (ADR-0023); None = the track is copied.
     convert_codec: AudioCodec | None = None
     convert_kbps: int | None = None
@@ -167,6 +171,7 @@ def plan(info: MediaInfo, original_language: str | None, policy: LanguagePolicy)
 
     # --- default flags (§8.3) -----------------------------------------------------------
     defaults: dict[int, bool] = {s.index: s.default for s in [*audio, *subtitles]}
+    forced_choice: int | None = None  # the subtitle to mark forced, if any
     if policy.set_defaults:
         kept_main = [s for s in audio if s.index in keep_audio and not s.commentary]
         chosen = _pick_default_audio(kept_main, original_language, viewer)
@@ -181,6 +186,14 @@ def plan(info: MediaInfo, original_language: str | None, policy: LanguagePolicy)
                     defaults[stream.index] = (
                         sub_choice is not None and stream.index == sub_choice.index
                     )
+                # Only a subtitle in the viewer's own language is ever forced: foreign
+                # lines in a film in their language, or the whole film when it isn't.
+                if (
+                    policy.force_subtitles
+                    and sub_choice is not None
+                    and sub_choice.language == viewer
+                ):
+                    forced_choice = sub_choice.index
             # Untagged default audio: subtitle defaults are left as they are.
 
     # MP4/MOV can't store "no default track": the muxer then enables the first
@@ -211,11 +224,18 @@ def plan(info: MediaInfo, original_language: str | None, policy: LanguagePolicy)
                 default_before=stream.default,
                 default_after=defaults[stream.index] if keep else False,
                 reason=reason,
+                forced_before="forced" in stream.dispositions,
+                forced_after=True if stream.index == forced_choice else None,
             )
         )
 
     removed = [t for t in tracks if not t.keep]
     default_changes = [t for t in tracks if t.keep and t.default_before != t.default_after]
+    forced_changes = [
+        t
+        for t in tracks
+        if t.keep and t.forced_after is not None and t.forced_after != t.forced_before
+    ]
     if removed:
         for kind in ("audio", "subtitle"):
             names = [_describe(_stream(info, t.index)) for t in removed if t.kind == kind]
@@ -225,16 +245,21 @@ def plan(info: MediaInfo, original_language: str | None, policy: LanguagePolicy)
         stream = _stream(info, track.index)
         verb = "Make default" if track.default_after else "Clear default"
         details.append(f"{verb}: {track.kind} {_describe(stream)}.")
+    for track in forced_changes:
+        details.append(
+            f"Show automatically (forced): subtitle {_describe(_stream(info, track.index))}."
+        )
 
     if "wrong_language" in flags or "no_wanted_audio" in flags:
         # The file needs a human decision: change nothing at all.
         for track in tracks:
             track.keep = True
             track.default_after = track.default_before
-        removed, default_changes = [], []
-        details = [d for d in details if not d.startswith(("Remove", "Make", "Clear"))]
-    action: Action = "remux" if removed or default_changes else "skip"
-    summary = _summary(action, original_language, removed, default_changes)
+            track.forced_after = None
+        removed, default_changes, forced_changes = [], [], []
+        details = [d for d in details if not d.startswith(("Remove", "Make", "Clear", "Show"))]
+    action: Action = "remux" if removed or default_changes or forced_changes else "skip"
+    summary = _summary(action, original_language, removed, default_changes, forced_changes)
     return Plan(
         action=action,
         tracks=tracks,
@@ -303,6 +328,7 @@ def _summary(
     original: str | None,
     removed: list[TrackPlan],
     default_changes: list[TrackPlan],
+    forced_changes: list[TrackPlan] | None = None,
 ) -> str:
     origin = f"Original language: {_name(original)}." if original else "Original language unknown."
     if action == "skip":
@@ -316,6 +342,8 @@ def _summary(
         parts.append(f"remove {subs} subtitle track{'s' if subs != 1 else ''}")
     if default_changes:
         parts.append("fix default tracks")
+    if forced_changes:
+        parts.append("show subtitles automatically")
     return f"{origin} Will {', '.join(parts)}."
 
 
