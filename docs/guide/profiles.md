@@ -39,7 +39,7 @@ copy.
 | Setting | What it does |
 |---|---|
 | **Video codec** | **HEVC (H.265)** plays almost everywhere (default). **AV1** is smaller but needs newer GPUs and players. **H.264** only for very old devices. |
-| **Quality** | 1 (**Smallest**) to 10 (**Best**). Higher means bigger files closer to the original. |
+| **Quality** | 1 (**Smallest**) to 10 (**Best**), in half steps (6.5 lies between 6 and 7) for fine-tuning. Higher means bigger files closer to the original. Some encoders (Quick Sync, AMD, AV1 on the CPU) only take whole values, so there a half step can come out the same as its better neighbour. |
 | **Speed** | **Fast**, **Balanced** or **Slow (smaller files)**. Slower settings squeeze a little more out of each file. |
 | **10-bit output** | Better quality per byte and no colour banding. Not available for H.264. |
 | **Maximum resolution** | Larger videos are scaled down; smaller ones are never scaled up. |

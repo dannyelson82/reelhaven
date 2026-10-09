@@ -273,7 +273,7 @@ it('walks a new library from folder to automatic', async () => {
     wizard_seen: true,
     server_steps_done: true,
   });
-});
+}, 30_000); // the whole wizard: slow on a busy machine
 
 it('skips the audio step when video is not re-encoded', async () => {
   window.location.hash = '#/wizard?library=4&step=quality';

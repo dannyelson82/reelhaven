@@ -43,8 +43,10 @@ def encode_marker(profile: ProfileSettings) -> str:
     return f"encode-1:{profile_fingerprint(profile)}"
 
 
-def expected_bitrate(codec: str, quality: int, width: int, height: int, fps: float) -> int:
-    bpp = _HEVC_BPP[quality - 1] * _CODEC_FACTOR[codec]
+def expected_bitrate(codec: str, quality: float, width: int, height: int, fps: float) -> int:
+    low = _HEVC_BPP[int(quality) - 1]
+    high = _HEVC_BPP[min(int(quality), len(_HEVC_BPP) - 1)]
+    bpp = (low + (high - low) * (quality - int(quality))) * _CODEC_FACTOR[codec]
     return int(bpp * width * height * fps)
 
 
