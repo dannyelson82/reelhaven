@@ -25,8 +25,10 @@ job. The owner asked for GPU decoding as the priority.
   guess about an older scan, a driver problem), the same job is retried once
   with CPU decoding. Cancelling is never retried. Test runs use the same path.
 - Verification, HDR checks and everything after the encode are unchanged.
-- **Intel (QSV) and AMD (VAAPI)** decoding follow in a second step with the same
-  fallback.
+- **Intel (QSV) and AMD (VAAPI)** decode the same way: `-hwaccel qsv` / `vaapi` on the
+  device already set up for encoding, scaling and bit depth in `vpp_qsv` /
+  `scale_vaapi` (these need the width, worked out from the source's proportions).
+  Same formats except 12-bit HEVC; same fallback.
 - **Keep every GPU busy** (owner request): an Automatic library keeps as many jobs
   queued as all enabled devices run at once, plus two waiting (at least four,
   as before; ADR-0025 said "a few"), and a finished job wakes Automatic so the
