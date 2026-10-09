@@ -1,6 +1,6 @@
 # 0025: Automatic processing
 
-- Status: accepted
+- Status: accepted (when and where to rescan amended by ADR-0030)
 - Date: 2026-10-07
 
 ## Context

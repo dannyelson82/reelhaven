@@ -319,6 +319,7 @@ const reading = (probed: number) => ({
   languages_resolved: 0,
   languages_unknown: 0,
   language_errors: [],
+  folders: [],
   error: null,
   started_at: 0,
   phase_started_at: 0,

@@ -271,3 +271,63 @@ def test_unreadable_fingerprint_does_not_stop_the_scan(
     files = {r.relative_path: r for r in rows(db)}
     assert files["Two/two.mkv"].fingerprint.endswith(":")  # no content hash: never matches a move
     assert files["One/one.mkv"].fingerprint.split(":")[2]
+
+
+# --- partial scans (ADR-0030) --------------------------------------------------------------
+
+
+def run_partial(scanner: Scanner, library_id: int, folders: list[str]) -> ScanProgress:
+    progress = ScanProgress(library_id, folders=folders)
+    scanner.scan(library_id, progress, folders)
+    return progress
+
+
+def test_partial_scan_only_touches_its_folders(
+    db: Database, settings: Settings, library: Library, sample: Path
+) -> None:
+    root = Path(library.path)
+    scanner = scanner_for(db, settings)
+    put(sample, root / "Show A" / "Season 1" / "a1.mkv")
+    put(sample, root / "Show B" / "Season 1" / "b1.mkv")
+    run_scan(scanner, library.id)
+
+    put(sample, root / "Show A" / "Season 1" / "a2.mkv")  # new episode in A
+    (root / "Show B" / "Season 1" / "b1.mkv").unlink()  # B changed too, but isn't named
+    progress = run_partial(scanner, library.id, ["Show A"])
+    assert (progress.found, progress.probed, progress.removed) == (2, 1, 0)
+    assert {r.relative_path for r in rows(db)} == {
+        "Show A/Season 1/a1.mkv",
+        "Show A/Season 1/a2.mkv",
+        "Show B/Season 1/b1.mkv",  # still listed until B is scanned
+    }
+
+    progress = run_partial(scanner, library.id, ["Show B"])
+    assert progress.removed == 1
+    assert "Show B/Season 1/b1.mkv" not in {r.relative_path for r in rows(db)}
+
+
+def test_partial_scan_recognises_a_renamed_folder(
+    db: Database, settings: Settings, library: Library, sample: Path
+) -> None:
+    root = Path(library.path)
+    scanner = scanner_for(db, settings)
+    put(sample, root / "Film (2020)" / "film.mkv")
+    run_scan(scanner, library.id)
+    before = rows(db)[0].id
+
+    (root / "Film (2020)").rename(root / "Film (2021)")  # a rename reports both names
+    progress = run_partial(scanner, library.id, ["Film (2020)", "Film (2021)"])
+    assert (progress.moved, progress.probed, progress.removed) == (1, 0, 0)
+    (after,) = rows(db)
+    assert (after.id, after.relative_path) == (before, "Film (2021)/film.mkv")
+
+
+def test_partial_scan_ignores_paths_outside_the_library(
+    db: Database, settings: Settings, library: Library, sample: Path
+) -> None:
+    root = Path(library.path)
+    put(sample, root / "Film" / "film.mkv")
+    put(sample, root.parent / "Elsewhere" / "other.mkv")
+    progress = run_partial(scanner_for(db, settings), library.id, ["../Elsewhere", "Film"])
+    assert progress.found == 1
+    assert [r.relative_path for r in rows(db)] == ["Film/film.mkv"]

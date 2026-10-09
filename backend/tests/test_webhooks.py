@@ -82,8 +82,8 @@ def test_webhook_api(client: TestClient) -> None:
                 ),
             ]
         )
-    changed: list[int] = []
-    app.state.watcher.changed = changed.append
+    changed: list[tuple[int, str | None]] = []
+    app.state.watcher.changed = lambda library_id, folder=None: changed.append((library_id, folder))
     hook = client_at(app, "192.168.1.30")
 
     # No key, wrong key: refused.
@@ -98,12 +98,12 @@ def test_webhook_api(client: TestClient) -> None:
     imported = hook.post(f"{API}/webhook/sonarr?apikey={key}", json=SONARR_IMPORT).json()
     assert imported == {
         "outcome": "rescan",
-        "message": "TV will be rescanned shortly.",
+        "message": "Show in TV will be rescanned shortly.",  # just that series (ADR-0030)
         "library": "TV",
     }
     with db.read() as session:
         tv_id = next(lib.id for lib in session.query(Library) if lib.name == "TV")
-    assert changed == [tv_id]
+    assert changed == [(tv_id, "Show")]
 
     grab = hook.post(f"{API}/webhook/sonarr?apikey={key}", json={"eventType": "Grab"}).json()
     assert grab["outcome"] == "ignored"
@@ -112,7 +112,7 @@ def test_webhook_api(client: TestClient) -> None:
     movies = {**RADARR_IMPORT, "movie": {"folderPath": "/media/Movies/Film (2020)"}}
     off = hook.post(f"{API}/webhook/radarr?apikey={key}", json=movies).json()
     assert (off["outcome"], off["library"]) == ("not_watched", "Movies")
-    assert changed == [tv_id]  # Off libraries aren't rescanned
+    assert changed == [(tv_id, "Show")]  # Off libraries aren't rescanned
 
     bad = hook.post(
         f"{API}/webhook/sonarr?apikey={key}",

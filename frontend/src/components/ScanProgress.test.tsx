@@ -19,6 +19,7 @@ const base: ScanStatus = {
   languages_resolved: 0,
   languages_unknown: 0,
   language_errors: [],
+  folders: [],
   error: null,
   started_at: 0,
   phase_started_at: 0,
@@ -49,4 +50,11 @@ it('shows reading progress and the time left', () => {
 it('shows the check for moved files', () => {
   show({ phase: 'matching', to_match: 40, matched: 10 });
   expect(screen.getByText('Checking for moved or renamed files: 10 of 40')).toBeInTheDocument();
+});
+
+it('names the folders of a partial scan', () => {
+  show({ phase: 'probing', to_probe: 3, probed: 1, folders: ['Show A', 'Show B', 'C', 'D', 'E'] });
+  expect(screen.getByText(/Only what changed: Show A, Show B, C/)).toHaveTextContent(
+    'Only what changed: Show A, Show B, C and 2 more',
+  );
 });

@@ -54,6 +54,12 @@ export function ScanProgress({ status }: { status: ScanStatus }) {
         animated={!measured}
         aria-label={label}
       />
+      {status.folders.length > 0 && (
+        <Text size="xs" c="dimmed">
+          Only what changed: {status.folders.slice(0, 3).join(', ')}
+          {status.folders.length > 3 && ` and ${status.folders.length - 3} more`}
+        </Text>
+      )}
     </Stack>
   );
 }

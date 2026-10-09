@@ -42,19 +42,23 @@ first: that's exactly the work it will do.
 
 For libraries set to **Watch** or **Automatic**:
 
-- **Folder watcher**: when files are added, renamed or removed, the library is
-  rescanned about a minute later (a whole season arriving counts as one
-  change). Files still being copied are left for a follow-up scan a few
-  minutes later.
+- **Folder watcher**: when files are added, renamed or removed, only the
+  film's or series' folder they're in is rescanned, about a minute later (a
+  whole season arriving counts as one change). Files still being copied are
+  left for a follow-up check of the same folder a few minutes later.
 - **Sonarr/Radarr webhooks**: imports, upgrades, renames and deletes are
-  noticed the moment they happen (set up on the [Integrations](integrations.md)
-  page).
-- **Every 15 minutes** each watched library is rescanned anyway. Unraid
-  shares don't report every change (for example files written straight to a
-  disk share like `/mnt/disk1`), and this catches them.
-- **Nightly rescan**: a full rescan once a day (below).
+  noticed the moment they happen, and only that series or film is rescanned
+  (set up on the [Integrations](integrations.md) page).
+- **Every 15 minutes** ReelHaven also compares the folders' last-changed times
+  with the previous check, without opening any files, and rescans the folders
+  that changed. Unraid shares don't report every change (for example files
+  written straight to a disk share like `/mnt/disk1`), and this catches them.
+- **Nightly rescan**: a full rescan once a day (below). It also catches what the
+  quicker checks can't, such as a file replaced in place or a video placed
+  directly in the library's top folder.
 
-Rescans are quick: only new or changed files are read.
+While a folder-only rescan runs, the library page names the folders being
+checked. Only new or changed files are ever read again.
 
 ## Nightly rescan
 
