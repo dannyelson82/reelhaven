@@ -56,7 +56,10 @@ Later runs go straight to the library steps.
    tracks, keep surround**, or **Stereo only (smallest)**, each with the extra
    space it saves. Stereo removes surround sound for good once the originals
    leave the [recycle bin](recycle-bin.md). (Skipped if the video isn't
-   re-encoded.)
+   re-encoded.) If the size-and-quality profile you picked has its own
+   audio setup (for example one made with [Mimic a file](mimic.md)), a fourth
+   choice, **As set in this profile**, comes first and is preselected. Shrink
+   and Stereo then keep that profile's audio format and bitrate.
 6. **Try it**: ReelHaven tries your choice on 2 files. Your originals aren't
    touched. Compare the pictures: if you can't tell them apart, click **Looks
    good**. Otherwise **Try another setting** takes you back to step 4. This is

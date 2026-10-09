@@ -1,7 +1,7 @@
 // Pure helpers for the wizard's choices (ADR-0026).
 import type { Profile, ProfileSettings } from '../api/profiles';
 
-export type AudioChoice = 'keep' | 'shrink' | 'stereo';
+export type AudioChoice = 'profile' | 'keep' | 'shrink' | 'stereo';
 
 export const PRESETS = [
   {
@@ -44,23 +44,36 @@ export const AUDIO_CHOICES: { key: AudioChoice; title: string; description: stri
   },
 ];
 
-/** The profile settings with one of the wizard's audio answers applied. */
+/** Whether a profile already has its own audio setup (e.g. from Mimic a file). */
+export function hasOwnAudio(settings: ProfileSettings): boolean {
+  return settings.audio !== 'copy' || settings.downmix_stereo;
+}
+
+/** The audio answer to preselect: the profile's own setup when it has one. */
+export function defaultAudioChoice(settings: ProfileSettings): AudioChoice {
+  return hasOwnAudio(settings) ? 'profile' : 'keep';
+}
+
+/** The profile settings with one of the wizard's audio answers applied. A profile's own
+ * codec and bitrate are kept wherever the answer allows. */
 export function withAudio(settings: ProfileSettings, choice: AudioChoice): ProfileSettings {
+  if (choice === 'profile') return settings;
   if (choice === 'keep') return { ...settings, audio: 'copy', downmix_stereo: false };
+  const own = settings.audio !== 'copy';
   if (choice === 'shrink') {
     return {
       ...settings,
       audio: 'compress_lossless',
-      audio_codec: 'eac3',
-      audio_kbps_per_channel: null,
+      audio_codec: own ? settings.audio_codec : 'eac3',
+      audio_kbps_per_channel: own ? settings.audio_kbps_per_channel : null,
       downmix_stereo: false,
     };
   }
   return {
     ...settings,
     audio: 'convert',
-    audio_codec: 'aac',
-    audio_kbps_per_channel: null,
+    audio_codec: own ? settings.audio_codec : 'aac',
+    audio_kbps_per_channel: own ? settings.audio_kbps_per_channel : null,
     downmix_stereo: true,
     add_stereo_aac: false,
   };

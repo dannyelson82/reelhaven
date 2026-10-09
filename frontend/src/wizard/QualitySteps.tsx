@@ -19,6 +19,7 @@ import { Link, useSearchParams } from 'react-router';
 import { errorMessage } from '../api/client';
 import {
   type Profile,
+  describeAudio,
   type ProfileSettings,
   useProfiles,
   useSaveProfile,
@@ -31,6 +32,8 @@ import { ScanProgress } from '../components/ScanProgress';
 import { formatBytes } from '../format';
 import {
   AUDIO_CHOICES,
+  defaultAudioChoice,
+  hasOwnAudio,
   type AudioChoice,
   PRESETS,
   findProfile,
@@ -278,9 +281,23 @@ export function AudioStep({ libraryId, onNext, onBack }: StepProps) {
   const setProfile = useSetLibraryProfile(id);
   const base = profiles.data?.find((p) => String(p.id) === params.get('choice'));
   const keepDays = useRecycleSettings().data?.keep_days ?? 14;
-  const audio = (params.get('audio') as AudioChoice | null) ?? 'keep';
+  // A profile with its own audio setup (e.g. from Mimic a file) offers it first.
+  const choices =
+    base && hasOwnAudio(base.settings)
+      ? [
+          {
+            key: 'profile' as const,
+            title: 'As set in this profile',
+            description: `${base.name}: ${describeAudio(base.settings)}.`,
+          },
+          ...AUDIO_CHOICES,
+        ]
+      : AUDIO_CHOICES;
+  const audio =
+    (params.get('audio') as AudioChoice | null) ??
+    (base ? defaultAudioChoice(base.settings) : 'keep');
   const candidates: Record<string, ProfileSettings> = base
-    ? Object.fromEntries(AUDIO_CHOICES.map((c) => [c.key, withAudio(base.settings, c.key)]))
+    ? Object.fromEntries(choices.map((c) => [c.key, withAudio(base.settings, c.key)]))
     : {};
   const estimate = useEstimate(id, candidates);
   const { ready, scale } = readiness(estimate.data);
@@ -330,8 +347,8 @@ export function AudioStep({ libraryId, onNext, onBack }: StepProps) {
         Soundtracks can take a lot of space: a film's lossless 5.1 track is often 3 to 6 GB. What
         should happen to them?
       </Text>
-      <SimpleGrid cols={{ base: 1, sm: 3 }}>
-        {AUDIO_CHOICES.map((c) => (
+      <SimpleGrid cols={{ base: 1, sm: choices.length }}>
+        {choices.map((c) => (
           <ChoiceCard
             key={c.key}
             selected={audio === c.key}
@@ -344,7 +361,7 @@ export function AudioStep({ libraryId, onNext, onBack }: StepProps) {
         ))}
       </SimpleGrid>
       <ReadingNote libraryId={id} estimate={estimate.data} />
-      {audio === 'stereo' && (
+      {withAudio(base.settings, audio).downmix_stereo && (
         <Alert color="orange">
           {keepDays === 0
             ? "Surround sound is gone for good: the recycle bin is off, so originals aren't kept."
