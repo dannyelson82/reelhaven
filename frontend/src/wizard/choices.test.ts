@@ -1,5 +1,12 @@
 import type { Profile, ProfileSettings } from '../api/profiles';
-import { canEncode, findProfile, profileName, withAudio } from './choices';
+import {
+  canEncode,
+  defaultAudioChoice,
+  findProfile,
+  hasOwnAudio,
+  profileName,
+  withAudio,
+} from './choices';
 
 const balanced: ProfileSettings = {
   codec: 'hevc',
@@ -70,4 +77,40 @@ it('knows whether anything can encode', () => {
   expect(canEncode([off, cpu], 'hevc', true)).toBe(false);
   expect(canEncode([gpu], 'hevc', false)).toBe(false);
   expect(canEncode([gpu, { ...cpu, enabled: true }], 'av1', true)).toBe(true);
+});
+
+// Owner report: picking a profile with its own audio (e.g. from Mimic) ended up at 128 kbps.
+const mimicked: ProfileSettings = {
+  ...balanced,
+  audio: 'convert',
+  audio_codec: 'eac3',
+  audio_kbps_per_channel: 96,
+};
+
+it("keeps a profile's own audio setup", () => {
+  expect(hasOwnAudio(balanced)).toBe(false);
+  expect(hasOwnAudio(mimicked)).toBe(true);
+  expect(hasOwnAudio({ ...balanced, downmix_stereo: true })).toBe(true);
+  expect(defaultAudioChoice(balanced)).toBe('keep');
+  expect(defaultAudioChoice(mimicked)).toBe('profile');
+  expect(withAudio(mimicked, 'profile')).toEqual(mimicked);
+});
+
+it("shrink and stereo keep the profile's codec and bitrate", () => {
+  expect(withAudio(mimicked, 'shrink')).toMatchObject({
+    audio: 'compress_lossless',
+    audio_codec: 'eac3',
+    audio_kbps_per_channel: 96,
+  });
+  expect(withAudio(mimicked, 'stereo')).toMatchObject({
+    audio: 'convert',
+    audio_codec: 'eac3',
+    audio_kbps_per_channel: 96,
+    downmix_stereo: true,
+  });
+  // A profile without its own audio still gets the wizard's defaults.
+  expect(withAudio(balanced, 'stereo')).toMatchObject({
+    audio_codec: 'aac',
+    audio_kbps_per_channel: null,
+  });
 });

@@ -47,7 +47,7 @@ export function trackKbps(s: ProfileSettings, channels: number): number {
   return Math.min(per * channels, MAX_TRACK_KBPS[s.audio_codec]);
 }
 
-function describeAudio(s: ProfileSettings): string {
+export function describeAudio(s: ProfileSettings): string {
   if (s.audio === 'copy') return 'audio copied';
   const target = s.downmix_stereo
     ? `${AUDIO_CODEC_LABELS[s.audio_codec]} stereo ${trackKbps(s, 2)}k`
