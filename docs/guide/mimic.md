@@ -12,6 +12,10 @@ the same kind of result.
 
 ## Steps
 
+You can also do this in the [setup wizard](setup-wizard.md): its size and
+quality step has a **Copy a file I like** card that does the same for the
+library you're setting up.
+
 1. Go to **Profiles** and click **Mimic a file**.
 2. Choose the **Library** the file is in and **Search** for it by name. (The
    sample must be in one of your libraries; to use a file from another
