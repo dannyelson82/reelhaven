@@ -35,6 +35,7 @@ import { type WatchMode, useLibraries, useSetWatchMode } from '../api/libraries'
 import { useLibraryProfile, useProfiles } from '../api/profiles';
 import {
   type TestSample,
+  clipsOf,
   frameUrl,
   isUpNext,
   useApproveTestRun,
@@ -154,6 +155,7 @@ function SampleResult({ sample, upNext }: { sample: TestSample; upNext: boolean 
                 onClose={() => setOpen(false)}
                 title={sample.file}
                 after="Smaller"
+                clip={clipsOf(sample.id, r.clip)}
                 stills={r.frame_times.map((at, i) => ({
                   at,
                   source: frameUrl(sample.id, i, 'source'),

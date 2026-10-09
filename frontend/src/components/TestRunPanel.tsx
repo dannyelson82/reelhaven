@@ -25,6 +25,7 @@ import {
   MAX_SAMPLES,
   type TestRun,
   type TestSample,
+  clipsOf,
   frameUrl,
   isUpNext,
   useApproveTestRun,
@@ -282,6 +283,7 @@ function SampleView({
             sampleId={sample.id}
             file={sample.file}
             times={r.frame_times}
+            clip={r.clip}
             hdr={r.hdr !== null && r.hdr !== 'sdr'}
           />
         )}
@@ -294,11 +296,13 @@ function Stills({
   sampleId,
   file,
   times,
+  clip,
   hdr,
 }: {
   sampleId: number;
   file: string;
   times: number[];
+  clip?: { start: number } | null;
   hdr: boolean;
 }) {
   const [index, setIndex] = useState(0);
@@ -324,7 +328,7 @@ function Stills({
           leftSection={<IconMaximize size={14} />}
           onClick={() => setOpen(true)}
         >
-          Compare full screen
+          {clip ? 'Compare full screen, stills and video' : 'Compare full screen'}
         </Button>
       </Group>
       <SimpleGrid cols={{ base: 1, md: 2 }}>
@@ -354,6 +358,7 @@ function Stills({
           onClose={() => setOpen(false)}
           title={file}
           start={shown}
+          clip={clipsOf(sampleId, clip)}
           stills={times.map((at, i) => ({
             at,
             source: frameUrl(sampleId, i, 'source'),

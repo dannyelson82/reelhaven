@@ -10,6 +10,16 @@ import subprocess
 from dataclasses import dataclass
 from pathlib import Path
 
+from reelhaven.devices import CPU as CPU_DEVICE
+from reelhaven.encoders import (
+    Device,
+    Family,
+    device_select_args,
+    encoder_name,
+    hw_init_args,
+    profile_args,
+    upload_filters,
+)
 from reelhaven.media.probe import ffmpeg_input
 
 SEGMENT_SECONDS = 10.0
@@ -143,3 +153,61 @@ def extract_frame(
         ffmpeg_input(output),
     ]  # fmt: skip
     subprocess.run(args, capture_output=True, timeout=timeout, check=True)  # noqa: S603
+
+
+# Near-lossless H.264 per encoder family: far finer than the differences being judged.
+_CLIP_QUALITY: dict[Family, list[str]] = {
+    "nvenc": ["-preset", "p4", "-rc", "constqp", "-qp", "14"],
+    "qsv": ["-preset", "medium", "-global_quality", "14"],
+    "vaapi": ["-rc_mode", "CQP", "-qp", "14"],
+    "cpu": ["-preset", "veryfast", "-crf", "12"],
+}
+
+
+def clip_command(
+    ffmpeg: str,
+    video: Path,
+    start: float,
+    seconds: float,
+    output: Path,
+    size: tuple[int, int],
+    hdr: bool,
+    device: Device,
+) -> list[str]:
+    """ffmpeg arguments for a comparison clip a browser can play (ADR-0031): ``seconds``
+    from ``start``, at exactly ``size``, as near-lossless 8-bit H.264 in MP4, without sound.
+    Encoded on ``device`` (a GPU where there is one); the picture is prepared on the CPU."""
+    filters = [f"scale={size[0]}:{size[1]}:flags=lanczos", *upload_filters(device, False)]
+    if hdr:
+        filters.insert(0, _TONEMAP)
+    return [
+        ffmpeg, "-hide_banner", "-nostdin", "-loglevel", "error", *hw_init_args(device),
+        "-ss", f"{start:.3f}", "-i", ffmpeg_input(video), "-t", f"{seconds:.3f}",
+        "-map", "0:v:0", "-an", "-sn", "-dn", "-vf", ",".join(filters),
+        "-c:v", encoder_name(device, "h264"), *_CLIP_QUALITY[device.family],
+        *device_select_args(device), *profile_args(device, "h264", False),
+        "-movflags", "+faststart", "-y", ffmpeg_input(output),
+    ]  # fmt: skip
+
+
+def extract_clip(
+    ffmpeg: str,
+    video: Path,
+    start: float,
+    seconds: float,
+    output: Path,
+    size: tuple[int, int],
+    hdr: bool = False,
+    device: Device = CPU_DEVICE,
+    timeout: float = 600,
+) -> None:
+    """Make a comparison clip on ``device``, falling back to the CPU if the GPU can't."""
+    devices = [device] if device.family == "cpu" else [device, CPU_DEVICE]
+    for index, attempt in enumerate(devices):
+        args = clip_command(ffmpeg, video, start, seconds, output, size, hdr, attempt)
+        try:
+            subprocess.run(args, capture_output=True, timeout=timeout, check=True)  # noqa: S603
+            return
+        except subprocess.CalledProcessError:
+            if index == len(devices) - 1:
+                raise

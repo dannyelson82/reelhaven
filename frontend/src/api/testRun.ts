@@ -13,6 +13,8 @@ export interface TestRunResult {
   ssim: number | null;
   rating: string;
   frame_times: number[];
+  /** The comparison clips' scene (since 0.8); null if they couldn't be made. */
+  clip?: { start: number; seconds: number } | null;
   codec: string;
   height_before: number | null;
   height_after: number | null;
@@ -92,6 +94,20 @@ export const useApproveTestRun = (libraryId: number) =>
 
 export const frameUrl = (sampleId: number, index: number, which: 'source' | 'encoded') =>
   `api/v1/test-run-samples/${sampleId}/frames/${index}/${which}`;
+
+export const clipUrl = (sampleId: number, which: 'source' | 'encoded') =>
+  `api/v1/test-run-samples/${sampleId}/clips/${which}`;
+
+/** A sample's comparison clips for the viewer, if it has them. */
+export function clipsOf(sampleId: number, clip: { start: number } | null | undefined) {
+  return clip
+    ? {
+        source: clipUrl(sampleId, 'source'),
+        encoded: clipUrl(sampleId, 'encoded'),
+        start: clip.start,
+      }
+    : null;
+}
 
 /** Whether another sample of the run is encoding: samples go one at a time, so a queued
  * one is simply next in line. */

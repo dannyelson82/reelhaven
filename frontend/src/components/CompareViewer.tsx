@@ -12,7 +12,7 @@ import {
   Tooltip,
 } from '@mantine/core';
 import { useMediaQuery } from '@mantine/hooks';
-import { IconZoomIn, IconZoomOut } from '@tabler/icons-react';
+import { IconPlayerPause, IconPlayerPlay, IconZoomIn, IconZoomOut } from '@tabler/icons-react';
 import { type PointerEvent, useEffect, useRef, useState } from 'react';
 import { formatDuration } from '../format';
 import {
@@ -26,6 +26,7 @@ import {
   placement,
   zoomTo,
 } from './compareView';
+import { useSyncedVideos } from './syncedVideos';
 
 export interface Still {
   /** Seconds into the video. */
@@ -34,19 +35,28 @@ export interface Still {
   encoded: string;
 }
 
+export interface Clip {
+  source: string;
+  encoded: string;
+  /** Where the scene starts in the film, in seconds. */
+  start: number;
+}
+
 type Mode = 'side' | 'swipe';
+type Media = 'stills' | 'video';
 
 const STEP = 1.25;
 const NO_SIZE: Size = { width: 16, height: 9 };
 
-/** Full-screen comparison of original and re-encoded stills: side by side with one zoom
- * and synced panning, or one image with a draggable divider. Render it only while open, so
- * it starts at `start` each time. */
+/** Full-screen comparison of original and re-encoded stills, or of two clips playing
+ * together: side by side with one zoom and synced panning, or one picture with a draggable
+ * divider. Render it only while open, so it starts at `start` each time. */
 export function CompareViewer({
   opened,
   onClose,
   title,
   stills,
+  clip,
   start = 0,
   after = 'Re-encoded',
   note,
@@ -55,6 +65,7 @@ export function CompareViewer({
   onClose: () => void;
   title: string;
   stills: Still[];
+  clip?: Clip | null;
   start?: number;
   /** What the new version is called ("Re-encoded", "Smaller"). */
   after?: string;
@@ -62,6 +73,7 @@ export function CompareViewer({
 }) {
   const [index, setIndex] = useState(start);
   const [mode, setMode] = useState<Mode>('side');
+  const [media, setMedia] = useState<Media>('stills');
   const [view, setView] = useState<View>(FIT);
   const [divider, setDivider] = useState(0.5);
   const [image, setImage] = useState<Size | null>(null);
@@ -69,6 +81,10 @@ export function CompareViewer({
   const [pane, setPane] = useState<Size>(NO_SIZE);
   const paneRef = useRef<HTMLDivElement | null>(null);
   const narrow = useMediaQuery('(max-width: 48em)');
+  const leader = useRef<HTMLVideoElement | null>(null);
+  const follower = useRef<HTMLVideoElement | null>(null);
+  const video = media === 'video' && clip ? clip : null;
+  const player = useSyncedVideos(leader, follower, `${mode}-${media}-${narrow}`);
 
   // Both panes are the same size; measure the first.
   useEffect(() => {
@@ -80,11 +96,13 @@ export function CompareViewer({
     const observer = new ResizeObserver(measure);
     observer.observe(element);
     return () => observer.disconnect();
-  }, [opened, mode, narrow]);
+  }, [opened, mode, narrow, media]);
 
   const size = image ?? NO_SIZE;
   const still = stills[Math.min(index, stills.length - 1)];
-  const ready = still !== undefined && loaded.has(still.source) && loaded.has(still.encoded);
+  const shownPair = video ?? still;
+  const ready =
+    shownPair !== undefined && loaded.has(shownPair.source) && loaded.has(shownPair.encoded);
 
   const zoomBy = (factor: number) => setView((v) => zoomTo(v, v.zoom * factor, pane, size));
   const setZoom = (zoom: number) => setView((v) => zoomTo(v, zoom, pane, size));
@@ -95,8 +113,14 @@ export function CompareViewer({
     const onKey = (event: KeyboardEvent) => {
       if (event.target instanceof HTMLInputElement) return;
       const keys: Record<string, () => void> = {
-        ArrowLeft: () => setIndex((i) => Math.max(0, i - 1)),
-        ArrowRight: () => setIndex((i) => Math.min(stills.length - 1, i + 1)),
+        ArrowLeft: video
+          ? () => player.seek(Math.max(0, player.time - 1))
+          : () => setIndex((i) => Math.max(0, i - 1)),
+        ArrowRight: video
+          ? () => player.seek(Math.min(player.duration, player.time + 1))
+          : () => setIndex((i) => Math.min(stills.length - 1, i + 1)),
+        ' ': () => video && player.toggle(),
+        v: () => clip && setMedia((m) => (m === 'stills' ? 'video' : 'stills')),
         '+': () => zoomBy(STEP),
         '=': () => zoomBy(STEP),
         '-': () => zoomBy(1 / STEP),
@@ -167,6 +191,13 @@ export function CompareViewer({
     }
     setLoaded((current) => new Set(current).add(src));
   };
+  const onVideoLoad = (src: string) => (event: React.SyntheticEvent<HTMLVideoElement>) => {
+    const element = event.currentTarget;
+    if (element.videoWidth > 0) {
+      setImage((current) => current ?? { width: element.videoWidth, height: element.videoHeight });
+    }
+    setLoaded((current) => new Set(current).add(src));
+  };
 
   const at = placement(clamp(view, pane, size), pane, size);
   const imageStyle = {
@@ -218,24 +249,50 @@ export function CompareViewer({
     </Text>
   );
 
-  if (still === undefined) return null;
-  const source = (
-    <img
-      src={still.source}
-      alt={`Original at ${formatDuration(still.at)}`}
-      draggable={false}
-      onLoad={onLoad(still.source)}
+  if (still === undefined && !clip) return null;
+  const source = video ? (
+    <video
+      ref={leader}
+      src={video.source}
+      aria-label="Original clip"
+      muted
+      playsInline
+      preload="auto"
+      onLoadedData={onVideoLoad(video.source)}
       style={imageStyle}
     />
+  ) : (
+    still && (
+      <img
+        src={still.source}
+        alt={`Original at ${formatDuration(still.at)}`}
+        draggable={false}
+        onLoad={onLoad(still.source)}
+        style={imageStyle}
+      />
+    )
   );
-  const encoded = (
-    <img
-      src={still.encoded}
-      alt={`${after} at ${formatDuration(still.at)}`}
-      draggable={false}
-      onLoad={onLoad(still.encoded)}
+  const encoded = video ? (
+    <video
+      ref={follower}
+      src={video.encoded}
+      aria-label={`${after} clip`}
+      muted
+      playsInline
+      preload="auto"
+      onLoadedData={onVideoLoad(video.encoded)}
       style={imageStyle}
     />
+  ) : (
+    still && (
+      <img
+        src={still.encoded}
+        alt={`${after} at ${formatDuration(still.at)}`}
+        draggable={false}
+        onLoad={onLoad(still.encoded)}
+        style={imageStyle}
+      />
+    )
   );
 
   return (
@@ -261,7 +318,19 @@ export function CompareViewer({
                 { value: 'swipe', label: 'Swipe' },
               ]}
             />
-            {stills.length > 1 && (
+            {clip && (
+              <SegmentedControl
+                size="xs"
+                value={media}
+                onChange={(value) => setMedia(value as Media)}
+                data={[
+                  { value: 'stills', label: 'Stills' },
+                  { value: 'video', label: 'Video' },
+                ]}
+                aria-label="Show"
+              />
+            )}
+            {!video && stills.length > 1 && (
               <SegmentedControl
                 size="xs"
                 value={String(index)}
@@ -347,13 +416,39 @@ export function CompareViewer({
             >
               <Loader size="xs" />
               <Text size="xs" c="white">
-                Loading full-size stills…
+                {video ? 'Loading the clips…' : 'Loading full-size stills…'}
               </Text>
             </Group>
           )}
         </Box>
+        {video && (
+          <Group gap="xs" wrap="nowrap">
+            <ActionIcon
+              variant="filled"
+              aria-label={player.playing ? 'Pause' : 'Play'}
+              onClick={player.toggle}
+            >
+              {player.playing ? <IconPlayerPause size={16} /> : <IconPlayerPlay size={16} />}
+            </ActionIcon>
+            <Slider
+              aria-label="Position"
+              style={{ flex: 1 }}
+              min={0}
+              max={Math.max(player.duration, 0.1)}
+              step={0.04}
+              value={Math.min(player.time, player.duration)}
+              onChange={player.seek}
+              label={(value) => formatDuration(video.start + value)}
+            />
+            <Text size="xs" c="dimmed" style={{ whiteSpace: 'nowrap' }}>
+              {formatDuration(video.start + player.time)} in the film
+            </Text>
+          </Group>
+        )}
         <Text size="xs" c="dimmed">
-          Drag to move around, scroll or pinch to zoom; ← → switch moments, S switches the view.
+          {video
+            ? 'Both clips play together, without sound, in a format browsers can play and at a quality far finer than the encode being judged. Space plays or pauses, ← → jump a second, V goes back to the stills.'
+            : `Drag to move around, scroll or pinch to zoom; ← → switch moments, S switches the view${clip ? ', V plays the clips' : ''}.`}
           {note && ` ${note}`}
         </Text>
       </Stack>
