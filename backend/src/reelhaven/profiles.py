@@ -2,7 +2,7 @@
 
 from typing import TYPE_CHECKING, Literal
 
-from pydantic import BaseModel, ConfigDict, Field, model_validator
+from pydantic import BaseModel, ConfigDict, Field, field_serializer, model_validator
 
 from reelhaven.audio_rules import AudioCodec
 
@@ -17,8 +17,9 @@ class ProfileSettings(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     codec: Literal["hevc", "av1", "h264"] = "hevc"
-    # Normalised quality: 1 = smallest files, 10 = closest to the source.
-    quality: int = Field(default=6, ge=1, le=10)
+    # Normalised quality: 1 = smallest files, 10 = closest to the source; half steps
+    # (6.5) since 0.8 for dialling in (ADR-0031).
+    quality: float = Field(default=6, ge=1, le=10, multiple_of=0.5)
     speed: Speed = "balanced"
     ten_bit: bool = True
     # Cap the height (never upscales); None keeps the source resolution.
@@ -34,6 +35,11 @@ class ProfileSettings(BaseModel):
     add_stereo_aac: bool = False
     # Results saving less than this are discarded and the file marked "no gain".
     min_savings_percent: int = Field(default=10, ge=0, le=90)
+
+    @field_serializer("quality")
+    def _whole_quality(self, quality: float) -> int | float:
+        # Whole levels stay integers, so saved profiles and their fingerprints don't change.
+        return int(quality) if quality.is_integer() else quality
 
     @model_validator(mode="after")
     def _h264_is_8_bit(self) -> "ProfileSettings":

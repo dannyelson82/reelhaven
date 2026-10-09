@@ -216,10 +216,12 @@ function ProfileModal({
               <SourceBadge mimic={initial.mimic} field="quality" />
             </Text>
             <Slider
+              thumbLabel="Quality"
               min={1}
               max={10}
-              step={1}
+              step={0.5}
               marks={QUALITY_MARKS}
+              label={(value) => `${value}/10`}
               mb="lg"
               {...form.getInputProps('settings.quality')}
             />

@@ -8,6 +8,8 @@ clips. GPU files come out somewhat larger at the same quality; that is the
 price of their speed, not a tuning error.
 """
 
+import math
+
 from reelhaven.encoders import Codec, Family
 
 # Lower value = better quality, per level 1..10.
@@ -38,8 +40,26 @@ _TABLES: dict[Family, dict[Codec, list[int]]] = {
 }
 
 
-def quality_value(family: Family, codec: Codec, level: int) -> int:
-    """The encoder-specific value for a 1-10 quality level (lower = better)."""
-    if not 1 <= level <= 10:
-        raise ValueError("quality level must be 1-10")
-    return _TABLES[family][codec][level - 1]
+# Encoders whose knob takes fractions (x265/x264 -crf, NVENC -cq); the others take whole
+# numbers, so a half step there rounds towards the better quality.
+_FRACTIONAL: set[tuple[Family, Codec]] = {
+    ("cpu", "hevc"),
+    ("cpu", "h264"),
+    ("nvenc", "hevc"),
+    ("nvenc", "h264"),
+    ("nvenc", "av1"),
+}
+
+
+def quality_value(family: Family, codec: Codec, level: float) -> int | float:
+    """The encoder-specific value for a 1-10 quality level (lower = better). Half levels
+    (6.5) lie halfway between their neighbours (ADR-0031)."""
+    if not 1 <= level <= 10 or (level * 2) % 1:
+        raise ValueError("quality level must be 1-10 in half steps")
+    table = _TABLES[family][codec]
+    if level == int(level):
+        return table[int(level) - 1]
+    middle = (table[int(level) - 1] + table[int(level)]) / 2
+    if middle.is_integer():
+        return int(middle)
+    return middle if (family, codec) in _FRACTIONAL else math.floor(middle)

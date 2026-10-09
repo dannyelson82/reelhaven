@@ -347,7 +347,7 @@ export function CompareViewer({
               </ActionIcon>
             </Tooltip>
             <Slider
-              aria-label="Zoom"
+              thumbLabel="Zoom"
               style={{ flex: 1 }}
               min={1}
               max={MAX_ZOOM}
@@ -431,7 +431,7 @@ export function CompareViewer({
               {player.playing ? <IconPlayerPause size={16} /> : <IconPlayerPlay size={16} />}
             </ActionIcon>
             <Slider
-              aria-label="Position"
+              thumbLabel="Position"
               style={{ flex: 1 }}
               min={0}
               max={Math.max(player.duration, 0.1)}

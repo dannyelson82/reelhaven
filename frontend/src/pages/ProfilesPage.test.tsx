@@ -47,12 +47,15 @@ it('copies a built-in profile into a new one', async () => {
   expect(screen.queryByRole('button', { name: 'Edit' })).not.toBeInTheDocument(); // built-in
   await userEvent.click(screen.getByRole('button', { name: 'Copy' }));
   await userEvent.click(await screen.findByRole('switch', { name: /10-bit output/ }));
+  // Quality moves in half steps.
+  screen.getByRole('slider', { name: 'Quality' }).focus();
+  await userEvent.keyboard('{ArrowRight}');
   await userEvent.click(screen.getByRole('button', { name: 'Save' }));
   expect(await screen.findByText('Profile "Balanced (copy)" saved.')).toBeInTheDocument();
   const post = calls.find((c) => c.key === 'POST profiles');
   expect(JSON.parse(String(post?.init?.body))).toMatchObject({
     name: 'Balanced (copy)',
-    settings: { ten_bit: false, quality: 6 },
+    settings: { ten_bit: false, quality: 6.5 },
   });
 });
 

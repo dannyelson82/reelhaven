@@ -242,7 +242,7 @@ def encode_command(
     return args
 
 
-def _rate_control(family: str, codec: Codec, value: int, speed: str) -> list[str]:
+def _rate_control(family: str, codec: Codec, value: float, speed: str) -> list[str]:
     if family == "nvenc":
         return [
             "-preset",
