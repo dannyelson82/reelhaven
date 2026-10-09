@@ -50,7 +50,7 @@ def expected_bitrate(codec: str, quality: float, width: int, height: int, fps: f
     return int(bpp * width * height * fps)
 
 
-def _scaled_size(video: Stream, profile: ProfileSettings) -> tuple[int, int]:
+def scaled_size(video: Stream, profile: ProfileSettings) -> tuple[int, int]:
     width, height = video.width or 0, video.height or 0
     if profile.max_height and height > profile.max_height:
         width = round(width * profile.max_height / height / 2) * 2
@@ -68,7 +68,7 @@ def format_size(n: int) -> str:
     return f"{value:.{0 if value >= 100 or unit == 0 else 1}f} {units[unit]}"
 
 
-def _video_bitrate(info: MediaInfo, video: Stream) -> int | None:
+def video_bitrate(info: MediaInfo, video: Stream) -> int | None:
     total = info.bit_rate or (
         int(info.size_bytes * 8 / info.duration_s) if info.size_bytes and info.duration_s else None
     )
@@ -111,9 +111,9 @@ def plan_video(
         return VideoPlan(decision="keep", reason="Already encoded by ReelHaven with this profile.")
 
     fps = video.frame_rate or 24.0
-    width, height = _scaled_size(video, profile)
+    width, height = scaled_size(video, profile)
     target = expected_bitrate(profile.codec, profile.quality, width, height, fps)
-    current = _video_bitrate(info, video)
+    current = video_bitrate(info, video)
     base = VideoPlan(
         decision="keep",
         reason="",

@@ -16,6 +16,8 @@ from reelhaven.db.models import (
     TestRun,
     TestRunSample,
     Title,
+    TuneSession,
+    TuneStep,
     User,
 )
 
@@ -35,5 +37,7 @@ __all__ = [
     "TestRun",
     "TestRunSample",
     "Title",
+    "TuneSession",
+    "TuneStep",
     "User",
 ]

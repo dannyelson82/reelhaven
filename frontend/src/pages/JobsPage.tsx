@@ -119,7 +119,7 @@ function JobCard({ job }: { job: Job }) {
             <Progress value={job.progress * 100} animated={job.status !== 'queued'} />
             {job.status !== 'queued' && (
               <Text size="xs" c="dimmed">
-                {Math.round(job.progress * 100)}%{job.type === 'encode' && device && ` · ${device}`}
+                {Math.round(job.progress * 100)}%{job.type !== 'remux' && device && ` · ${device}`}
                 {job.decoder && ` · ${DECODER[job.decoder]}`}
                 {job.fps !== null && ` · ${job.fps.toFixed(0)} fps`}
                 {job.speed !== null && ` · ${job.speed.toFixed(1)}× real time`}
@@ -179,7 +179,8 @@ function JobCard({ job }: { job: Job }) {
           )}
           {(job.status === 'failed' || job.status === 'cancelled') &&
             job.media_file_id !== null &&
-            job.type !== 'test' && (
+            job.type !== 'test' &&
+            job.type !== 'tune' && (
               <Button
                 size="xs"
                 variant="light"

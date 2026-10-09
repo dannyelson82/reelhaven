@@ -27,15 +27,20 @@ from reelhaven.jobs.pipeline import JobFailedError, process
 from reelhaven.jobs.replace import remove_tree
 from reelhaven.jobs.storage import internal_dir
 from reelhaven.jobs.test_run import process_test
+from reelhaven.jobs.tune import process_tune
 
 logger = logging.getLogger(__name__)
 
 MAX_SLOTS = 8  # per device; the configured concurrency decides how many are used
 
 
+# Jobs that encode video on a device: real encodes, test-run samples, sweet-spot steps.
+ENCODE_TYPES = ("encode", "test", "tune")
+
+
 def job_needs(job: Job) -> tuple[str, bool] | None:
     """(codec, ten_bit) an encode job needs from a device; None for remux jobs."""
-    if job.type not in ("encode", "test"):
+    if job.type not in ENCODE_TYPES:
         return None
     video = (job.plan or {}).get("video") or {}
     return str(video.get("codec") or "hevc"), bool(video.get("ten_bit"))
@@ -168,9 +173,11 @@ class JobQueue:
     def _run_encode(self, job_id: int, device: Device) -> None:
         with self._db.read() as session:
             job = session.get(Job, job_id)
-            is_test = job is not None and job.type == "test"
-        if is_test:
+            kind = job.type if job is not None else None
+        if kind == "test":
             process_test(self._db, self._settings, job_id, device)
+        elif kind == "tune":
+            process_tune(self._db, self._settings, job_id, device)
         else:
             process_encode(self._db, self._settings, job_id, device)
 
@@ -223,14 +230,14 @@ class JobQueue:
             needs = job_needs(job)
             return needs is not None and report.supports(*needs)
 
-        return self._claim(("encode", "test"), capable, device.id)
+        return self._claim(ENCODE_TYPES, capable, device.id)
 
     def _has_runnable(self) -> bool:
         """Queued jobs that some enabled worker could take right now."""
         if is_paused(self._db):
             return False
         with self._db.read() as session:
-            queued = self._queued(session, ("remux", "encode", "test"))
+            queued = self._queued(session, ("remux", *ENCODE_TYPES))
             settings = device_settings.load(session)
         if any(job.type == "remux" for job in queued):
             return True
