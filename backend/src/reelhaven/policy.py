@@ -18,6 +18,9 @@ class LanguagePolicy(BaseModel):
     keep_subtitles_forced: bool = True
     keep_subtitles_sdh: bool = True
     keep_commentary: bool = True
+    # Mark the subtitle chosen as default in the viewer's language as forced, so players show
+    # it automatically: forced subtitles for foreign lines, or full ones for foreign audio.
+    force_subtitles: bool = True
     # "keep", or a language code untagged tracks should be treated as (ADR-0017).
     untagged: str = "keep"
     set_defaults: bool = True

@@ -16,6 +16,7 @@ from reelhaven.encoders import Device
 from reelhaven.jobs.encode_commands import (
     expected_codecs,
     expected_encode_layout,
+    expected_forced,
     expected_video,
 )
 from reelhaven.jobs.encode_run import run_encode
@@ -121,6 +122,7 @@ def process_encode(db: Database, settings: Settings, job_id: int, device: Device
             timeout_s=600 + duration,
             expected_video=expected_video(info, profile),
             expected_codecs=expected_codecs(source, info, plan, profile),
+            expected_forced=expected_forced(source, info, plan, profile),
         )
         if _is_cancelled(db, job_id):
             raise CancelledError

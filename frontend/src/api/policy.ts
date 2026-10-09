@@ -8,6 +8,7 @@ export interface LanguagePolicy {
   keep_subtitles_forced: boolean;
   keep_subtitles_sdh: boolean;
   keep_commentary: boolean;
+  force_subtitles: boolean;
   untagged: string;
   set_defaults: boolean;
   wrong_language_action: 'flag';

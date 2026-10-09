@@ -45,6 +45,7 @@ def verify_output(
     timeout_s: float = 300,
     expected_video: ExpectedVideo | None = None,
     expected_codecs: dict[int, tuple[str, int | None]] | None = None,
+    expected_forced: dict[int, bool] | None = None,
 ) -> MediaInfo:
     """Raise VerificationError unless ``output`` is a sound replacement."""
     try:
@@ -68,6 +69,9 @@ def verify_output(
             )
         if default is not None and default != a_default:
             raise VerificationError(f"stream {position}: default flag not set as planned")
+    for position, forced in (expected_forced or {}).items():
+        if ("forced" in info.streams[position].dispositions) != forced:
+            raise VerificationError(f"stream {position}: forced flag not set as planned")
     for position, (codec, channels) in (expected_codecs or {}).items():
         found = info.streams[position]
         if found.codec != codec:

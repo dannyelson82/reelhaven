@@ -1,6 +1,7 @@
 """ffmpeg command builders (ARCHITECTURE.md §6.6). Pure functions returning
 argument lists, never shell strings (SECURITY.md)."""
 
+from collections.abc import Iterable
 from pathlib import Path
 
 from reelhaven.audio_rules import ENCODER, AudioCodec
@@ -47,11 +48,17 @@ def _kept_streams(info: MediaInfo, plan: Plan, fmt: str) -> list[tuple[Stream, b
     return kept
 
 
-def _disposition(stream: Stream, default: bool) -> str:
-    flags = sorted(
-        {d for d in stream.dispositions if d not in _MANAGED} | ({"default"} if default else set())
-    )
-    return "+".join(flags) if flags else "0"
+def disposition_value(dispositions: Iterable[str], default: bool, forced: bool | None) -> str:
+    """The -disposition value: the planned default flag, the planned forced flag (None =
+    as it was) and every other flag the source had."""
+    flags = {d for d in dispositions if d not in _MANAGED}
+    if default:
+        flags.add("default")
+    if forced is True:
+        flags.add("forced")
+    elif forced is False:
+        flags.discard("forced")
+    return "+".join(sorted(flags)) if flags else "0"
 
 
 def remux_command(
@@ -77,9 +84,13 @@ def remux_command(
     for stream, _ in kept:
         args += ["-map", f"0:{stream.index}"]
     args += ["-map_metadata", "0", "-map_chapters", "0", "-c", "copy"]
+    planned = {t.index: t for t in plan.tracks}
     for out_index, (stream, default) in enumerate(kept):
         if default is not None:
-            args += [f"-disposition:{out_index}", _disposition(stream, default)]
+            track = planned.get(stream.index)
+            forced = track.forced_after if track is not None else None
+            value = disposition_value(stream.dispositions, default, forced)
+            args += [f"-disposition:{out_index}", value]
     args += _audio_conversion_args(kept, plan, fmt)
     args += ["-metadata", f"{MARKER_TAG}={MARKER_VALUE}"]
     if fmt in _MP4_FAMILY:
@@ -139,4 +150,15 @@ def expected_remux_codecs(
         track = tracks.get(stream.index)
         if track is not None and track.convert_codec is not None:
             out[position] = (_PROBED_CODEC[track.convert_codec], track.convert_channels)
+    return out
+
+
+def expected_remux_forced(source: Path, info: MediaInfo, plan: Plan) -> dict[int, bool]:
+    """Output position -> planned forced flag, for every track whose flag is planned."""
+    tracks = {t.index: t for t in plan.tracks}
+    out: dict[int, bool] = {}
+    for position, (stream, _) in enumerate(_kept_streams(info, plan, remux_format(source))):
+        track = tracks.get(stream.index)
+        if track is not None and track.forced_after is not None:
+            out[position] = track.forced_after
     return out

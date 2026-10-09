@@ -490,3 +490,27 @@ def test_files_wait_until_their_language_is_looked_up(app: FastAPI, settings: Se
     dry = admin.get(f"{API}/libraries/{lib}/dry-run").json()
     assert dry["waiting_for_language"] == 0
     assert apply_all(app, admin, lib) == {"queued": 1, "waiting": 0}
+
+
+def test_forced_english_subtitles_get_default_and_forced_flags(
+    app: FastAPI, settings: Settings
+) -> None:
+    """Owner request: 'Forced' only in the title isn't enough for players to show it."""
+    spec = Spec(
+        audio=[Audio("eng", "English", default=True)],
+        subs=[Sub("eng", "English"), Sub("eng", "English Forced")],
+    )
+    admin, lib, root = setup_library(app, settings, {"Film (2020)/film.mkv": spec})
+    path = root / "Film (2020)" / "film.mkv"
+    before = [s for s in probe(path).streams if s.kind == "subtitle"]
+    assert [s.dispositions for s in before] == [[], []]  # no flags at all
+
+    assert apply_all(app, admin, lib) == {"queued": 1, "waiting": 0}
+    assert jobs(admin)[0]["status"] == "done", jobs(admin)[0]["error"]
+    after = [s for s in probe(path).streams if s.kind == "subtitle"]
+    assert "forced" in after[1].dispositions and "default" in after[1].dispositions
+    assert "forced" not in after[0].dispositions
+    # A rescan finds nothing left to do.
+    admin.post(f"{API}/libraries/{lib}/scan")
+    app.state.scanner.wait(lib, timeout=60)
+    assert admin.get(f"{API}/libraries/{lib}/dry-run").json()["remux"] == 0

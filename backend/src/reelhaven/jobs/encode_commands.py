@@ -20,7 +20,7 @@ from reelhaven.encoders import (
     profile_args,
     upload_filters,
 )
-from reelhaven.jobs.commands import MARKER_TAG, remux_format
+from reelhaven.jobs.commands import MARKER_TAG, disposition_value, remux_format
 from reelhaven.jobs.verify import ExpectedVideo
 from reelhaven.media.info import MediaInfo, Stream
 from reelhaven.media.probe import ffmpeg_input
@@ -48,6 +48,7 @@ class OutputStream:
     title: str | None = None
     kbps: int | None = None  # convert-audio: the target bitrate
     channels: int | None = None  # convert-audio: 2 when downmixing
+    forced: bool | None = None  # planned forced flag; None: as the source had it
 
 
 def output_streams(
@@ -88,6 +89,7 @@ def output_streams(
                     tuple(stream.dispositions),
                     kbps=change.kbps if change else None,
                     channels=change.channels if change else None,
+                    forced=track.forced_after,
                 )
             )
             # A downmixed default track is already stereo: no extra stereo track.
@@ -224,11 +226,8 @@ def encode_command(
     # --- dispositions --------------------------------------------------------------------
     for out_index, s in enumerate(streams):
         if s.default is not None:
-            flags = sorted(
-                {d for d in s.dispositions if d != "default"}
-                | ({"default"} if s.default else set())
-            )
-            args += [f"-disposition:{out_index}", "+".join(flags) if flags else "0"]
+            flags = disposition_value(s.dispositions, s.default, s.forced)
+            args += [f"-disposition:{out_index}", flags]
 
     args += ["-metadata", f"{MARKER_TAG}={encode_marker(profile)}"]
     if fmt in _MP4_FAMILY:
@@ -296,3 +295,11 @@ def expected_codecs(
         elif s.action == "aac-stereo":
             out[position] = ("aac", 2)
     return out
+
+
+def expected_forced(
+    source: Path, info: MediaInfo, plan: Plan, profile: ProfileSettings
+) -> dict[int, bool]:
+    """Output position -> planned forced flag, for every track whose flag is planned."""
+    streams = output_streams(info, plan, profile, remux_format(source))
+    return {position: s.forced for position, s in enumerate(streams) if s.forced is not None}
