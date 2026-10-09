@@ -99,6 +99,26 @@ def test_gpu_test_run(gpu_app: FastAPI, settings: Settings, gpu: str) -> None:
     result = sample["result"]
     assert result["device"] == gpu
     assert result["xpsnr"] is not None and result["ssim"] is not None
+    assert result["clip"] is not None  # comparison clips made too
+
+
+@pytest.mark.parametrize("gpu", GPUS)
+def test_gpu_sweet_spot(gpu_app: FastAPI, settings: Settings, gpu: str) -> None:
+    admin, lib, _path = setup(gpu_app, settings, FAST, cpu=False)
+    only(admin, gpu)
+    file = admin.get(f"{API}/libraries/{lib}/files").json()["items"][0]["id"]
+    tune = admin.post(f"{API}/tune-sessions", json={"file_id": file, "settings": FAST}).json()
+    assert (
+        admin.post(f"{API}/tune-sessions/{tune['id']}/steps", json={"quality": 6.5}).status_code
+        == 201
+    )
+    assert gpu_app.state.queue.wait_idle(300)
+    steps = admin.get(f"{API}/tune-sessions/{tune['id']}").json()["steps"]
+    assert {s["status"] for s in steps} == {"done"}, steps
+    assert {s["result"]["device"] for s in steps} == {gpu}
+    sizes = [s["result"]["bytes_after"] for s in steps]  # best quality first
+    assert sizes == sorted(sizes, reverse=True), sizes
+    assert all(s["result"]["clip"] for s in steps)
 
 
 # --- GPU decoding (ADR-0029) ---------------------------------------------------------------

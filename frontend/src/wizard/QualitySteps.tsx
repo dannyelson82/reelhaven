@@ -15,7 +15,7 @@ import {
   UnstyledButton,
 } from '@mantine/core';
 import { useState } from 'react';
-import { useSearchParams } from 'react-router';
+import { Link, useSearchParams } from 'react-router';
 import { errorMessage } from '../api/client';
 import {
   type Profile,
@@ -325,6 +325,14 @@ export function QualityStep({ libraryId, onNext, onBack }: StepProps) {
             value={isPreset || choice === MIMIC ? null : choice}
             onChange={(v) => v && choose(v)}
           />
+          <Text size="xs" c="dimmed">
+            Not sure?{' '}
+            <Anchor component={Link} to={`/sweet-spot?from=wizard&library=${id}`} size="xs">
+              Find my sweet spot
+            </Anchor>{' '}
+            encodes a scene of one of your files at three sizes to compare, and brings you back here
+            with the one you keep.
+          </Text>
         </Stack>
       </Collapse>
       {setProfile.isError && <Alert color="red">{errorMessage(setProfile.error)}</Alert>}

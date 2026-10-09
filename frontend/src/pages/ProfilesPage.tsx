@@ -19,7 +19,8 @@ import {
 } from '@mantine/core';
 import { useForm } from '@mantine/form';
 import { notifications } from '@mantine/notifications';
-import { IconWand } from '@tabler/icons-react';
+import { IconAdjustments, IconWand } from '@tabler/icons-react';
+import { Link } from 'react-router';
 import { useState } from 'react';
 import { errorMessage } from '../api/client';
 import { MimicModal } from '../components/MimicModal';
@@ -49,9 +50,19 @@ export function ProfilesPage() {
     <Stack maw={860}>
       <Group justify="space-between">
         <Title order={2}>Compression profiles</Title>
-        <Button leftSection={<IconWand size={16} />} onClick={() => setMimicking(true)}>
-          Mimic a file
-        </Button>
+        <Group gap="xs">
+          <Button
+            variant="light"
+            leftSection={<IconAdjustments size={16} />}
+            component={Link}
+            to="/sweet-spot"
+          >
+            Find my sweet spot
+          </Button>
+          <Button leftSection={<IconWand size={16} />} onClick={() => setMimicking(true)}>
+            Mimic a file
+          </Button>
+        </Group>
       </Group>
       <Text size="sm" c="dimmed">
         A profile decides how video is re-encoded. Pick one per library on the library page; a
