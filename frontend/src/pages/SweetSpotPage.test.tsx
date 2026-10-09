@@ -181,3 +181,59 @@ it('compares, dials in and keeps a version', async () => {
     '#/wizard?library=4&step=quality&choice=9',
   );
 });
+
+const film = (id: string, title: string, state: string) => ({
+  id,
+  title,
+  year: 2010,
+  about: 'Darker animation.',
+  width: 1920,
+  height: 818,
+  hdr: false,
+  minutes: 15,
+  download_bytes: 1.18e9,
+  credit: '(c) Blender Foundation',
+  licence: 'CC BY 3.0',
+  licence_url: 'https://creativecommons.org/licenses/by/3.0/',
+  source_url: 'https://durian.blender.org/',
+  state,
+  downloaded_bytes: 0,
+  error: null,
+});
+
+it('downloads a test film and starts a session on it', async () => {
+  window.location.hash = '#/sweet-spot';
+  const calls = mockApi({
+    'GET auth/state': loggedIn,
+    'GET libraries': { body: [library] },
+    'GET profiles': { body: [balanced] },
+    'GET tune-sessions': { body: [] },
+    'GET libraries/4/files?q=&problems=false&offset=0&limit=15': {
+      body: { total: 0, items: [] },
+    },
+    'GET films': {
+      body: [film('sintel-1080p', 'Sintel', 'available'), film('bbb', 'Big Buck Bunny', 'ready')],
+    },
+    'POST films/sintel-1080p/download': {
+      status: 202,
+      body: film('sintel-1080p', 'Sintel', 'downloading'),
+    },
+    'POST tune-sessions': { status: 201, body: { ...SESSION, film_id: 'bbb', library_id: null } },
+    'GET tune-sessions/7': { body: SESSION },
+  });
+  render(<App />);
+  await userEvent.click(await screen.findByText('A test film'));
+  expect(await screen.findByText('Sintel (2010)')).toBeInTheDocument();
+  expect(screen.getAllByRole('link', { name: 'CC BY 3.0' })[0]).toHaveAttribute(
+    'href',
+    'https://creativecommons.org/licenses/by/3.0/',
+  );
+  await userEvent.click(screen.getByRole('button', { name: 'Download' }));
+  expect(calls.some((c) => c.key === 'POST films/sintel-1080p/download')).toBe(true);
+
+  expect(screen.getByRole('button', { name: 'Encode three versions' })).toBeDisabled();
+  await userEvent.click(screen.getByRole('button', { name: 'Use this' }));
+  await userEvent.click(screen.getByRole('button', { name: 'Encode three versions' }));
+  const post = calls.find((c) => c.key === 'POST tune-sessions');
+  expect(JSON.parse(String(post?.init?.body))).toEqual({ film_id: 'bbb', settings: SETTINGS });
+});

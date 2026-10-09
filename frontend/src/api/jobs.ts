@@ -4,7 +4,7 @@ import { liveConnected } from './live';
 
 export interface Job {
   id: number;
-  library_id: number;
+  library_id: number | null; // null: a sweet-spot step on a test film
   library_name: string | null;
   media_file_id: number | null;
   file: string;

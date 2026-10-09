@@ -20,13 +20,17 @@ from reelhaven.api.deps import (
 from reelhaven.api.schemas import StrictModel
 from reelhaven.config import Settings
 from reelhaven.db import Job, MediaFile, TuneSession, TuneStep
+from reelhaven.films import FilmError, film
 from reelhaven.jobs.tune import (
     TuneError,
     add_step,
     clip_path,
     create_session,
     delete_session,
+    film_source,
     frame_path,
+    library_source,
+    source_of,
 )
 from reelhaven.profiles import ProfileSettings
 
@@ -34,7 +38,9 @@ router = APIRouter(dependencies=[Depends(require_setup_done), Depends(csrf_prote
 
 
 class StartTune(StrictModel):
-    file_id: int
+    # A library file or a downloaded test film (films.CATALOGUE id): exactly one.
+    file_id: int | None = None
+    film_id: str | None = Field(default=None, max_length=64)
     # Codec, speed, 10-bit, resolution and audio every step shares; quality is per step.
     settings: ProfileSettings
 
@@ -58,7 +64,8 @@ class TuneSessionOut(BaseModel):
     id: int
     file: str
     media_file_id: int | None
-    library_id: int
+    library_id: int | None
+    film_id: str | None
     base: ProfileSettings
     scene_start: float
     scene_seconds: float
@@ -103,6 +110,7 @@ def _out(session: Session, tune: TuneSession) -> TuneSessionOut:
         file=tune.relative_path,
         media_file_id=tune.media_file_id,
         library_id=tune.library_id,
+        film_id=tune.film_id,
         base=ProfileSettings.model_validate(tune.base),
         scene_start=tune.scene_start,
         scene_seconds=tune.scene_seconds,
@@ -124,12 +132,29 @@ def start_tune(
     body: StartTune, request: Request, db: DbDep, principal: InteractiveDep
 ) -> TuneSessionOut:
     settings: Settings = request.app.state.settings
+    if (body.file_id is None) == (body.film_id is None):
+        raise HTTPException(status.HTTP_422_UNPROCESSABLE_CONTENT, "file_or_film")
+    try:
+        # A film is probed here, outside the database's write lock.
+        film_src = (
+            film_source(request.app.state.films, film(body.film_id), settings.ffprobe)
+            if body.film_id is not None
+            else None
+        )
+    except FilmError as exc:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, str(exc)) from exc
+    except TuneError as exc:
+        raise HTTPException(status.HTTP_409_CONFLICT, str(exc)) from exc
     with db.write() as session:
-        media_file = session.get(MediaFile, body.file_id)
-        if media_file is None:
-            raise HTTPException(status.HTTP_404_NOT_FOUND, "file_not_found")
         try:
-            tune = create_session(session, settings, media_file, body.settings, principal.actor)
+            if film_src is not None:
+                source = film_src
+            else:
+                media_file = session.get(MediaFile, body.file_id)
+                if media_file is None:
+                    raise HTTPException(status.HTTP_404_NOT_FOUND, "file_not_found")
+                source = library_source(media_file)
+            tune = create_session(session, settings, source, body.settings, principal.actor)
         except TuneError as exc:
             raise HTTPException(status.HTTP_409_CONFLICT, str(exc)) from exc
         session.flush()
@@ -156,10 +181,24 @@ def get_tune(session_id: int, db: DbDep, _principal: AnyPrincipalDep) -> TuneSes
 def add_tune_step(
     session_id: int, body: AddStep, request: Request, db: DbDep, principal: InteractiveDep
 ) -> TuneSessionOut:
+    settings: Settings = request.app.state.settings
+    try:
+        with db.read() as session:
+            tune = _session(session, session_id)
+            film_id = tune.film_id
+        # A film is probed here, outside the database's write lock.
+        film_src = (
+            film_source(request.app.state.films, film(film_id), settings.ffprobe)
+            if film_id is not None
+            else None
+        )
+    except (FilmError, TuneError) as exc:
+        raise HTTPException(status.HTTP_409_CONFLICT, "film_gone") from exc
     with db.write() as session:
         tune = _session(session, session_id)
         try:
-            add_step(session, tune, body.quality, principal.actor)
+            source = film_src or source_of(session, request.app.state.films, settings.ffprobe, tune)
+            add_step(session, tune, source, body.quality, principal.actor)
         except TuneError as exc:
             raise HTTPException(status.HTTP_409_CONFLICT, str(exc)) from exc
         session.flush()

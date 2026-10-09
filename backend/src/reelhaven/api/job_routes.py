@@ -47,7 +47,7 @@ def _queue(request: Request) -> JobQueue:
 
 class JobOut(BaseModel):
     id: int
-    library_id: int
+    library_id: int | None
     library_name: str | None
     media_file_id: int | None
     file: str
@@ -94,7 +94,7 @@ class ApplyResult(BaseModel):
 
 class RecycleOut(BaseModel):
     id: int
-    library_id: int
+    library_id: int | None
     original_path: str
     size: int
     reason: str

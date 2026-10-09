@@ -47,7 +47,7 @@ def savings(db: DbDep, _principal: AnyPrincipalDep) -> SavingsOut:
         ):
             saved = result.bytes_before - result.bytes_after
             credited[job.id] = saved
-            assert job.finished_at is not None  # noqa: S101
+            assert job.finished_at is not None and job.library_id is not None  # noqa: S101
             events.append(Event(_local(job.finished_at), job.library_id, saved, 1))
         items = list(session.scalars(select(RecycleItem)))
         swaps = {(i.original_path, i.created_at): i for i in items if i.reason == "restore-swap"}

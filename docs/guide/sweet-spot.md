@@ -18,9 +18,10 @@ quality step.
 
 ## Steps
 
-1. **Pick a file**: choose the **Library** and click a file (**Search** finds
-   it by name). A file you know well with dark scenes, faces or film grain
-   shows differences best.
+1. **Pick a file**: **From a library**, choose the **Library** and click a
+   file (**Search** finds it by name). A file you know well with dark scenes,
+   faces or film grain shows differences best. Or pick **A test film** (see
+   below).
 2. **Start from profile**: the versions use this profile's format, 10-bit,
    resolution and audio; only the quality changes. **Balanced** is the
    default.
@@ -57,6 +58,32 @@ which you can change). Choose it for a library on the library's page, and
 check it with a [test run](test-run.md) before re-encoding the whole library.
 Coming from the wizard, **Back to the wizard** returns with the new profile
 chosen.
+
+## Test films
+
+**A test film** offers free films made to be shared, so you can try settings
+without using your own files:
+
+| Film | What it's good for | Download |
+|---|---|---|
+| **Big Buck Bunny** (1080p) | Bright animation with fur and grass; easy to compress | 276 MB |
+| **Big Buck Bunny (4K)** | The same in 4K, for 4K settings and speeds | 632 MB |
+| **Sintel** (1080p) | Darker animation with snow, smoke and fast action, where banding and blocks show | 1.2 GB |
+| **Tears of Steel** (1080p) | Live action with effects, faces and dark scenes | 739 MB |
+
+Each shows its licence (all Creative Commons Attribution, by the Blender
+Foundation) and a link to the film's site.
+
+- Nothing is downloaded until you click **Download**. A progress bar shows
+  how far it is; **Stop** cancels it.
+- Every download is checked against a known fingerprint (checksum) before
+  it's kept, so a damaged or tampered file is thrown away (try again).
+- Films are kept in ReelHaven's appdata folder (`films`), not in your
+  libraries, so Plex never sees them. **Delete** removes one.
+- When it's ready, **Use this** picks it for the session. Sessions on a test
+  film show as *Test film* on the Jobs page.
+- None of these films is HDR: the only free HDR test films are far too big
+  (tens of GB) or not tagged as HDR. Use one of your own HDR files instead.
 
 ## Good to know
 

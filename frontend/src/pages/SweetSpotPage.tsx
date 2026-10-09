@@ -9,6 +9,7 @@ import {
   Loader,
   Modal,
   Progress,
+  SegmentedControl,
   Select,
   SimpleGrid,
   Stack,
@@ -23,6 +24,7 @@ import { useState } from 'react';
 import { Link, useSearchParams } from 'react-router';
 import { errorMessage } from '../api/client';
 import { useDeviceName } from '../api/devices';
+import { type TestFilm, useDeleteFilm, useDownloadFilm, useFilms } from '../api/films';
 import { useLibraries } from '../api/libraries';
 import {
   CODEC_LABELS,
@@ -110,6 +112,11 @@ function Start({ onStarted }: { onStarted: (id: number) => void }) {
   const [picked, setPicked] = useState<{ id: number; path: string } | null>(null);
   const fileId = picked?.id ?? null;
   const [profileId, setProfileId] = useState<string | null>(null);
+  const [from, setFrom] = useState<'library' | 'film'>('library');
+  const [filmId, setFilmId] = useState<string | null>(null);
+  const films = useFilms(from === 'film');
+  const readyFilm = films.data?.find((f) => f.id === filmId && f.state === 'ready');
+  const chosen = from === 'library' ? fileId !== null : readyFilm !== undefined;
   const library = libraryId ?? libraries.data?.[0]?.id ?? null;
   const balanced = profiles.data?.find((p) => p.builtin && p.name === 'Balanced');
   const base = profiles.data?.find((p) => String(p.id) === profileId) ?? balanced;
@@ -119,43 +126,58 @@ function Start({ onStarted }: { onStarted: (id: number) => void }) {
       <Card withBorder>
         <Stack>
           <Title order={4}>1. Pick a file</Title>
-          <Text size="sm" c="dimmed">
-            A high-quality file works best: a film you know well, with dark scenes, faces or film
-            grain.
-          </Text>
-          <Group grow>
-            <Select
-              label="Library"
-              data={(libraries.data ?? []).map((l) => ({ value: String(l.id), label: l.name }))}
-              value={library === null ? null : String(library)}
-              onChange={(v) => setLibraryId(v === null ? null : Number(v))}
-              allowDeselect={false}
-            />
-            <TextInput
-              label="Search"
-              placeholder="Part of the file name"
-              leftSection={<IconSearch size={16} />}
-              value={query}
-              onChange={(e) => setQuery(e.currentTarget.value)}
-            />
-          </Group>
-          {fileId === null ? (
-            library !== null && (
-              <FileChoices
-                libraryId={library}
-                query={debounced}
-                onPick={(id, path) => setPicked({ id, path })}
-              />
-            )
+          <SegmentedControl
+            w="fit-content"
+            value={from}
+            onChange={(v) => setFrom(v as 'library' | 'film')}
+            data={[
+              { value: 'library', label: 'From a library' },
+              { value: 'film', label: 'A test film' },
+            ]}
+          />
+          {from === 'film' ? (
+            <FilmChoices films={films.data} chosen={filmId} onChoose={setFilmId} />
           ) : (
-            <Group>
-              <Text fw={500} style={{ wordBreak: 'break-word' }}>
-                {picked?.path}
+            <>
+              <Text size="sm" c="dimmed">
+                A high-quality file works best: a film you know well, with dark scenes, faces or
+                film grain.
               </Text>
-              <Anchor component="button" size="sm" onClick={() => setPicked(null)}>
-                Pick another
-              </Anchor>
-            </Group>
+              <Group grow>
+                <Select
+                  label="Library"
+                  data={(libraries.data ?? []).map((l) => ({ value: String(l.id), label: l.name }))}
+                  value={library === null ? null : String(library)}
+                  onChange={(v) => setLibraryId(v === null ? null : Number(v))}
+                  allowDeselect={false}
+                />
+                <TextInput
+                  label="Search"
+                  placeholder="Part of the file name"
+                  leftSection={<IconSearch size={16} />}
+                  value={query}
+                  onChange={(e) => setQuery(e.currentTarget.value)}
+                />
+              </Group>
+              {fileId === null ? (
+                library !== null && (
+                  <FileChoices
+                    libraryId={library}
+                    query={debounced}
+                    onPick={(id, path) => setPicked({ id, path })}
+                  />
+                )
+              ) : (
+                <Group>
+                  <Text fw={500} style={{ wordBreak: 'break-word' }}>
+                    {picked?.path}
+                  </Text>
+                  <Anchor component="button" size="sm" onClick={() => setPicked(null)}>
+                    Pick another
+                  </Anchor>
+                </Group>
+              )}
+            </>
           )}
           <Title order={4}>2. Settings to try</Title>
           <Select
@@ -174,13 +196,15 @@ function Start({ onStarted }: { onStarted: (id: number) => void }) {
           {start.isError && <Alert color="red">{errorMessage(start.error)}</Alert>}
           <Group>
             <Button
-              disabled={fileId === null || !base}
+              disabled={!chosen || !base}
               loading={start.isPending}
               onClick={() =>
                 base &&
-                fileId !== null &&
+                chosen &&
                 start.mutate(
-                  { file_id: fileId, settings: base.settings },
+                  from === 'film' && readyFilm
+                    ? { film_id: readyFilm.id, settings: base.settings }
+                    : { file_id: fileId ?? undefined, settings: base.settings },
                   { onSuccess: (s) => s && onStarted(s.id) },
                 )
               }
@@ -222,6 +246,108 @@ function Start({ onStarted }: { onStarted: (id: number) => void }) {
           ))}
         </Stack>
       )}
+    </Stack>
+  );
+}
+
+function FilmChoices({
+  films,
+  chosen,
+  onChoose,
+}: {
+  films: TestFilm[] | undefined;
+  chosen: string | null;
+  onChoose: (id: string) => void;
+}) {
+  const download = useDownloadFilm();
+  const remove = useDeleteFilm();
+  if (!films) return <Loader size="sm" />;
+  return (
+    <Stack gap="xs">
+      <Text size="sm" c="dimmed">
+        Free films made to be shared, for trying settings without using your own. Nothing is
+        downloaded until you click <b>Download</b>; they&apos;re kept in ReelHaven&apos;s appdata
+        folder until you delete them.
+      </Text>
+      {films.map((f) => {
+        const selected = chosen === f.id && f.state === 'ready';
+        return (
+          <Card
+            key={f.id}
+            withBorder
+            padding="sm"
+            style={{
+              borderColor: selected ? 'var(--mantine-color-teal-6)' : undefined,
+              borderWidth: selected ? 2 : undefined,
+            }}
+          >
+            <Group justify="space-between" align="flex-start" wrap="nowrap">
+              <Stack gap={2} style={{ minWidth: 0 }}>
+                <Text fw={600}>
+                  {f.title} ({f.year})
+                </Text>
+                <Text size="sm">{f.about}</Text>
+                <Text size="xs" c="dimmed">
+                  {f.width}×{f.height} · {f.minutes} min · {formatBytes(f.download_bytes)} ·{' '}
+                  <Anchor href={f.licence_url} target="_blank" rel="noreferrer" size="xs">
+                    {f.licence}
+                  </Anchor>{' '}
+                  · {f.credit} ·{' '}
+                  <Anchor href={f.source_url} target="_blank" rel="noreferrer" size="xs">
+                    About the film
+                  </Anchor>
+                </Text>
+                {(f.state === 'downloading' || f.state === 'verifying') && (
+                  <Stack gap={2} mt={4}>
+                    <Progress value={(100 * f.downloaded_bytes) / f.download_bytes} animated />
+                    <Text size="xs" c="dimmed">
+                      {f.state === 'verifying'
+                        ? 'Checking the download…'
+                        : `${formatBytes(f.downloaded_bytes)} of ${formatBytes(f.download_bytes)}`}
+                    </Text>
+                  </Stack>
+                )}
+                {f.state === 'failed' && (
+                  <Text size="xs" c="red">
+                    {f.error}
+                  </Text>
+                )}
+              </Stack>
+              <Group gap="xs" wrap="nowrap">
+                {f.state === 'ready' && (
+                  <Button
+                    size="xs"
+                    variant={selected ? 'filled' : 'light'}
+                    onClick={() => onChoose(f.id)}
+                  >
+                    {selected ? 'Chosen' : 'Use this'}
+                  </Button>
+                )}
+                {(f.state === 'available' || f.state === 'failed') && (
+                  <Button
+                    size="xs"
+                    variant="light"
+                    loading={download.isPending && download.variables === f.id}
+                    onClick={() => download.mutate(f.id)}
+                  >
+                    Download
+                  </Button>
+                )}
+                {f.state !== 'available' && f.state !== 'failed' && (
+                  <Button
+                    size="xs"
+                    variant="default"
+                    loading={remove.isPending && remove.variables === f.id}
+                    onClick={() => remove.mutate(f.id)}
+                  >
+                    {f.state === 'ready' ? 'Delete' : 'Stop'}
+                  </Button>
+                )}
+              </Group>
+            </Group>
+          </Card>
+        );
+      })}
     </Stack>
   );
 }
