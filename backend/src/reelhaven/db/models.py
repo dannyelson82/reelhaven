@@ -180,6 +180,9 @@ class MediaFile(Base):
     probed_at: Mapped[datetime | None] = mapped_column(default=None)
     # Profile fingerprint whose encode didn't save enough; not tried again with it.
     no_gain_profile: Mapped[str | None] = mapped_column(String(32), default=None)
+    # An audio conversion that was tried and didn't make the file smaller (its signature):
+    # it isn't planned again while the profile asks for the same conversion.
+    no_gain_audio: Mapped[str | None] = mapped_column(String(32), default=None)
 
 
 INTEGRATION_KINDS = ("sonarr", "radarr", "tmdb", "plex")

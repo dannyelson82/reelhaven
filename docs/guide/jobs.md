@@ -45,6 +45,12 @@ Sometimes a re-encode isn't smaller enough to be worth it. Then the original
 is kept, the job shows **No gain: the original was kept**, and ReelHaven won't
 try that profile on that file again.
 
+The same goes for converting audio: if a soundtrack would come out bigger (a
+very efficient lossless track, for example), ReelHaven doesn't convert it and
+won't try that conversion on that file again. Anything else the job was going
+to do, such as removing unwanted languages or fixing the default and forced
+subtitle flags, is still done straight away. If the conversion was the only
+change, the original is kept and the job shows **No gain**.
 ## Live progress
 
 The Jobs page, the Test run tab and the Dashboard update live while you
