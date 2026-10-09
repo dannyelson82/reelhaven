@@ -12,9 +12,10 @@ import {
   Stack,
   Text,
   Title,
+  UnstyledButton,
 } from '@mantine/core';
 import { notifications } from '@mantine/notifications';
-import { IconCheck, IconPlayerPlay } from '@tabler/icons-react';
+import { IconCheck, IconMaximize, IconPlayerPlay } from '@tabler/icons-react';
 import { useState } from 'react';
 import { errorMessage } from '../api/client';
 import { useDeviceName } from '../api/devices';
@@ -31,6 +32,7 @@ import {
   useTestRun,
 } from '../api/testRun';
 import { useLiveJobs } from '../api/live';
+import { CompareViewer } from './CompareViewer';
 import { formatBytes, formatDuration, formatTimeLeft } from '../format';
 
 const RATING_COLOR: Record<string, string> = {
@@ -275,42 +277,92 @@ function SampleView({
             this file would keep the original. Consider a smaller profile.
           </Alert>
         )}
-        {r.frame_times.map((at, index) => (
-          <Stack key={index} gap={4}>
-            <Text size="sm" fw={500}>
-              At {formatDuration(at)}
-            </Text>
-            <SimpleGrid cols={{ base: 1, md: 2 }}>
-              <Stack gap={4}>
-                <Text size="xs" c="dimmed">
-                  Original
-                </Text>
-                <Image
-                  src={frameUrl(sample.id, index, 'source')}
-                  alt={`Original at ${at}s`}
-                  radius="sm"
-                />
-              </Stack>
-              <Stack gap={4}>
-                <Text size="xs" c="dimmed">
-                  Re-encoded
-                </Text>
-                <Image
-                  src={frameUrl(sample.id, index, 'encoded')}
-                  alt={`Re-encoded at ${at}s`}
-                  radius="sm"
-                />
-              </Stack>
-            </SimpleGrid>
-          </Stack>
-        ))}
-        {r.hdr && r.hdr !== 'sdr' && (
-          <Text size="xs" c="dimmed">
-            HDR stills look washed out in a browser; judge colours on your TV.
-          </Text>
+        {r.frame_times.length > 0 && (
+          <Stills
+            sampleId={sample.id}
+            file={sample.file}
+            times={r.frame_times}
+            hdr={r.hdr !== null && r.hdr !== 'sdr'}
+          />
         )}
       </Stack>
     </Card>
+  );
+}
+
+function Stills({
+  sampleId,
+  file,
+  times,
+  hdr,
+}: {
+  sampleId: number;
+  file: string;
+  times: number[];
+  hdr: boolean;
+}) {
+  const [index, setIndex] = useState(0);
+  const [open, setOpen] = useState(false);
+  const shown = Math.min(index, times.length - 1);
+  return (
+    <Stack gap="xs">
+      <Group justify="space-between">
+        {times.length > 1 ? (
+          <SegmentedControl
+            size="xs"
+            value={String(shown)}
+            onChange={(value) => setIndex(Number(value))}
+            data={times.map((at, i) => ({ value: String(i), label: formatDuration(at) }))}
+            aria-label="Moment"
+          />
+        ) : (
+          <Text size="sm">At {formatDuration(times[0])}</Text>
+        )}
+        <Button
+          size="xs"
+          variant="light"
+          leftSection={<IconMaximize size={14} />}
+          onClick={() => setOpen(true)}
+        >
+          Compare full screen
+        </Button>
+      </Group>
+      <SimpleGrid cols={{ base: 1, md: 2 }}>
+        {(['source', 'encoded'] as const).map((which) => (
+          <Stack key={which} gap={4}>
+            <Text size="xs" c="dimmed">
+              {which === 'source' ? 'Original' : 'Re-encoded'}
+            </Text>
+            <UnstyledButton onClick={() => setOpen(true)}>
+              <Image
+                src={frameUrl(sampleId, shown, which)}
+                alt={`${which === 'source' ? 'Original' : 'Re-encoded'} at ${formatDuration(times[shown])}`}
+                radius="sm"
+              />
+            </UnstyledButton>
+          </Stack>
+        ))}
+      </SimpleGrid>
+      <Text size="xs" c="dimmed">
+        Click a still to compare it full screen, zoomed in.
+        {hdr &&
+          ' HDR stills are converted to normal colours for the browser; judge HDR colours on your TV.'}
+      </Text>
+      {open && (
+        <CompareViewer
+          opened
+          onClose={() => setOpen(false)}
+          title={file}
+          start={shown}
+          stills={times.map((at, i) => ({
+            at,
+            source: frameUrl(sampleId, i, 'source'),
+            encoded: frameUrl(sampleId, i, 'encoded'),
+          }))}
+          note={hdr ? 'HDR is shown converted to normal colours.' : undefined}
+        />
+      )}
+    </Stack>
   );
 }
 

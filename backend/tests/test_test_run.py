@@ -11,7 +11,8 @@ from sqlalchemy import select
 
 from reelhaven.config import Settings
 from reelhaven.db import Database, Job, TestRun, TestRunSample
-from reelhaven.jobs.test_run import frame_times, run_status, sample_status
+from reelhaven.jobs.test_run import frame_times, run_status, sample_status, still_size
+from reelhaven.media.info import MediaInfo, Stream
 from reelhaven.media.probe import probe
 from reelhaven.quality_metrics import rate, segment_starts
 from tests.helpers import API
@@ -43,8 +44,8 @@ def test_rating_bands() -> None:
 def test_segments_and_frame_times() -> None:
     assert segment_starts(5) == [0.0]
     assert segment_starts(100) == [22.5, 45.0, 67.5]
-    assert frame_times(3) == [1.5]  # inside a short video
-    assert frame_times(100) == [27.5, 50.0, 72.5]
+    assert frame_times(1) == [0.5]  # inside a very short video
+    assert frame_times(60) == [10.0, 20.0, 30.0, 40.0, 50.0]  # spread through it
 
 
 def test_status_rules() -> None:
@@ -101,12 +102,19 @@ def test_test_run_then_approve(app: FastAPI, settings: Settings) -> None:  # noq
     assert admin.get(f"{API}/recycle").json() == []
 
     frames = f"{API}/test-run-samples/{sample['id']}/frames"
-    frame = admin.get(f"{frames}/0/encoded.jpg")
-    assert frame.status_code == 200 and frame.headers["content-type"] == "image/jpeg"
-    assert frame.content[:2] == b"\xff\xd8"
-    assert admin.get(f"{frames}/0/other.jpg").status_code == 422
-    assert admin.get(f"{frames}/99/source.jpg").status_code == 422
-    assert admin.get(f"{API}/test-run-samples/999/frames/0/source.jpg").status_code == 404
+    stills = []
+    for which in ("source", "encoded"):
+        frame = admin.get(f"{frames}/0/{which}")
+        assert frame.status_code == 200 and frame.headers["content-type"] == "image/webp"
+        assert frame.content[:4] == b"RIFF" and frame.content[8:12] == b"WEBP"
+        stills.append(frame.content)
+    # Both stills are the original's full size, so they line up pixel for pixel.
+    sizes = {_webp_size(still) for still in stills}
+    assert sizes == {(1280, 720)}, sizes
+    assert len(result["frame_times"]) == 5
+    assert admin.get(f"{frames}/0/other").status_code == 422
+    assert admin.get(f"{frames}/99/source").status_code == 422
+    assert admin.get(f"{API}/test-run-samples/999/frames/0/source").status_code == 404
 
     # Bulk encoding is locked until the owner approves.
     dry = admin.get(f"{API}/libraries/{lib}/dry-run").json()
@@ -270,3 +278,22 @@ def test_library_says_when_reencoding_waits_for_a_test_run(
         == 200
     )
     assert admin.get(f"{API}/libraries/{lib}").json()["needs_test_run"] is True
+
+
+def _webp_size(data: bytes) -> tuple[int, int]:
+    """Width and height of a lossless WebP (VP8L) image."""
+    assert data[12:16] == b"VP8L", data[12:16]
+    bits = int.from_bytes(data[21:25], "little")
+    return (bits & 0x3FFF) + 1, ((bits >> 14) & 0x3FFF) + 1
+
+
+def test_still_size_follows_the_original() -> None:
+    def info(width: int, height: int) -> MediaInfo:
+        video = Stream(index=0, kind="video", codec="h264", width=width, height=height)
+        return MediaInfo(
+            container="matroska", duration_s=60, size_bytes=1, bit_rate=None, streams=[video]
+        )
+
+    assert still_size(info(1920, 800)) == (1920, 800)
+    assert still_size(info(7680, 4320)) == (3840, 2160)  # capped at 4K
+    assert still_size(info(1441, 1081)) == (1440, 1080)  # even

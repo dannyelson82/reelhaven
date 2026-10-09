@@ -39,9 +39,30 @@ For each file:
   counts as indistinguishable).
 - **Video**: the new codec, bit depth, resolution and HDR type, plus which
   device encoded it and how fast.
-- **Still frames**: the original and the re-encode side by side at up to
-  three moments. HDR stills look washed out in a browser; judge colours on
-  your TV.
+- **Still frames**: the original and the re-encode side by side at five
+  moments spread through the file, at full resolution (up to 4K) and without
+  any compression of their own. Pick a moment with the row of times above
+  them. HDR stills are converted to normal colours for the browser, so judge
+  HDR colours on your TV.
+
+## Compare full screen
+
+Click a still (or **Compare full screen**) to look closely:
+
+- **Side by side**: the original on the left (on top on a phone), the
+  re-encode next to it. One zoom control works for both, and dragging either
+  picture moves both, so they always show the same spot. **1:1** shows one
+  picture pixel per screen pixel; **Fit** shows the whole picture again.
+- **Swipe**: one picture, original on the left of a divider and re-encode on
+  the right. Drag the divider across a detail (or select it and use ← →) to
+  see what changes.
+- Scroll the mouse wheel or pinch to zoom where you point; the times at the
+  top switch moments and keep your zoom, so you can check the same spot.
+- Keys: ← → switch moments, **+** and **−** zoom, **0** fits, **1** is 1:1,
+  **S** switches between side by side and swipe, **Esc** closes.
+
+Look at faces, dark areas, skies and fine texture such as hair or grass;
+that's where a smaller file shows first.
 
 With several files, a summary shows the total saving and the **Weakest
 quality**. The re-encoded files of the latest test run stay in

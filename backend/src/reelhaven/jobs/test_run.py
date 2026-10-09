@@ -33,12 +33,13 @@ from reelhaven.jobs.verify import VerificationError, verify_output
 from reelhaven.media.info import MediaInfo
 from reelhaven.planner import Plan
 from reelhaven.profiles import ProfileSettings
-from reelhaven.quality_metrics import SEGMENT_SECONDS, extract_frame, measure, segment_starts
+from reelhaven.quality_metrics import extract_frame, measure
 from reelhaven.sampling import MAX_SAMPLES, Candidate, choose_samples
 
 logger = logging.getLogger(__name__)
 
-FRAME_WIDTH = 1280
+MAX_STILL_WIDTH = 3840  # stills are full size, up to 4K
+STILLS = 5
 _ENDED_JOB = ("failed", "cancelled")
 
 
@@ -52,7 +53,10 @@ def sample_dir(settings: Settings, library_id: int, run_id: int, sample_id: int)
 
 
 def frame_path(settings: Settings, run: TestRun, sample_id: int, index: int, which: str) -> Path:
-    return sample_dir(settings, run.library_id, run.id, sample_id) / f"frame-{index}-{which}.jpg"
+    """A still's file: lossless WebP since 0.8; older runs have JPEGs."""
+    folder = sample_dir(settings, run.library_id, run.id, sample_id)
+    webp = folder / f"frame-{index}-{which}.webp"
+    return webp if webp.is_file() else folder / f"frame-{index}-{which}.jpg"
 
 
 def sample_status(sample: TestRunSample, job_status: str | None) -> str:
@@ -235,11 +239,13 @@ def process_test(db: Database, settings: Settings, job_id: int, device: Device) 
         quality = measure(
             settings.ffmpeg, source, encoded, duration, out_video.width, target.height
         )
-        times = [
-            at
-            for index, at in enumerate(frame_times(duration))
-            if _stills(settings, source, encoded, folder, index, at)
-        ]
+        size = still_size(info)
+        hdr = info.video is not None and info.video.hdr in ("hdr10", "hlg")
+        times: list[float] = []
+        for at in frame_times(duration):
+            # Numbered by the stills that worked, so times and pictures stay paired.
+            if _stills(settings, source, encoded, folder, len(times), at, size, hdr):
+                times.append(at)
     except CancelledError:
         remove_tree(folder)
         _finish(db, job_id, sample_id, "failed", error="Cancelled.")
@@ -273,23 +279,37 @@ def process_test(db: Database, settings: Settings, job_id: int, device: Device) 
     _finish(db, job_id, sample_id, "done", result=result)
 
 
-def frame_times(duration: float) -> list[float]:
-    """Moments for comparison stills: the middle of each measured segment, inside the video."""
-    if duration < SEGMENT_SECONDS * 1.5:
+def frame_times(duration: float, count: int = STILLS) -> list[float]:
+    """Moments for comparison stills, spread evenly through the video (10 % to 90 %)."""
+    if duration <= 1:
         return [round(duration / 2, 2)]
-    last = max(duration - 0.5, 0.0)
-    return [round(min(start + SEGMENT_SECONDS / 2, last), 2) for start in segment_starts(duration)]
+    return [round(duration * (i + 1) / (count + 1), 2) for i in range(count)]
+
+
+def still_size(info: MediaInfo) -> tuple[int, int]:
+    """The original's picture size (even, at most 4K wide): both stills are made at it."""
+    video = info.video
+    width, height = (video.width or 1280, video.height or 720) if video else (1280, 720)
+    if width > MAX_STILL_WIDTH:
+        width, height = MAX_STILL_WIDTH, round(height * MAX_STILL_WIDTH / width)
+    return width - width % 2, height - height % 2
 
 
 def _stills(
-    settings: Settings, source: Path, encoded: Path, folder: Path, index: int, at: float
+    settings: Settings,
+    source: Path,
+    encoded: Path,
+    folder: Path,
+    index: int,
+    at: float,
+    size: tuple[int, int],
+    hdr: bool,
 ) -> bool:
     """Extract both stills for one moment; a failure only means no picture for it."""
     try:
         for which, video in (("source", source), ("encoded", encoded)):
-            extract_frame(
-                settings.ffmpeg, video, at, folder / f"frame-{index}-{which}.jpg", FRAME_WIDTH
-            )
+            output = folder / f"frame-{index}-{which}.webp"
+            extract_frame(settings.ffmpeg, video, at, output, size, hdr)
     except Exception:
         logger.warning("could not extract a comparison still", extra={"at": at})
         return False

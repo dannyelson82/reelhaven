@@ -91,7 +91,7 @@ export const useApproveTestRun = (libraryId: number) =>
   );
 
 export const frameUrl = (sampleId: number, index: number, which: 'source' | 'encoded') =>
-  `api/v1/test-run-samples/${sampleId}/frames/${index}/${which}.jpg`;
+  `api/v1/test-run-samples/${sampleId}/frames/${index}/${which}`;
 
 /** Whether another sample of the run is encoding: samples go one at a time, so a queued
  * one is simply next in line. */

@@ -15,8 +15,9 @@ import {
   Stack,
   Text,
   ThemeIcon,
+  UnstyledButton,
 } from '@mantine/core';
-import { IconCheck } from '@tabler/icons-react';
+import { IconCheck, IconMaximize } from '@tabler/icons-react';
 import { useEffect, useRef, useState } from 'react';
 import { Link, useSearchParams } from 'react-router';
 import { errorMessage } from '../api/client';
@@ -41,6 +42,7 @@ import {
   useTestRun,
 } from '../api/testRun';
 import { useLiveJobs } from '../api/live';
+import { CompareViewer } from '../components/CompareViewer';
 import { ScanProgress } from '../components/ScanProgress';
 import { formatBytes, formatTimeLeft } from '../format';
 import { canEncode } from './choices';
@@ -71,6 +73,7 @@ function NavButtons({ onBack, next }: { onBack?: () => void; next: React.ReactNo
 }
 
 function SampleResult({ sample, upNext }: { sample: TestSample; upNext: boolean }) {
+  const [open, setOpen] = useState(false);
   const live = useLiveJobs();
   const job = live?.active.find((j) => j.id === sample.job_id);
   if (sample.status === 'running') {
@@ -116,20 +119,52 @@ function SampleResult({ sample, upNext }: { sample: TestSample; upNext: boolean 
           {r.savings_percent !== null && ` (${r.savings_percent}% smaller)`}
         </Text>
         {r.frame_times.length > 0 && (
-          <SimpleGrid cols={2} spacing="xs">
-            <Stack gap={2}>
-              <Text size="xs" c="dimmed">
-                Original
-              </Text>
-              <Image src={frameUrl(sample.id, 0, 'source')} alt="Original" radius="sm" />
-            </Stack>
-            <Stack gap={2}>
-              <Text size="xs" c="dimmed">
-                Smaller
-              </Text>
-              <Image src={frameUrl(sample.id, 0, 'encoded')} alt="Smaller version" radius="sm" />
-            </Stack>
-          </SimpleGrid>
+          <>
+            <UnstyledButton onClick={() => setOpen(true)}>
+              <SimpleGrid cols={2} spacing="xs">
+                <Stack gap={2}>
+                  <Text size="xs" c="dimmed">
+                    Original
+                  </Text>
+                  <Image src={frameUrl(sample.id, 0, 'source')} alt="Original" radius="sm" />
+                </Stack>
+                <Stack gap={2}>
+                  <Text size="xs" c="dimmed">
+                    Smaller
+                  </Text>
+                  <Image
+                    src={frameUrl(sample.id, 0, 'encoded')}
+                    alt="Smaller version"
+                    radius="sm"
+                  />
+                </Stack>
+              </SimpleGrid>
+            </UnstyledButton>
+            <Button
+              size="xs"
+              variant="light"
+              leftSection={<IconMaximize size={14} />}
+              onClick={() => setOpen(true)}
+            >
+              Look closer, full screen
+            </Button>
+            {open && (
+              <CompareViewer
+                opened
+                onClose={() => setOpen(false)}
+                title={sample.file}
+                after="Smaller"
+                stills={r.frame_times.map((at, i) => ({
+                  at,
+                  source: frameUrl(sample.id, i, 'source'),
+                  encoded: frameUrl(sample.id, i, 'encoded'),
+                }))}
+                note={
+                  r.hdr && r.hdr !== 'sdr' ? 'HDR is shown converted to normal colours.' : undefined
+                }
+              />
+            )}
+          </>
         )}
       </Stack>
     </Card>

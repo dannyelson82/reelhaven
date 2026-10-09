@@ -157,7 +157,7 @@ def approve_test_run(run_id: int, db: DbDep, principal: InteractiveDep) -> TestR
         return _out(session, run)
 
 
-@router.get("/test-run-samples/{sample_id}/frames/{index}/{which}.jpg", include_in_schema=False)
+@router.get("/test-run-samples/{sample_id}/frames/{index}/{which}", include_in_schema=False)
 def test_run_frame(
     sample_id: int,
     request: Request,
@@ -176,6 +176,7 @@ def test_run_frame(
         path = frame_path(settings, run, sample.id, index, which)
     if not path.is_file():
         raise HTTPException(status.HTTP_404_NOT_FOUND, "frame_not_found")
+    media_type = "image/webp" if path.suffix == ".webp" else "image/jpeg"
     return FileResponse(
-        path, media_type="image/jpeg", headers={"Cache-Control": "private, max-age=3600"}
+        path, media_type=media_type, headers={"Cache-Control": "private, max-age=3600"}
     )
