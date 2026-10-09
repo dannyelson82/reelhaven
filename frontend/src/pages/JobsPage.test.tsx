@@ -157,3 +157,41 @@ it('shows live encode progress and a no-gain result', async () => {
   expect(await screen.findByText(/42% · nvidia:0 · 148 fps · 6.1× real time/)).toBeInTheDocument();
   expect(screen.getByText('No gain: the original was kept')).toBeInTheDocument();
 });
+
+it('says where each encode decoded its video', async () => {
+  window.location.hash = '#/jobs';
+  const base = {
+    ...job,
+    type: 'encode',
+    error: null,
+    outcome: null,
+    device: 'nvidia:0',
+    fps: null,
+    speed: null,
+  };
+  mockApi({
+    'GET auth/state': loggedIn,
+    'GET jobs?status=all&offset=0&limit=50': {
+      body: {
+        total: 2,
+        counts: { running: 1, done: 1 },
+        items: [
+          { ...base, id: 7, status: 'running', progress: 0.5, fps: 140, decoder: 'gpu' },
+          {
+            ...base,
+            id: 6,
+            status: 'done',
+            outcome: 'replaced',
+            decoder: 'cpu',
+            bytes_before: 2e9,
+            bytes_after: 1e9,
+            process_seconds: 60,
+          },
+        ],
+      },
+    },
+  });
+  render(<App />);
+  expect(await screen.findByText(/50% · nvidia:0 · Decoded on GPU · 140 fps/)).toBeInTheDocument();
+  expect(screen.getByText(/on nvidia:0 \(decoded on CPU\)/)).toBeInTheDocument();
+});

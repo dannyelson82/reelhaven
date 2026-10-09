@@ -240,6 +240,8 @@ class Job(Base):
     device: Mapped[str | None] = mapped_column(String(128), default=None)
     fps: Mapped[float | None] = mapped_column(default=None)
     speed: Mapped[float | None] = mapped_column(default=None)
+    # Where the source video was decoded: "gpu" or "cpu" (ADR-0029); None before it starts.
+    decoder: Mapped[str | None] = mapped_column(String(8), default=None)
     error: Mapped[str | None] = mapped_column(Text, default=None)
     requested_by: Mapped[str] = mapped_column(String(128))
     created_at: Mapped[datetime] = mapped_column(default=utcnow)

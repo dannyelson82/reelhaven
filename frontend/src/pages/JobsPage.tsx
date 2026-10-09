@@ -27,6 +27,9 @@ import { useLiveJobs, withLive } from '../api/live';
 import { PauseButton, PausedBanner } from '../components/PauseControls';
 import { formatBytes, formatTimeLeft } from '../format';
 
+// Where the source video was decoded (ADR-0029).
+const DECODER: Record<'gpu' | 'cpu', string> = { gpu: 'Decoded on GPU', cpu: 'Decoded on CPU' };
+
 const STATUS: Record<Job['status'], { label: string; color: string }> = {
   queued: { label: 'Waiting', color: 'gray' },
   running: { label: 'Working', color: 'blue' },
@@ -115,6 +118,7 @@ function JobCard({ job }: { job: Job }) {
               <Text size="xs" c="dimmed">
                 {Math.round(job.progress * 100)}%
                 {job.type === 'encode' && job.device && ` · ${job.device}`}
+                {job.decoder && ` · ${DECODER[job.decoder]}`}
                 {job.fps !== null && ` · ${job.fps.toFixed(0)} fps`}
                 {job.speed !== null && ` · ${job.speed.toFixed(1)}× real time`}
                 {job.eta_seconds !== null && ` · ${formatTimeLeft(job.eta_seconds)} left`}
@@ -143,8 +147,9 @@ function JobCard({ job }: { job: Job }) {
             Saved {formatBytes(saved)} ({formatBytes(job.bytes_before)} →{' '}
             {formatBytes(job.bytes_after)})
             {job.process_seconds !== null && ` in ${job.process_seconds.toFixed(0)}s`}
-            {job.type === 'encode' && job.device && ` on ${job.device}`}. The original is in the
-            recycle bin.
+            {job.type === 'encode' && job.device && ` on ${job.device}`}
+            {job.decoder && ` (${DECODER[job.decoder].replace('Decoded', 'decoded')})`}. The
+            original is in the recycle bin.
           </Text>
         )}
         {job.status === 'failed' && (

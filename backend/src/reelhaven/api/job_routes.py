@@ -66,6 +66,7 @@ class JobOut(BaseModel):
     process_seconds: float | None = None
     outcome: str | None = None
     device: str | None = None
+    decoder: str | None = None  # "gpu" or "cpu" (ADR-0029)
     fps: float | None = None
     speed: float | None = None
     eta_seconds: int | None = None
@@ -131,6 +132,7 @@ def job_out(job: Job, library: Library | None, result: JobResult | None) -> JobO
         process_seconds=result.process_seconds if result else None,
         outcome=result.outcome if result else None,
         device=job.device,
+        decoder=job.decoder,
         fps=job.fps or (result.fps if result else None),
         speed=job.speed,
         eta_seconds=(

@@ -131,6 +131,7 @@ def test_nvidia_decodes_on_the_gpu(
     job = last_job(admin)
     assert (job["status"], job["outcome"]) == ("done", "replaced"), job
     assert len(calls) == 1 and "cuda" in calls[0]  # decoded on the card
+    assert job["decoder"] == "gpu"  # and the Jobs page says so
 
 
 @pytest.mark.parametrize("gpu", NVIDIA_GPUS)

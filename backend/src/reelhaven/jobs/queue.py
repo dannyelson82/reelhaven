@@ -195,6 +195,7 @@ class JobQueue:
                     job.progress = 0.0
                     job.error = None
                     job.device = device
+                    job.decoder = None
                     return job.id
         return None
 
