@@ -29,10 +29,12 @@ job. The owner asked for GPU decoding as the priority.
   device already set up for encoding, scaling and bit depth in `vpp_qsv` /
   `scale_vaapi` (these need the width, worked out from the source's proportions).
   Same formats except 12-bit HEVC; same fallback.
-- **Keep every GPU busy** (owner request): an Automatic library keeps as many jobs
-  queued as all enabled devices run at once, plus two waiting (at least four,
-  as before; ADR-0025 said "a few"), and a finished job wakes Automatic so the
-  next one is queued at once instead of on the next 30-second round.
+- **Keep every GPU busy** (owner request): an Automatic library keeps as many
+  re-encodes queued as all enabled devices run at once, plus two waiting, and
+  separately as many track-change jobs as the remux workers run, plus two (a
+  shared budget let a backlog of track changes starve the GPUs). A finished job
+  wakes Automatic so the next one is queued at once instead of on the next
+  30-second round.
 
 ## Consequences
 - Much lower CPU use per GPU job, so the CPU stays free for other containers.

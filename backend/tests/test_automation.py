@@ -75,20 +75,38 @@ def test_pick_follows_the_safety_rails() -> None:
     gave_up = {6: state, 7: state}
     current = {6: state, 7: FileState(2, 2)}
 
-    def ids(encodes_allowed: bool, limit: int = 10) -> list[int]:
+    def ids(encodes_allowed: bool, encode: int = 10, remux: int = 10) -> list[int]:
         chosen = pick(
             plans,
             active=active,
             gave_up=gave_up,
             current=current,
             encodes_allowed=encodes_allowed,
-            limit=limit,
+            limit_encode=encode,
+            limit_remux=remux,
         )
         return [p.file_id for p in chosen]
 
     assert ids(encodes_allowed=False) == [2, 7]
     assert ids(encodes_allowed=True) == [1, 2, 7, 8]
-    assert ids(encodes_allowed=True, limit=2) == [1, 2]
+    assert ids(encodes_allowed=True, encode=1, remux=1) == [1, 2]
+
+
+def test_track_changes_never_crowd_out_the_gpus() -> None:
+    """Owner report: the queue filled with audio/subtitle jobs and the GPUs got nothing."""
+    plans = [fp(n, "remux") for n in range(1, 101)] + [fp(n, "encode") for n in range(101, 111)]
+    chosen = pick(
+        plans,
+        active=set(),
+        gave_up={},
+        current={},
+        encodes_allowed=True,
+        limit_encode=6,
+        limit_remux=4,
+    )
+    kinds = [p.plan.action for p in chosen if p.plan]
+    assert kinds.count("encode") == 6  # every GPU slot + spare, despite 100 remuxes first
+    assert kinds.count("remux") == 4
 
 
 def test_pick_waits_for_the_original_language() -> None:
@@ -100,7 +118,8 @@ def test_pick_waits_for_the_original_language() -> None:
         gave_up={},
         current={},
         encodes_allowed=True,
-        limit=10,
+        limit_encode=10,
+        limit_remux=10,
     )
     assert [p.file_id for p in chosen] == [2]
 
@@ -239,8 +258,8 @@ def test_nightly_rescan_starts_watched_libraries(app: FastAPI, settings: Setting
 
 
 def test_queue_target_covers_every_slot_plus_spare() -> None:
-    assert queue_target(0) == 4  # no devices known yet: the old minimum
-    assert queue_target(2) == 4
+    assert queue_target(0) == 0  # nothing can run this kind of job: don't queue it
+    assert queue_target(2) == 4  # 2 remux workers, plus 2 waiting
     assert queue_target(4) == 6  # RTX + iGPU at 2 each, plus 2 waiting
     assert queue_target(8) == 10
 
@@ -285,9 +304,13 @@ def test_top_up_fills_every_gpu_slot(app: FastAPI, settings: Settings) -> None: 
     admin.patch(f"{API}/libraries/{lib}", json={"watch_mode": "automatic"})
     db: Database = app.state.db
     automation = Automation(
-        db, start_scan=lambda _lib: True, notify_queue=lambda: None, encode_slots=lambda: 6
+        db,
+        start_scan=lambda _lib: True,
+        notify_queue=lambda: None,
+        encode_slots=lambda: 6,
+        remux_slots=lambda: 2,
     )
-    assert automation.top_up(lib) == 8  # 6 slots + 2 spare, not the old 4
+    assert automation.top_up(lib) == 4  # track changes: 2 workers + 2 waiting
 
 
 @needs_ffmpeg

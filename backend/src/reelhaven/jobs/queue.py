@@ -248,6 +248,10 @@ class JobQueue:
                 return True
         return False
 
+    def remux_slots(self) -> int:
+        """How many track-change (remux) jobs run at once."""
+        return self._workers
+
     def encode_slots(self) -> int:
         """How many encodes the enabled devices run at once, all together."""
         if self._devices is None:

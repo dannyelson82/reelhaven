@@ -23,7 +23,6 @@ from reelhaven.jobs.service import ACTIVE, create_jobs, library_profile
 logger = logging.getLogger(__name__)
 
 ACTOR = "automatic"
-TOP_UP = 4  # at least this many queued + running jobs per automatic library
 SPARE = 2  # queued beyond what the devices run at once, so none waits for the next round
 TICK_S = 30.0
 
@@ -31,10 +30,11 @@ TICK_S = 30.0
 # --- pure decisions --------------------------------------------------------------------
 
 
-def queue_target(encode_slots: int) -> int:
-    """Jobs (queued + running) to keep per automatic library: enough to fill every enabled
-    device's slots with a few spare, so no GPU sits idle waiting for the next round."""
-    return max(TOP_UP, encode_slots + SPARE)
+def queue_target(slots: int) -> int:
+    """Jobs (queued + running) of one kind to keep per automatic library: enough to fill
+    every worker that runs that kind, with a few spare, so none sits idle waiting for the
+    next round."""
+    return slots + SPARE if slots > 0 else 0
 
 
 def rescan_due(last_scan: datetime | None, now: datetime, rescan_at: str) -> bool:
@@ -60,9 +60,13 @@ def pick(
     gave_up: dict[int, FileState],
     current: dict[int, FileState],
     encodes_allowed: bool,
-    limit: int,
+    limit_encode: int,
+    limit_remux: int,
 ) -> list[FilePlan]:
     """Files to queue next for an automatic library, in library order.
+
+    Re-encodes (the GPUs) and track changes (remux workers) have separate budgets, so a
+    long run of quick track changes never leaves the GPUs without work.
 
     Skips files already queued or running, files whose last job failed or was
     cancelled and that haven't changed since (no automatic retries), and
@@ -71,11 +75,14 @@ def pick(
     have an encode or remux plan, so they're never picked.
     """
     chosen: list[FilePlan] = []
+    room = {"encode": limit_encode, "remux": limit_remux}
     for item in plans:
-        if len(chosen) >= limit:
+        if room["encode"] <= 0 and room["remux"] <= 0:
             break
         plan = item.plan
         if plan is None or plan.action not in ("remux", "encode"):
+            continue
+        if room[plan.action] <= 0:
             continue
         if plan.action == "encode" and not encodes_allowed:
             continue
@@ -87,6 +94,7 @@ def pick(
         if failed is not None and failed == current.get(item.file_id):
             continue
         chosen.append(item)
+        room[plan.action] -= 1
     return chosen
 
 
@@ -101,9 +109,11 @@ class Automation:
         notify_queue: Callable[[], None],
         clock: Callable[[], datetime] = datetime.now,
         encode_slots: Callable[[], int] = lambda: 0,
+        remux_slots: Callable[[], int] = lambda: 2,
     ) -> None:
         self._db = db
         self._encode_slots = encode_slots
+        self._remux_slots = remux_slots
         self._start_scan = start_scan
         self._notify_queue = notify_queue
         self._clock = clock
@@ -162,15 +172,18 @@ class Automation:
             library = session.get(Library, library_id)
             if library is None or library.watch_mode != "automatic":
                 return 0
-            active_jobs = set(
-                session.scalars(
-                    select(Job.media_file_id).where(
-                        Job.library_id == library_id, Job.status.in_(ACTIVE)
-                    )
+            active_rows = session.execute(
+                select(Job.media_file_id, Job.type).where(
+                    Job.library_id == library_id, Job.status.in_(ACTIVE)
                 )
-            )
-            room = queue_target(self._encode_slots()) - len(active_jobs)
-            if room <= 0:
+            ).all()
+            active_jobs = {file_id for file_id, _type in active_rows}
+            busy = {
+                kind: sum(1 for _f, t in active_rows if t == kind) for kind in ("encode", "remux")
+            }
+            room_encode = queue_target(self._encode_slots()) - busy["encode"]
+            room_remux = queue_target(self._remux_slots()) - busy["remux"]
+            if room_encode <= 0 and room_remux <= 0:
                 return 0
             profile = library_profile(session, library)
             encodes_allowed = profile is not None and library.test_run_profile == (
@@ -189,7 +202,8 @@ class Automation:
             gave_up=gave_up,
             current=current,
             encodes_allowed=encodes_allowed,
-            limit=room,
+            limit_encode=room_encode,
+            limit_remux=room_remux,
         )
         if not chosen:
             return 0

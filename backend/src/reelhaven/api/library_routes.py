@@ -9,6 +9,7 @@ from fastapi import APIRouter, Depends, HTTPException, Request, status
 from pydantic import BaseModel, Field, field_validator
 from sqlalchemy import func, select
 from sqlalchemy.exc import IntegrityError
+from sqlalchemy.orm import Session
 
 from reelhaven import audit
 from reelhaven.api.deps import (
@@ -21,6 +22,8 @@ from reelhaven.api.deps import (
 from reelhaven.api.schemas import StrictModel
 from reelhaven.config import Settings
 from reelhaven.db import Library, MediaFile
+from reelhaven.encode_planner import profile_fingerprint
+from reelhaven.jobs.service import library_profile
 from reelhaven.paths import INTERNAL_DIR, PathNotAllowedError, overlaps, resolve_within
 from reelhaven.policy import LanguagePolicy
 
@@ -54,6 +57,9 @@ class LibraryOut(BaseModel):
     last_scan_error: str | None = None
     scanning: bool = False
     watch_mode: WatchMode = "off"
+    # The library has a profile but no test run approved with it, so whole-library
+    # re-encoding (manual or Automatic) waits (ADR-0020).
+    needs_test_run: bool = False
 
 
 class LibraryCreate(StrictModel):
@@ -93,7 +99,18 @@ class BrowseResult(BaseModel):
     truncated: bool
 
 
-def _out(library: Library, root: Path, file_count: int = 0, scanning: bool = False) -> LibraryOut:
+def _needs_test_run(session: Session, library: Library) -> bool:
+    profile = library_profile(session, library)
+    return profile is not None and library.test_run_profile != profile_fingerprint(profile)
+
+
+def _out(
+    library: Library,
+    root: Path,
+    file_count: int = 0,
+    scanning: bool = False,
+    needs_test_run: bool = False,
+) -> LibraryOut:
     path = Path(library.path)
     relative = path.relative_to(root) if path.is_relative_to(root) else path
     return LibraryOut(
@@ -108,6 +125,7 @@ def _out(library: Library, root: Path, file_count: int = 0, scanning: bool = Fal
         last_scan_error=library.last_scan_error,
         scanning=scanning,
         watch_mode=library.watch_mode,  # type: ignore[arg-type]
+        needs_test_run=needs_test_run,
     )
 
 
@@ -165,7 +183,11 @@ def list_libraries(
     with db.read() as session:
         libraries = session.scalars(select(Library).order_by(Library.name)).all()
         counts = _file_counts(session)
-    return [_out(lib, root, counts.get(lib.id, 0), scanner.is_running(lib.id)) for lib in libraries]
+        waiting = {lib.id: _needs_test_run(session, lib) for lib in libraries}
+    return [
+        _out(lib, root, counts.get(lib.id, 0), scanner.is_running(lib.id), waiting[lib.id])
+        for lib in libraries
+    ]
 
 
 @router.post("/libraries", status_code=status.HTTP_201_CREATED)
@@ -209,7 +231,9 @@ def get_library(
     with db.read() as session:
         library = _get(session.get(Library, library_id))
         count = _file_counts(session).get(library_id, 0)
-    return _out(library, root, count, request.app.state.scanner.is_running(library_id))
+        waiting = _needs_test_run(session, library)
+    scanning = request.app.state.scanner.is_running(library_id)
+    return _out(library, root, count, scanning, waiting)
 
 
 @router.patch("/libraries/{library_id}")

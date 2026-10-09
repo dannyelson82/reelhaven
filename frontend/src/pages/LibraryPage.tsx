@@ -127,6 +127,13 @@ export function LibraryPage() {
           {library.last_scan_error}
         </Alert>
       )}
+      {library.needs_test_run && library.watch_mode === 'automatic' && (
+        <Alert color="yellow" title="Re-encoding is waiting for a test run">
+          The profile changed since the last approved test run (or none was run yet), so only audio
+          and subtitle changes are being made. Open the <b>Test run</b> tab, try the current profile
+          on a few files and approve it, then re-encoding starts by itself.
+        </Alert>
+      )}
 
       <Tabs defaultValue="files" keepMounted={false}>
         <Tabs.List mb="md">

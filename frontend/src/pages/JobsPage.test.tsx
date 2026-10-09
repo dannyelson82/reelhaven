@@ -171,6 +171,24 @@ it('says where each encode decoded its video', async () => {
   };
   mockApi({
     'GET auth/state': loggedIn,
+    'GET devices': {
+      body: {
+        detecting: false,
+        detected_at: 1,
+        settings: {},
+        devices: [
+          {
+            id: 'nvidia:0',
+            kind: 'nvidia',
+            name: 'NVIDIA GeForce RTX 3060',
+            family: 'nvenc',
+            results: [],
+            enabled: true,
+            concurrency: 2,
+          },
+        ],
+      },
+    },
     'GET jobs?status=all&offset=0&limit=50': {
       body: {
         total: 2,
@@ -192,6 +210,9 @@ it('says where each encode decoded its video', async () => {
     },
   });
   render(<App />);
-  expect(await screen.findByText(/50% · nvidia:0 · Decoded on GPU · 140 fps/)).toBeInTheDocument();
-  expect(screen.getByText(/on nvidia:0 \(decoded on CPU\)/)).toBeInTheDocument();
+  // The card's name, not its id.
+  expect(
+    await screen.findByText(/50% · NVIDIA GeForce RTX 3060 · Decoded on GPU · 140 fps/),
+  ).toBeInTheDocument();
+  expect(screen.getByText(/on NVIDIA GeForce RTX 3060 \(decoded on CPU\)/)).toBeInTheDocument();
 });

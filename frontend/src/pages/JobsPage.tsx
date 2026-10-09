@@ -15,6 +15,7 @@ import {
 } from '@mantine/core';
 import { useState } from 'react';
 import { errorMessage } from '../api/client';
+import { useDeviceName } from '../api/devices';
 import {
   type Job,
   type JobFilter,
@@ -90,6 +91,8 @@ export function JobsPage() {
 
 function JobCard({ job }: { job: Job }) {
   const cancel = useCancelJob();
+  // The card's name ("NVIDIA GeForce RTX 3060") rather than its id.
+  const device = useDeviceName()(job.device);
   const retry = useRetryJob();
   const status = STATUS[job.status];
   const saved =
@@ -116,8 +119,7 @@ function JobCard({ job }: { job: Job }) {
             <Progress value={job.progress * 100} animated={job.status !== 'queued'} />
             {job.status !== 'queued' && (
               <Text size="xs" c="dimmed">
-                {Math.round(job.progress * 100)}%
-                {job.type === 'encode' && job.device && ` · ${job.device}`}
+                {Math.round(job.progress * 100)}%{job.type === 'encode' && device && ` · ${device}`}
                 {job.decoder && ` · ${DECODER[job.decoder]}`}
                 {job.fps !== null && ` · ${job.fps.toFixed(0)} fps`}
                 {job.speed !== null && ` · ${job.speed.toFixed(1)}× real time`}
@@ -147,7 +149,7 @@ function JobCard({ job }: { job: Job }) {
             Saved {formatBytes(saved)} ({formatBytes(job.bytes_before)} →{' '}
             {formatBytes(job.bytes_after)})
             {job.process_seconds !== null && ` in ${job.process_seconds.toFixed(0)}s`}
-            {job.type === 'encode' && job.device && ` on ${job.device}`}
+            {job.type === 'encode' && device && ` on ${device}`}
             {job.decoder && ` (${DECODER[job.decoder].replace('Decoded', 'decoded')})`}. The
             original is in the recycle bin.
           </Text>

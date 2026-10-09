@@ -22,17 +22,20 @@ first: that's exactly the work it will do.
 - **Re-encoding waits for a [test run](test-run.md)**: an Automatic library
   only re-encodes after a test run with its current profile is approved.
   Track-only changes (removing tracks, fixing defaults, converting audio)
-  start straight away.
+  start straight away. Changing the profile's quality, speed, format or size
+  needs a new test run; until then the library shows **Re-encoding is waiting
+  for a test run**.
 - **Files that need review are never touched** (wrong language, no wanted
   audio, unreadable).
 - **Files wait for the language lookup**: a new file is only processed once its
   title's original language has been looked up (see [Languages](languages.md)).
-- **Every GPU kept busy**: ReelHaven queues enough jobs per library to fill
-  every enabled graphics card (each card's **At the same time** on the
+- **Every GPU kept busy**: ReelHaven queues enough re-encodes per library to
+  fill every enabled graphics card (each card's **At the same time** on the
   [Hardware](hardware.md) page, added up) plus two waiting, and queues the
-  next one the moment a job finishes. It never queues the whole library at
-  once, so the [Jobs](jobs.md) page stays readable and new files get their
-  turn.
+  next one the moment a job finishes. Audio and subtitle changes have their
+  own, separate share of the queue, so a long run of them never leaves the
+  graphics cards without work. It never queues the whole library at once, so
+  the [Jobs](jobs.md) page stays readable and new files get their turn.
 - **No automatic retries**: a file whose job failed or that you cancelled is
   left alone until the file changes. Use **Try again** to retry it yourself.
 - Every original still goes to the [recycle bin](recycle-bin.md) (14 days

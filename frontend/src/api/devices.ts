@@ -59,3 +59,9 @@ export function useSaveDeviceSettings() {
     onSuccess: (data) => queryClient.setQueryData(KEY, data),
   });
 }
+
+/** A device's display name ("NVIDIA GeForce RTX 3060") from its id ("nvidia:0"). */
+export function useDeviceName(): (id: string | null | undefined) => string | null {
+  const devices = useDevices();
+  return (id) => (id ? (devices.data?.devices.find((d) => d.id === id)?.name ?? id) : null);
+}
