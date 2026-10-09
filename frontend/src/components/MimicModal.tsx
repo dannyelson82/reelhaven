@@ -94,14 +94,14 @@ export function MimicModal({
   );
 }
 
-function FileChoices({
+export function FileChoices({
   libraryId,
   query,
   onPick,
 }: {
   libraryId: number;
   query: string;
-  onPick: (fileId: number) => void;
+  onPick: (fileId: number, path: string) => void;
 }) {
   const files = useFiles(libraryId, { q: query, problems: false, page: 1, pageSize: 15 });
   if (files.isPending) return <Loader size="sm" />;
@@ -119,7 +119,7 @@ function FileChoices({
       {readable.map((file) => {
         const name = file.relative_path.split('/').pop();
         return (
-          <UnstyledButton key={file.id} onClick={() => onPick(file.id)}>
+          <UnstyledButton key={file.id} onClick={() => onPick(file.id, file.relative_path)}>
             <Card withBorder padding="xs">
               <Group justify="space-between" wrap="nowrap">
                 <Stack gap={0} style={{ minWidth: 0 }}>

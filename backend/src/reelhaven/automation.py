@@ -231,5 +231,5 @@ def _given_up(session: Session, library_id: int) -> dict[int, FileState]:
     return {
         file_id: FileState(job.source_size, job.source_mtime_ns)
         for file_id, job in latest.items()
-        if job.status in ("failed", "cancelled") and job.type != "test"
+        if job.status in ("failed", "cancelled") and job.type not in ("test", "tune")
     }

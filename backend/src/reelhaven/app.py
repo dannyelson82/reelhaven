@@ -25,6 +25,7 @@ from reelhaven.api import (
     stats_routes,
     test_run_routes,
     title_routes,
+    tune_routes,
     webhook_routes,
 )
 from reelhaven.auth.network import IPAddress, read_default_gateways
@@ -144,6 +145,7 @@ def create_app(
     app.include_router(device_routes.router, prefix="/api/v1")
     app.include_router(profile_routes.router, prefix="/api/v1")
     app.include_router(test_run_routes.router, prefix="/api/v1")
+    app.include_router(tune_routes.router, prefix="/api/v1")
     app.include_router(live_routes.router, prefix="/api/v1")
     app.include_router(automation_routes.router, prefix="/api/v1")
     app.include_router(recycle_settings_routes.router, prefix="/api/v1")

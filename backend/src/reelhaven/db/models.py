@@ -238,6 +238,10 @@ class Job(Base):
     test_run_sample_id: Mapped[int | None] = mapped_column(
         ForeignKey("test_run_samples.id", ondelete="CASCADE"), default=None
     )
+    # Sweet-spot sessions (ADR-0031): the step this job encodes.
+    tune_step_id: Mapped[int | None] = mapped_column(
+        ForeignKey("tune_steps.id", ondelete="CASCADE"), default=None
+    )
     # Encode jobs: the profile snapshot, the device that runs it and live speed.
     profile: Mapped[dict[str, Any] | None] = mapped_column(default=None)
     device: Mapped[str | None] = mapped_column(String(128), default=None)
@@ -361,4 +365,54 @@ class TestRunSample(Base):
     # Sizes, quality measures and frame times, filled in when the encode finishes.
     result: Mapped[dict[str, Any] | None] = mapped_column(default=None)
     error: Mapped[str | None] = mapped_column(Text, default=None)
+    finished_at: Mapped[datetime | None] = mapped_column(default=None)
+
+
+TUNE_STEP_STATUSES = ("running", "done", "failed")
+
+
+class TuneSession(Base):
+    """Find my sweet spot (ADR-0031): one scene of one file, encoded at several qualities."""
+
+    __tablename__ = "tune_sessions"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    library_id: Mapped[int] = mapped_column(
+        ForeignKey("libraries.id", ondelete="CASCADE"), index=True
+    )
+    media_file_id: Mapped[int | None] = mapped_column(
+        ForeignKey("media_files.id", ondelete="SET NULL"), default=None
+    )
+    relative_path: Mapped[str] = mapped_column(String(4096))
+    # The profile settings every step shares; each step sets its own quality.
+    base: Mapped[dict[str, Any]] = mapped_column()
+    scene_start: Mapped[float] = mapped_column()
+    scene_seconds: Mapped[float] = mapped_column()
+    # The whole file's size and its video's share, for each step's estimate.
+    file_bytes: Mapped[int] = mapped_column(Integer)
+    video_bytes: Mapped[int | None] = mapped_column(Integer, default=None)
+    requested_by: Mapped[str] = mapped_column(String(128))
+    created_at: Mapped[datetime] = mapped_column(default=utcnow)
+
+
+class TuneStep(Base):
+    """One quality of a sweet-spot session, encoded by its own job."""
+
+    __tablename__ = "tune_steps"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    session_id: Mapped[int] = mapped_column(
+        ForeignKey("tune_sessions.id", ondelete="CASCADE"), index=True
+    )
+    quality: Mapped[float] = mapped_column()
+    status: Mapped[str] = mapped_column(
+        Enum(
+            *TUNE_STEP_STATUSES, name="tune_step_status", native_enum=False, create_constraint=True
+        ),
+        default="running",
+    )
+    # Estimated full-file size, quality measures, frame times and clip, when done.
+    result: Mapped[dict[str, Any] | None] = mapped_column(default=None)
+    error: Mapped[str | None] = mapped_column(Text, default=None)
+    created_at: Mapped[datetime] = mapped_column(default=utcnow)
     finished_at: Mapped[datetime | None] = mapped_column(default=None)

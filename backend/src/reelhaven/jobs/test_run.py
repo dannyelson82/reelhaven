@@ -250,11 +250,11 @@ def process_test(db: Database, settings: Settings, job_id: int, device: Device) 
         times: list[float] = []
         for at in frame_times(duration):
             # Numbered by the stills that worked, so times and pictures stay paired.
-            if _stills(settings, source, encoded, folder, len(times), at, size, hdr):
+            if make_stills(settings, source, encoded, folder, len(times), at, size, hdr):
                 times.append(at)
         _set(db, job_id, progress=0.95)
         window = clip_window(duration)
-        clip = _clips(settings, source, encoded, folder, window, size, hdr, device)
+        clip = make_clips(settings, source, encoded, folder, window, size, hdr, device)
     except CancelledError:
         remove_tree(folder)
         _finish(db, job_id, sample_id, "failed", error="Cancelled.")
@@ -313,7 +313,7 @@ def still_size(info: MediaInfo) -> tuple[int, int]:
     return width - width % 2, height - height % 2
 
 
-def _stills(
+def make_stills(
     settings: Settings,
     source: Path,
     encoded: Path,
@@ -334,7 +334,7 @@ def _stills(
     return True
 
 
-def _clips(
+def make_clips(
     settings: Settings,
     source: Path,
     encoded: Path,

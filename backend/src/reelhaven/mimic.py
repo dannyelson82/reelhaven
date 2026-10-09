@@ -81,7 +81,7 @@ def _gpu_family(encoder_tag: str | None) -> str | None:
     return next((family for family in _GPU_OVERHEAD if family in tag), None)
 
 
-def _video_bitrate(info: MediaInfo, video: Stream) -> int | None:
+def video_bitrate(info: MediaInfo, video: Stream) -> int | None:
     if video.bit_rate:
         return video.bit_rate
     if not info.size_bytes or not info.duration_s:
@@ -127,7 +127,7 @@ def analyse(
             crf = float(options["crf"]) if options.get("rc", "crf") == "crf" else None
         except (KeyError, ValueError):
             crf = None
-    bitrate = _video_bitrate(info, video)
+    bitrate = video_bitrate(info, video)
     fps = video.frame_rate or 24.0
     bpp = (
         bitrate / ((video.width or 0) * (video.height or 0) * fps)

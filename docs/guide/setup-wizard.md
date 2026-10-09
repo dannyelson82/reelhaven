@@ -56,6 +56,9 @@ Later runs go straight to the library steps.
    files read so far (the step says how many); they get more accurate as
    reading continues. **More options** lets you pick another
    profile you made, or *Don't re-encode video* to only change languages.
+   Not sure which size? **Find my sweet spot** there compares a scene of one
+   of your files at three sizes and brings you back with the one you keep
+   (see [Find my sweet spot](sweet-spot.md)).
 5. **Audio**: **Keep audio as it is** (recommended), **Shrink big audio
    tracks, keep surround**, or **Stereo only (smallest)**, each with the extra
    space it saves. Stereo removes surround sound for good once the originals
