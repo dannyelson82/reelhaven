@@ -27,9 +27,12 @@ first: that's exactly the work it will do.
   audio, unreadable).
 - **Files wait for the language lookup**: a new file is only processed once its
   title's original language has been looked up (see [Languages](languages.md)).
-- **A few files at a time**: ReelHaven keeps about four jobs per library in
-  the queue and adds more as they finish, so the [Jobs](jobs.md) page stays
-  readable and new files get their turn.
+- **Every GPU kept busy**: ReelHaven queues enough jobs per library to fill
+  every enabled graphics card (each card's **At the same time** on the
+  [Hardware](hardware.md) page, added up) plus two waiting, and queues the
+  next one the moment a job finishes. It never queues the whole library at
+  once, so the [Jobs](jobs.md) page stays readable and new files get their
+  turn.
 - **No automatic retries**: a file whose job failed or that you cancelled is
   left alone until the file changes. Use **Try again** to retry it yourself.
 - Every original still goes to the [recycle bin](recycle-bin.md) (14 days

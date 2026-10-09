@@ -66,6 +66,8 @@ def create_app(
         ensure_builtin_profiles(db)
         if detect_devices:
             app.state.devices.detect_in_background()
+        # A finished job lets Automatic queue the next one straight away.
+        app.state.queue.on_job_finished = app.state.automation.poke
         app.state.queue.start()
         app.state.automation.start()
         app.state.watcher.start()
@@ -105,6 +107,7 @@ def create_app(
         db,
         start_scan=lambda library_id: app.state.scanner.start(library_id),
         notify_queue=lambda: app.state.queue.notify(),
+        encode_slots=lambda: app.state.queue.encode_slots(),
     )
     app.state.watcher = FolderWatcher(
         db, start_scan=lambda library_id: app.state.scanner.start(library_id)

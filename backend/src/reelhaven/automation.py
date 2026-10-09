@@ -23,11 +23,18 @@ from reelhaven.jobs.service import ACTIVE, create_jobs, library_profile
 logger = logging.getLogger(__name__)
 
 ACTOR = "automatic"
-TOP_UP = 4  # queued + running jobs kept per automatic library
+TOP_UP = 4  # at least this many queued + running jobs per automatic library
+SPARE = 2  # queued beyond what the devices run at once, so none waits for the next round
 TICK_S = 30.0
 
 
 # --- pure decisions --------------------------------------------------------------------
+
+
+def queue_target(encode_slots: int) -> int:
+    """Jobs (queued + running) to keep per automatic library: enough to fill every enabled
+    device's slots with a few spare, so no GPU sits idle waiting for the next round."""
+    return max(TOP_UP, encode_slots + SPARE)
 
 
 def rescan_due(last_scan: datetime | None, now: datetime, rescan_at: str) -> bool:
@@ -93,8 +100,10 @@ class Automation:
         start_scan: Callable[[int], bool],
         notify_queue: Callable[[], None],
         clock: Callable[[], datetime] = datetime.now,
+        encode_slots: Callable[[], int] = lambda: 0,
     ) -> None:
         self._db = db
+        self._encode_slots = encode_slots
         self._start_scan = start_scan
         self._notify_queue = notify_queue
         self._clock = clock
@@ -148,7 +157,7 @@ class Automation:
             self._notify_queue()
 
     def top_up(self, library_id: int) -> int:
-        """Queue up to TOP_UP jobs for one automatic library; returns how many were added."""
+        """Fill one automatic library up to its queue target; returns how many were added."""
         with self._db.read() as session:
             library = session.get(Library, library_id)
             if library is None or library.watch_mode != "automatic":
@@ -160,7 +169,7 @@ class Automation:
                     )
                 )
             )
-            room = TOP_UP - len(active_jobs)
+            room = queue_target(self._encode_slots()) - len(active_jobs)
             if room <= 0:
                 return 0
             profile = library_profile(session, library)
