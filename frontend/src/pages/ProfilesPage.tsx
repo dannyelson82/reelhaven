@@ -38,6 +38,7 @@ import {
   useProfiles,
   useSaveProfile,
 } from '../api/profiles';
+import { AudioGuide } from '../components/AudioGuide';
 
 export function ProfilesPage() {
   const profiles = useProfiles();
@@ -327,6 +328,7 @@ function ProfileModal({
               />
             </Group>
           )}
+          {s.audio !== 'copy' && <AudioGuide settings={s} />}
           {s.audio !== 'copy' && (
             <Switch
               label={

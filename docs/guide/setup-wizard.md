@@ -59,7 +59,10 @@ Later runs go straight to the library steps.
    re-encoded.) If the size-and-quality profile you picked has its own
    audio setup (for example one made with [Mimic a file](mimic.md)), a fourth
    choice, **As set in this profile**, comes first and is preselected. Shrink
-   and Stereo then keep that profile's audio format and bitrate.
+   and Stereo then keep that profile's audio format and bitrate. When the
+   choice converts audio, the step says what its bitrate sounds like, with
+   the chart and Plex note from
+   [What the bitrates mean](profiles.md#what-the-bitrates-mean).
 6. **Try it**: ReelHaven tries your choice on 2 files, one after the other, so
    you can look at the first result while the second is encoding. Your
    originals aren't touched. Compare the pictures (**Look closer, full

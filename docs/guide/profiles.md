@@ -57,6 +57,33 @@ channel**; the editor shows what that means for stereo and 5.1.
 | **AAC** | 64 kbit/s | 128 / 384 | Everything |
 | **Opus** | 48 kbit/s | 96 / 288 | Smallest for the quality; some TVs can't play it |
 
+### What the bitrates mean
+
+Under the bitrate, the editor says what your setting sounds like (for example
+*Transparent for most listeners*: most people can't tell it from the
+original). **What do the bitrates mean?** opens a chart for the chosen format:
+
+| Per channel | E-AC-3 | AAC | Opus |
+|---|---|---|---|
+| Reduced: fine on TV speakers, thin on a good system | 32 | 32 | 16 |
+| Good / streaming quality | 64 | 48 | 32 |
+| Very good: hard to tell from the original | 96 | 64 | – |
+| Transparent for most listeners | 112 | 96 | 48 |
+| No audible gain, just bigger | 160 | 128 | 80 |
+
+(kbit/s per channel; stereo is twice that, 5.1 six times, up to each
+format's limit.) For comparison, a film's original lossless 5.1 track is
+usually 2,000 to 4,500 kbit/s. This is general guidance for films and series;
+trust your own ears on your own system.
+
+**Plex and audio formats.** When a TV or player can't play an audio format
+itself, Plex converts it while you watch, which costs your server CPU.
+E-AC-3 plays directly on almost
+every TV, streaming stick and soundbar, so it's the safest choice. AAC plays
+everywhere in stereo, but some players and soundbars turn 5.1 AAC into
+stereo. Opus is the smallest, but many devices can't play it, so Plex
+converts it.
+
 Which tracks are converted:
 
 - Lossless tracks always.

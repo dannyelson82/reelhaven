@@ -41,6 +41,7 @@ import {
   withAudio,
 } from './choices';
 import type { StepProps } from './LibrarySteps';
+import { AudioGuide } from '../components/AudioGuide';
 
 function NavButtons({ onBack, next }: { onBack?: () => void; next: React.ReactNode }) {
   return (
@@ -361,6 +362,9 @@ export function AudioStep({ libraryId, onNext, onBack }: StepProps) {
         ))}
       </SimpleGrid>
       <ReadingNote libraryId={id} estimate={estimate.data} />
+      {withAudio(base.settings, audio).audio !== 'copy' && (
+        <AudioGuide settings={withAudio(base.settings, audio)} />
+      )}
       {withAudio(base.settings, audio).downmix_stereo && (
         <Alert color="orange">
           {keepDays === 0

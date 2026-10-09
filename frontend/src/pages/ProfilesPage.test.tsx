@@ -74,8 +74,15 @@ it('sets up audio conversion', async () => {
     await screen.findByRole('option', { name: /Convert large tracks/, hidden: true }),
   );
   expect(screen.getByText('Stereo 224 · 5.1 640 kbit/s')).toBeInTheDocument(); // E-AC-3 default
+  // What the bitrate means, and the chart behind a link.
+  expect(screen.getAllByText('Transparent for most listeners')).toHaveLength(2); // badge and chart
+  expect(screen.getByText(/Plex converts audio/)).toBeInTheDocument();
+  await userEvent.click(screen.getByRole('button', { name: 'What do the bitrates mean?' }));
+  const current = screen.getByRole('row', { current: true, hidden: true }); // jsdom never finishes Mantine's animation;
+  expect(current).toHaveTextContent('112 kbit/s224640Transparent for most listeners');
   await userEvent.click(screen.getByText('AAC'));
   expect(screen.getByText('Stereo 128 · 5.1 384 kbit/s')).toBeInTheDocument();
+  expect(screen.getAllByText('Very good: hard to tell from the original')).toHaveLength(2);
   await userEvent.type(screen.getByLabelText(/Bitrate per channel/), '80');
   expect(screen.getByText('Stereo 160 · 5.1 480 kbit/s')).toBeInTheDocument();
   await userEvent.click(screen.getByRole('button', { name: 'Save' }));
