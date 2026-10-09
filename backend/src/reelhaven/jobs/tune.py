@@ -10,6 +10,7 @@ import logging
 import subprocess
 import threading
 import time
+from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
@@ -22,6 +23,7 @@ from reelhaven.db import Database, Job, MediaFile, TuneSession, TuneStep
 from reelhaven.db.types import utcnow
 from reelhaven.encode_planner import VideoPlan, scaled_size, video_bitrate
 from reelhaven.encoders import Device
+from reelhaven.films import Film, FilmError, FilmLibrary, film
 from reelhaven.jobs.encode_run import run_encode
 from reelhaven.jobs.pipeline import JobFailedError, _is_cancelled, _set
 from reelhaven.jobs.replace import Snapshot, check_unchanged, remove_tree
@@ -112,13 +114,70 @@ def _check_source(info: MediaInfo, base: ProfileSettings) -> None:
         raise TuneError("hdr_not_in_h264")
 
 
+@dataclass(frozen=True)
+class Source:
+    """What a session encodes: a library file or a downloaded test film."""
+
+    label: str  # the library-relative path, or the film's title
+    path: Path
+    size: int
+    mtime_ns: int
+    probe: dict[str, Any]
+    library_id: int | None = None
+    media_file_id: int | None = None
+    film_id: str | None = None
+
+
+def library_source(media_file: MediaFile) -> Source:
+    if media_file.status != "ok" or not media_file.probe:
+        raise TuneError("file_not_read")
+    return Source(
+        label=media_file.relative_path,
+        path=Path(media_file.path),
+        size=media_file.size,
+        mtime_ns=media_file.mtime_ns,
+        probe=media_file.probe,
+        library_id=media_file.library_id,
+        media_file_id=media_file.id,
+    )
+
+
+def film_source(films: FilmLibrary, item: Film, ffprobe: str) -> Source:
+    path = films.path(item)
+    if films.state(item)[0] != "ready":
+        raise TuneError("film_not_downloaded")
+    st = path.stat()
+    info = probe(path, ffprobe)
+    return Source(
+        label=item.title,
+        path=path,
+        size=st.st_size,
+        mtime_ns=st.st_mtime_ns,
+        probe=info.model_dump(mode="json"),
+        film_id=item.id,
+    )
+
+
+def source_of(session: Session, films: FilmLibrary, ffprobe: str, tune: TuneSession) -> Source:
+    """A session's source as it is now, for another step."""
+    if tune.film_id is not None:
+        try:
+            return film_source(films, film(tune.film_id), ffprobe)
+        except FilmError as exc:
+            raise TuneError("film_gone") from exc
+    media_file = session.get(MediaFile, tune.media_file_id) if tune.media_file_id else None
+    if media_file is None:
+        raise TuneError("file_gone")
+    return library_source(media_file)
+
+
 def _add_step(
-    session: Session, tune: TuneSession, media_file: MediaFile, quality: float, actor: str
+    session: Session, tune: TuneSession, source: Source, quality: float, actor: str
 ) -> TuneStep:
     base = ProfileSettings.model_validate(tune.base)
     profile = base.model_copy(update={"quality": quality})
     ProfileSettings.model_validate(profile.model_dump())  # half steps from 1 to 10 only
-    info = MediaInfo.model_validate(media_file.probe or {})
+    info = MediaInfo.model_validate(source.probe)
     step = TuneStep(session_id=tune.id, quality=quality)
     session.add(step)
     session.flush()
@@ -135,16 +194,16 @@ def _add_step(
     )
     session.add(
         Job(
-            library_id=tune.library_id,
-            media_file_id=media_file.id,
+            library_id=source.library_id,
+            media_file_id=source.media_file_id,
             tune_step_id=step.id,
             type="tune",
             priority=10,  # ahead of bulk work: the owner is waiting for it
-            source_path=media_file.path,
-            source_size=media_file.size,
-            source_mtime_ns=media_file.mtime_ns,
+            source_path=str(source.path),
+            source_size=source.size,
+            source_mtime_ns=source.mtime_ns,
             plan=plan.model_dump(mode="json"),
-            probe=media_file.probe or {},
+            probe=source.probe,
             profile=profile.model_dump(),
             requested_by=actor,
         )
@@ -155,15 +214,13 @@ def _add_step(
 def create_session(
     session: Session,
     settings: Settings,
-    media_file: MediaFile,
+    source: Source,
     base: ProfileSettings,
     actor: str,
     qualities: tuple[float, ...] = FIRST_STEPS,
 ) -> TuneSession:
-    """Start a session on ``media_file`` with a step per quality."""
-    if media_file.status != "ok" or not media_file.probe:
-        raise TuneError("file_not_read")
-    info = MediaInfo.model_validate(media_file.probe)
+    """Start a session on ``source`` with a step per quality."""
+    info = MediaInfo.model_validate(source.probe)
     _check_source(info, base)
     _remove_old_sessions(session, settings)
     start, seconds = scene_window(info.duration_s or 0.0)
@@ -171,15 +228,16 @@ def create_session(
     assert video is not None  # noqa: S101 - _check_source
     bitrate = video_bitrate(info, video)
     tune = TuneSession(
-        library_id=media_file.library_id,
-        media_file_id=media_file.id,
-        relative_path=media_file.relative_path,
+        library_id=source.library_id,
+        media_file_id=source.media_file_id,
+        film_id=source.film_id,
+        relative_path=source.label,
         base=base.model_dump(),
         scene_start=start,
         scene_seconds=seconds,
-        file_bytes=media_file.size,
+        file_bytes=source.size,
         video_bytes=(
-            min(int(bitrate * info.duration_s / 8), media_file.size)
+            min(int(bitrate * info.duration_s / 8), source.size)
             if bitrate and info.duration_s
             else None
         ),
@@ -188,24 +246,21 @@ def create_session(
     session.add(tune)
     session.flush()
     for quality in qualities:
-        _add_step(session, tune, media_file, quality, actor)
-    audit.record(
-        session, actor, "tune.started", media_file.relative_path, {"qualities": list(qualities)}
-    )
+        _add_step(session, tune, source, quality, actor)
+    audit.record(session, actor, "tune.started", source.label, {"qualities": list(qualities)})
     return tune
 
 
-def add_step(session: Session, tune: TuneSession, quality: float, actor: str) -> TuneStep:
+def add_step(
+    session: Session, tune: TuneSession, source: Source, quality: float, actor: str
+) -> TuneStep:
     """Another step: a quality between, above or below the ones tried so far."""
     steps = session.scalars(select(TuneStep).where(TuneStep.session_id == tune.id)).all()
     if any(step.quality == quality for step in steps):
         raise TuneError("step_exists")
     if len(steps) >= MAX_STEPS:
         raise TuneError("too_many_steps")
-    media_file = session.get(MediaFile, tune.media_file_id) if tune.media_file_id else None
-    if media_file is None:
-        raise TuneError("file_gone")
-    return _add_step(session, tune, media_file, quality, actor)
+    return _add_step(session, tune, source, quality, actor)
 
 
 def is_running(session: Session, tune_id: int) -> bool:

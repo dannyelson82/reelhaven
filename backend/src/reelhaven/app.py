@@ -14,6 +14,7 @@ from reelhaven.api import (
     automation_routes,
     device_routes,
     file_routes,
+    film_routes,
     integration_routes,
     job_routes,
     library_routes,
@@ -34,6 +35,7 @@ from reelhaven.automation import Automation
 from reelhaven.config import Settings, get_settings
 from reelhaven.db import Database, Job
 from reelhaven.devices import DeviceRegistry
+from reelhaven.films import FilmLibrary
 from reelhaven.headers import SecurityHeadersMiddleware
 from reelhaven.jobs.queue import JobQueue
 from reelhaven.jobs.service import purge_expired
@@ -101,6 +103,7 @@ def create_app(
     app.state.gateways = read_default_gateways() if gateways is None else gateways
     app.state.gateway_seen_at = None
     app.state.devices = DeviceRegistry(settings.ffmpeg)
+    app.state.films = FilmLibrary(settings.config_dir / "films")
     app.state.queue = JobQueue(db, settings, app.state.devices)
     app.state.live = ChangeFeed()
     # Lambdas: tests swap the scanner and queue after create_app.
@@ -146,6 +149,7 @@ def create_app(
     app.include_router(profile_routes.router, prefix="/api/v1")
     app.include_router(test_run_routes.router, prefix="/api/v1")
     app.include_router(tune_routes.router, prefix="/api/v1")
+    app.include_router(film_routes.router, prefix="/api/v1")
     app.include_router(live_routes.router, prefix="/api/v1")
     app.include_router(automation_routes.router, prefix="/api/v1")
     app.include_router(recycle_settings_routes.router, prefix="/api/v1")

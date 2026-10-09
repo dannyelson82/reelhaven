@@ -103,6 +103,10 @@ Out of scope: an attacker who already has root on the Unraid host.
   never included in diagnostics exports.
 - Outbound requests to integrations use the configured URL only; TLS
   verification on by default (toggle for self-signed certs, with a warning).
+- Test films (ADR-0031) download only when the owner asks, only from the
+  built-in catalogue's fixed HTTPS addresses (TLS verified, no downgrade on
+  redirects), and are kept only if their SHA-256 matches the catalogue. From a
+  zip, only the one expected file is written.
 
 ## Container hardening
 

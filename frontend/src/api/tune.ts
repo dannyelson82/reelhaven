@@ -40,7 +40,9 @@ export interface TuneSession {
   id: number;
   file: string;
   media_file_id: number | null;
-  library_id: number;
+  /** Null for a test film, which belongs to no library. */
+  library_id: number | null;
+  film_id: string | null;
   base: ProfileSettings;
   scene_start: number;
   scene_seconds: number;
@@ -81,7 +83,7 @@ function useTuneMutation<TBody>(request: (body: TBody) => Promise<TuneSession | 
 }
 
 export const useStartTune = () =>
-  useTuneMutation((body: { file_id: number; settings: ProfileSettings }) =>
+  useTuneMutation((body: { file_id?: number; film_id?: string; settings: ProfileSettings }) =>
     api<TuneSession>('tune-sessions', { method: 'POST', body: json(body) }),
   );
 

@@ -48,3 +48,10 @@ make comparing and tuning the next phase.
   clips). Clips are made with the GPU where possible.
 - Sweet-spot sessions encode only short scenes, so each step takes seconds to a
   minute rather than a whole film.
+
+## Update (2026-10-09, test films)
+Netflix Open Content's only downloadable MP4s (*Meridian*, *Cosmos Laundromat*)
+turned out to be 8-bit H.264 with no HDR tagging, and its real HDR masters are
+tens to hundreds of GB. The catalogue therefore holds Blender open movies only
+(CC BY 3.0, checksums verified): no HDR test film. HDR is tried with the
+owner's own files.

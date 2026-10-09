@@ -108,7 +108,7 @@ function JobCard({ job }: { job: Job }) {
               {job.file}
             </Text>
             <Text size="xs" c="dimmed">
-              {job.library_name} · #{job.id} · requested by {job.requested_by}{' '}
+              {job.library_name ?? 'Test film'} · #{job.id} · requested by {job.requested_by}{' '}
               {new Date(job.created_at).toLocaleString()}
             </Text>
           </Stack>

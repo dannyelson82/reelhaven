@@ -216,7 +216,8 @@ class Job(Base):
     __table_args__ = (Index("ix_jobs_status_priority", "status", "priority", "id"),)
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
-    library_id: Mapped[int] = mapped_column(
+    # None for sweet-spot steps on a test film, which belongs to no library (ADR-0031).
+    library_id: Mapped[int | None] = mapped_column(
         ForeignKey("libraries.id", ondelete="CASCADE"), index=True
     )
     media_file_id: Mapped[int | None] = mapped_column(
@@ -377,12 +378,14 @@ class TuneSession(Base):
     __tablename__ = "tune_sessions"
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
-    library_id: Mapped[int] = mapped_column(
+    # A library file, or a downloaded test film (films.CATALOGUE id) with no library.
+    library_id: Mapped[int | None] = mapped_column(
         ForeignKey("libraries.id", ondelete="CASCADE"), index=True
     )
     media_file_id: Mapped[int | None] = mapped_column(
         ForeignKey("media_files.id", ondelete="SET NULL"), default=None
     )
+    film_id: Mapped[str | None] = mapped_column(String(64), default=None)
     relative_path: Mapped[str] = mapped_column(String(4096))
     # The profile settings every step shares; each step sets its own quality.
     base: Mapped[dict[str, Any]] = mapped_column()
