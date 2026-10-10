@@ -6,7 +6,7 @@ import { useJobs } from '../api/jobs';
 import { useLibraries } from '../api/libraries';
 import { useOnboarding } from '../api/wizard';
 import { useLiveJobs, withLive } from '../api/live';
-import { PausedBanner } from '../components/PauseControls';
+import { PauseButton, PausedBanner } from '../components/PauseControls';
 import { SavingsCard } from '../components/SavingsCard';
 import { formatTimeLeft } from '../format';
 
@@ -19,7 +19,10 @@ export function DashboardPage() {
     return <Navigate to="/wizard" replace />;
   return (
     <Stack maw={960}>
-      <Title order={2}>Dashboard</Title>
+      <Group justify="space-between">
+        <Title order={2}>Dashboard</Title>
+        {!empty && <PauseButton />}
+      </Group>
       <PausedBanner />
       {empty && (
         <Card withBorder padding="lg">

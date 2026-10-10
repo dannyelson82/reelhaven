@@ -25,6 +25,7 @@ import {
   useRetryJob,
 } from '../api/jobs';
 import { useLiveJobs, withLive } from '../api/live';
+import { type UpcomingItem, type UpcomingWhy, useUpcoming } from '../api/upcoming';
 import { PauseButton, PausedBanner } from '../components/PauseControls';
 import { formatBytes, formatTimeLeft } from '../format';
 
@@ -40,10 +41,13 @@ const STATUS: Record<Job['status'], { label: string; color: string }> = {
   cancelled: { label: 'Cancelled', color: 'gray' },
 };
 
+type View = JobFilter | 'upcoming';
+
 export function JobsPage() {
-  const [filter, setFilter] = useState<JobFilter>('all');
+  const [filter, setFilter] = useState<View>('all');
   const [page, setPage] = useState(1);
-  const jobs = useJobs(filter, page);
+  const jobs = useJobs(filter === 'upcoming' ? 'all' : filter, page);
+  const upcomingCount = useUpcoming(null, 1).data?.total;
   const live = useLiveJobs();
   const counts = live?.counts ?? jobs.data?.counts ?? {};
   const active = (counts.queued ?? 0) + (counts.running ?? 0) + (counts.verifying ?? 0);
@@ -59,7 +63,7 @@ export function JobsPage() {
       <SegmentedControl
         value={filter}
         onChange={(v) => {
-          setFilter(v as JobFilter);
+          setFilter(v as View);
           setPage(1);
         }}
         data={[
@@ -67,9 +71,35 @@ export function JobsPage() {
           { value: 'active', label: `In progress (${active})` },
           { value: 'failed', label: `Failed (${failed})` },
           { value: 'done', label: `Done (${counts.done ?? 0})` },
+          {
+            value: 'upcoming',
+            label: upcomingCount !== undefined ? `Upcoming (${upcomingCount})` : 'Upcoming',
+          },
         ]}
         w="fit-content"
       />
+      {filter === 'upcoming' ? (
+        <UpcomingList />
+      ) : (
+        <JobList jobs={jobs} page={page} setPage={setPage} live={live} />
+      )}
+    </Stack>
+  );
+}
+
+function JobList({
+  jobs,
+  page,
+  setPage,
+  live,
+}: {
+  jobs: ReturnType<typeof useJobs>;
+  page: number;
+  setPage: (page: number) => void;
+  live: ReturnType<typeof useLiveJobs>;
+}) {
+  return (
+    <>
       {jobs.isPending && <Loader />}
       {jobs.isError && <Alert color="red">{errorMessage(jobs.error)}</Alert>}
       {jobs.data?.items.length === 0 && (
@@ -85,7 +115,100 @@ export function JobsPage() {
       {jobs.data && jobs.data.total > 50 && (
         <Pagination total={Math.ceil(jobs.data.total / 50)} value={page} onChange={setPage} />
       )}
-    </Stack>
+    </>
+  );
+}
+
+const ACTIONS: Record<UpcomingItem['action'], string> = {
+  encode: 'Re-encode',
+  remux: 'Change tracks',
+  quarantine: 'Quarantine (wrong language)',
+  delete: 'Delete (wrong language)',
+};
+
+const WHY: Record<UpcomingWhy, { label: string; color: string; about: string }> = {
+  next: {
+    label: 'Next',
+    color: 'teal',
+    about: 'Queued automatically as workers free up, in this order.',
+  },
+  test_run: {
+    label: 'Waiting for a test run',
+    color: 'yellow',
+    about: 'Re-encodes in this library start once a test run of its profile is approved.',
+  },
+  not_automatic: {
+    label: 'Not automatic',
+    color: 'gray',
+    about: "The library isn't set to Automatic: apply its dry run to queue these.",
+  },
+};
+
+function UpcomingList() {
+  const [why, setWhy] = useState<UpcomingWhy | null>(null);
+  const [page, setPage] = useState(1);
+  const upcoming = useUpcoming(why, page);
+  const counts = upcoming.data?.counts;
+  return (
+    <>
+      <Text size="sm" c="dimmed">
+        Files that still need work but aren&apos;t queued yet. Automatic libraries keep only a few
+        jobs waiting (enough to keep every worker busy), and add the next ones as jobs finish.
+      </Text>
+      <Group gap="xs">
+        {([null, 'next', 'test_run', 'not_automatic'] as const).map((w) => (
+          <Button
+            key={w ?? 'all'}
+            size="xs"
+            variant={why === w ? 'filled' : 'default'}
+            onClick={() => {
+              setWhy(w);
+              setPage(1);
+            }}
+          >
+            {w === null ? 'All' : WHY[w].label}
+            {w !== null && counts ? ` (${counts[w]})` : ''}
+          </Button>
+        ))}
+      </Group>
+      {upcoming.isPending && <Loader />}
+      {upcoming.isError && <Alert color="red">{errorMessage(upcoming.error)}</Alert>}
+      {upcoming.data && (
+        <Text size="sm">
+          {upcoming.data.total.toLocaleString()} files
+          {upcoming.data.saved > 0 && `, saving about ${formatBytes(upcoming.data.saved)}`}.
+          {why && ` ${WHY[why].about}`}
+        </Text>
+      )}
+      {upcoming.data?.items.length === 0 && (
+        <Card withBorder>
+          <Text c="dimmed">Nothing is waiting.</Text>
+        </Card>
+      )}
+      {upcoming.data?.items.map((item) => (
+        <Card key={item.file_id} withBorder padding="sm">
+          <Group justify="space-between" wrap="nowrap" align="flex-start">
+            <Stack gap={2} style={{ minWidth: 0 }}>
+              <Text fw={500} style={{ wordBreak: 'break-word' }}>
+                {item.relative_path}
+              </Text>
+              <Text size="xs" c="dimmed">
+                {item.library_name} · {ACTIONS[item.action]}
+                {item.saved !== null &&
+                  item.saved > 0 &&
+                  ` · saves about ${formatBytes(item.saved)}`}
+              </Text>
+            </Stack>
+            <Badge color={WHY[item.why].color} variant="light" style={{ flexShrink: 0 }}>
+              {WHY[item.why].label}
+            </Badge>
+          </Group>
+        </Card>
+      ))}
+      {upcoming.data && upcoming.data.total > 50 && (
+        <Pagination total={Math.ceil(upcoming.data.total / 50)} value={page} onChange={setPage} />
+      )}
+    </>
   );
 }
 

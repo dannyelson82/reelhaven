@@ -93,3 +93,21 @@ it('says when re-encoding waits for a test run', async () => {
   render(<App />);
   expect(await screen.findByText('Re-encoding is waiting for a test run')).toBeInTheDocument();
 });
+
+it('pauses from the Dashboard too', async () => {
+  window.location.hash = '#/';
+  let current = automation;
+  mockApi({
+    'GET auth/state': loggedIn,
+    'GET libraries': { body: [{ id: 1, name: 'Movies' }] },
+    'GET onboarding': { body: { wizard_seen: true, server_steps_done: true } },
+    'GET automation': () => ({ body: current }),
+    'PUT automation': (init) => {
+      current = JSON.parse(String(init?.body));
+      return { body: current };
+    },
+  });
+  render(<App />);
+  await userEvent.click(await screen.findByRole('button', { name: 'Pause all processing' }));
+  expect(await screen.findByText('Processing is paused')).toBeInTheDocument();
+});

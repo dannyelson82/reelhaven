@@ -35,9 +35,27 @@ Every file ReelHaven processes is a **job**. The **Jobs** page lists them;
 **Cancel** stops a waiting or running job. **Try again** plans the file again
 (it may have changed) and queues a new job.
 
-**Pause all processing** (top of the Jobs page) stops new jobs from starting;
-running jobs finish. **Resume processing** carries on. Jobs started by an
-[Automatic](automation.md) library show *requested by automatic*.
+**Pause all processing** (top of the Jobs page and the Dashboard) stops new
+jobs from starting; running jobs finish. **Resume processing** carries on.
+Jobs started by an [Automatic](automation.md) library show *requested by
+automatic*.
+
+## Upcoming
+
+An Automatic library keeps only a few jobs waiting at a time (enough to keep
+every graphics card and worker busy) and adds the next ones as jobs finish.
+**Upcoming** shows the rest: every file that still needs work but isn't queued
+yet, in the order it will run, with what will happen to it and roughly how
+much it saves. Each file says why it's waiting:
+
+| Badge | Meaning |
+|---|---|
+| **Next** | Queued automatically as workers free up. |
+| **Waiting for a test run** | A re-encode in a library whose profile hasn't passed a [test run](test-run.md) yet. |
+| **Not automatic** | The library isn't set to Automatic: apply its [dry run](dry-run.md) to queue these. |
+
+Files waiting for their original language, and files whose last job failed,
+are on the [Review](review.md) page instead.
 
 ## No gain
 
