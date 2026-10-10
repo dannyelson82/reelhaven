@@ -86,6 +86,21 @@ export function useReviewCount(): number {
     .reduce((sum, [, n]) => sum + n, 0);
 }
 
+export function useWrongLanguageAction() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (body: { file_id: number; action: 'quarantine' | 'delete' }) =>
+      api<{ job_id: number }>(`files/${body.file_id}/wrong-language`, {
+        method: 'POST',
+        body: json({ action: body.action }),
+      }),
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: ['review'] });
+      void queryClient.invalidateQueries({ queryKey: ['jobs'] });
+    },
+  });
+}
+
 export function useIgnore() {
   const queryClient = useQueryClient();
   return useMutation({

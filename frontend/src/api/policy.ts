@@ -11,7 +11,7 @@ export interface LanguagePolicy {
   force_subtitles: boolean;
   untagged: string;
   set_defaults: boolean;
-  wrong_language_action: 'flag';
+  wrong_language_action: 'flag' | 'quarantine' | 'delete';
 }
 
 export interface TrackPlan {

@@ -18,7 +18,9 @@ from reelhaven.automation_settings import load
 from reelhaven.db import Database, Job, Library, MediaFile
 from reelhaven.dryrun import FilePlan, plan_library
 from reelhaven.encode_planner import profile_fingerprint
+from reelhaven.jobs import wrong_language
 from reelhaven.jobs.service import ACTIVE, create_jobs, library_profile
+from reelhaven.policy import LanguagePolicy
 
 logger = logging.getLogger(__name__)
 
@@ -95,6 +97,32 @@ def pick(
             continue
         chosen.append(item)
         room[plan.action] -= 1
+    return chosen
+
+
+def pick_wrong_language(
+    plans: Iterable[FilePlan],
+    *,
+    active: set[int],
+    gave_up: dict[int, FileState],
+    current: dict[int, FileState],
+    limit: int,
+) -> list[FilePlan]:
+    """Wrong-language files to quarantine or delete (ADR-0032), when the library asks for
+    it. Only files flagged ``wrong_language``: the original language is known and no audio
+    is untagged (ADR-0017); ``no_wanted_audio`` files always wait for the owner."""
+    chosen: list[FilePlan] = []
+    for item in plans:
+        if len(chosen) >= limit:
+            break
+        if item.plan is None or "wrong_language" not in item.plan.flags:
+            continue
+        if item.language_pending or item.file_id in active:
+            continue
+        failed = gave_up.get(item.file_id)
+        if failed is not None and failed == current.get(item.file_id):
+            continue
+        chosen.append(item)
     return chosen
 
 
@@ -179,7 +207,8 @@ class Automation:
             ).all()
             active_jobs = {file_id for file_id, _type in active_rows}
             busy = {
-                kind: sum(1 for _f, t in active_rows if t == kind) for kind in ("encode", "remux")
+                "encode": sum(1 for _f, t in active_rows if t == "encode"),
+                "remux": sum(1 for _f, t in active_rows if t in ("remux", wrong_language.JOB_TYPE)),
             }
             room_encode = queue_target(self._encode_slots()) - busy["encode"]
             room_remux = queue_target(self._remux_slots()) - busy["remux"]
@@ -190,28 +219,46 @@ class Automation:
                 profile_fingerprint(profile)
             )
             gave_up = _given_up(session, library_id)
+            action = LanguagePolicy.model_validate(
+                library.language_policy or {}
+            ).wrong_language_action
             current = {
                 f.id: FileState(f.size, f.mtime_ns)
                 for f in session.scalars(
                     select(MediaFile).where(MediaFile.library_id == library_id)
                 )
             }
+        plans = plan_library(self._db, library_id)
+        active = {i for i in active_jobs if i is not None}
+        moving = (
+            pick_wrong_language(
+                plans, active=active, gave_up=gave_up, current=current, limit=room_remux
+            )
+            if action != "flag"
+            else []
+        )
         chosen = pick(
-            plan_library(self._db, library_id),
-            active={i for i in active_jobs if i is not None},
+            plans,
+            active=active,
             gave_up=gave_up,
             current=current,
             encodes_allowed=encodes_allowed,
             limit_encode=room_encode,
-            limit_remux=room_remux,
+            limit_remux=room_remux - len(moving),
         )
-        if not chosen:
+        if not chosen and not moving:
             return 0
         with self._db.write() as session:
             library = session.get(Library, library_id)
             if library is None or library.watch_mode != "automatic":
                 return 0
             jobs = create_jobs(session, library, chosen, ACTOR)
+            for item in moving:
+                media_file = session.get(MediaFile, item.file_id)
+                if media_file is not None and action != "flag":
+                    jobs.append(
+                        wrong_language.create_job(session, library, media_file, action, ACTOR)
+                    )
             if jobs:
                 audit.record(
                     session, ACTOR, "library.auto_queued", library.name, {"queued": len(jobs)}

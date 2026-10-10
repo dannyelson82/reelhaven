@@ -8,6 +8,7 @@ import {
   Modal,
   Stack,
   Switch,
+  Tabs,
   Text,
   Title,
 } from '@mantine/core';
@@ -19,9 +20,20 @@ import { type KeepDays, useRecycleSettings, useSaveRecycleSettings } from '../ap
 import { KeepOriginalsControl } from '../components/KeepOriginals';
 import { formatBytes } from '../format';
 
+const QUARANTINE = 'quarantine';
+
 export function RecyclePage() {
   const [showAll, setShowAll] = useState(false);
-  const items = useRecycle(showAll ? 'all' : 'active');
+  const [tab, setTab] = useState<'recycle' | 'quarantine'>('recycle');
+  const all = useRecycle(showAll ? 'all' : 'active');
+  // Quarantined wrong-language files have their own tab (ADR-0032).
+  const items = {
+    ...all,
+    data: all.data?.filter((i) => (i.reason === QUARANTINE) === (tab === 'quarantine')),
+  };
+  const quarantined = (all.data ?? []).filter(
+    (i) => i.reason === QUARANTINE && !i.restored_at && !i.purged_at,
+  ).length;
   const [purging, setPurging] = useState<RecycleItem | null>(null);
   const purge = usePurge();
   const total = (items.data ?? [])
@@ -36,6 +48,29 @@ export function RecyclePage() {
         <code>.reelhaven</code> folder. Restoring puts a file back exactly as it was.
       </Text>
       <KeepSetting />
+      <Tabs value={tab} onChange={(v) => v && setTab(v as 'recycle' | 'quarantine')}>
+        <Tabs.List>
+          <Tabs.Tab value="recycle">Recycle bin</Tabs.Tab>
+          <Tabs.Tab
+            value="quarantine"
+            rightSection={
+              quarantined > 0 ? (
+                <Badge size="sm" variant="light" color="orange">
+                  {quarantined}
+                </Badge>
+              ) : undefined
+            }
+          >
+            Quarantine
+          </Tabs.Tab>
+        </Tabs.List>
+      </Tabs>
+      {tab === 'quarantine' && (
+        <Text size="sm" c="dimmed">
+          Wrong-language files moved out of your libraries while Sonarr/Radarr look for another
+          release. Restore one if it was right after all.
+        </Text>
+      )}
       <Group justify="space-between">
         <Text size="sm">Using {formatBytes(total)}</Text>
         <Switch
@@ -48,7 +83,9 @@ export function RecyclePage() {
       {items.isError && <Alert color="red">{errorMessage(items.error)}</Alert>}
       {items.data?.length === 0 && (
         <Card withBorder>
-          <Text c="dimmed">The recycle bin is empty.</Text>
+          <Text c="dimmed">
+            {tab === 'quarantine' ? 'Nothing is in quarantine.' : 'The recycle bin is empty.'}
+          </Text>
         </Card>
       )}
       {items.data?.map((item) => (
@@ -87,6 +124,13 @@ export function RecyclePage() {
   );
 }
 
+const REASONS: Record<string, (item: RecycleItem) => string> = {
+  replaced: (item) => `replaced by job #${item.job_id}`,
+  'restore-swap': () => 'version replaced by a restore',
+  quarantine: () => 'wrong language, quarantined',
+  'wrong-language': () => 'wrong language, deleted',
+};
+
 function RecycleCard({ item, onPurge }: { item: RecycleItem; onPurge: () => void }) {
   const restore = useRestore();
   const gone = item.restored_at || item.purged_at;
@@ -98,11 +142,8 @@ function RecycleCard({ item, onPurge }: { item: RecycleItem; onPurge: () => void
             {item.original_path}
           </Text>
           <Text size="xs" c="dimmed">
-            {formatBytes(item.size)} ·{' '}
-            {item.reason === 'replaced'
-              ? `replaced by job #${item.job_id}`
-              : 'version replaced by a restore'}{' '}
-            · {new Date(item.created_at).toLocaleString()}
+            {formatBytes(item.size)} · {REASONS[item.reason]?.(item) ?? item.reason} ·{' '}
+            {new Date(item.created_at).toLocaleString()}
             {!gone && ` · deleted automatically ${new Date(item.expires_at).toLocaleDateString()}`}
           </Text>
           {item.restored_at && (

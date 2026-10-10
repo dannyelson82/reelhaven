@@ -25,6 +25,7 @@ ErrorCode = Literal[
     "wrong_app",
     "redirected",
     "bad_response",
+    "not_found",
 ]
 
 
@@ -127,6 +128,13 @@ class ServiceClient:
 
     def post_json(self, path: str, body: Any) -> Any:
         return self._json(self._send("POST", path, body=body))
+
+    def post(self, path: str, body: Any = None) -> None:
+        """A POST whose answer doesn't matter (some answer with an empty body)."""
+        self._send("POST", path, body=body)
+
+    def delete(self, path: str) -> None:
+        self._send("DELETE", path)
 
 
 class ArrClient(ServiceClient):

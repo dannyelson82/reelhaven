@@ -38,6 +38,7 @@ from reelhaven.db import Database, Job
 from reelhaven.devices import DeviceRegistry
 from reelhaven.films import FilmLibrary
 from reelhaven.headers import SecurityHeadersMiddleware
+from reelhaven.integrations.research import ask_for_new_release
 from reelhaven.jobs.queue import JobQueue
 from reelhaven.jobs.service import purge_expired
 from reelhaven.live import ChangeFeed
@@ -128,6 +129,9 @@ def create_app(
     app.state.stop = threading.Event()
     app.state.secretbox = SecretBox(settings.config_dir)
     app.state.http_transport = None  # tests inject a fake transport
+    app.state.queue.research = lambda path: ask_for_new_release(
+        db, app.state.secretbox, app.state.http_transport, path
+    )
     app.state.scanner = Scanner(
         db,
         settings,

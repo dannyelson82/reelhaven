@@ -1,4 +1,4 @@
-import { render, screen } from '@testing-library/react';
+import { render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { App } from '../App';
 import { mockApi, state } from '../test/mockApi';
@@ -49,6 +49,7 @@ it('lists files to review and acts on them', async () => {
       },
     },
     'PUT review/ignore': { status: 204 },
+    'POST files/11/wrong-language': { status: 201, body: { job_id: 12 } },
     'POST jobs/9/retry': { body: {} },
   });
   render(<App />);
@@ -63,6 +64,13 @@ it('lists files to review and acts on them', async () => {
     kind: 'wrong_language',
     ignored: true,
   });
+
+  // Quarantine asks first, then queues the job.
+  await userEvent.click(screen.getByRole('button', { name: 'Quarantine' }));
+  const dialog = await screen.findByRole('dialog', { name: 'Quarantine this file?' });
+  await userEvent.click(within(dialog).getByRole('button', { name: 'Quarantine' }));
+  const moved = calls.find((c) => c.key === 'POST files/11/wrong-language');
+  expect(JSON.parse(String(moved?.init?.body))).toEqual({ action: 'quarantine' });
 
   await userEvent.click(screen.getByRole('tab', { name: /Failed/ }));
   expect(await screen.findByText('decode test failed at 12s')).toBeInTheDocument();

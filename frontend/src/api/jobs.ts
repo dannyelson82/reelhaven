@@ -34,7 +34,7 @@ export interface RecycleItem {
   library_id: number;
   original_path: string;
   size: number;
-  reason: 'replaced' | 'restore-swap';
+  reason: 'replaced' | 'restore-swap' | 'quarantine' | 'wrong-language';
   job_id: number | null;
   created_at: string;
   expires_at: string;

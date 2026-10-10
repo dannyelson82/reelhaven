@@ -21,6 +21,10 @@ On the **Recycle bin** page:
   date.
 - **Show restored and deleted items** includes the history.
 - The page shows how much space the recycle bin uses.
+- The **Quarantine** tab lists wrong-language files moved out of your
+  libraries while Sonarr/Radarr look for another release (see
+  [Languages](languages.md#wrong-language-files)). They're kept, restored and
+  deleted the same way.
 
 ## How long originals are kept
 
