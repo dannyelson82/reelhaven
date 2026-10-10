@@ -10,6 +10,7 @@ import subprocess
 from dataclasses import dataclass
 from pathlib import Path
 
+from reelhaven.cpu_limit import preexec
 from reelhaven.devices import CPU as CPU_DEVICE
 from reelhaven.encoders import (
     Device,
@@ -83,13 +84,19 @@ def _compare(
         "-ss", f"{start:.3f}", "-t", str(SEGMENT_SECONDS), "-i", ffmpeg_input(source),
         "-lavfi", graph, "-an", "-sn", "-f", "null", "-",
     ]  # fmt: skip
-    result = subprocess.run(args, capture_output=True, timeout=timeout, check=False)  # noqa: S603
+    result = subprocess.run(  # noqa: S603 - argument list, no shell
+        args, capture_output=True, timeout=timeout, check=False, preexec_fn=preexec()
+    )
     return result.stderr.decode("utf-8", "replace")
 
 
 def has_xpsnr(ffmpeg: str) -> bool:
     result = subprocess.run(  # noqa: S603 - argument list, no shell
-        [ffmpeg, "-hide_banner", "-filters"], capture_output=True, timeout=30, check=False
+        [ffmpeg, "-hide_banner", "-filters"],
+        capture_output=True,
+        timeout=30,
+        check=False,
+        preexec_fn=preexec(),
     )
     return b" xpsnr " in result.stdout
 
@@ -152,7 +159,7 @@ def extract_frame(
         "-c:v", "libwebp", "-lossless", "1", "-compression_level", "4", "-y",
         ffmpeg_input(output),
     ]  # fmt: skip
-    subprocess.run(args, capture_output=True, timeout=timeout, check=True)  # noqa: S603
+    subprocess.run(args, capture_output=True, timeout=timeout, check=True, preexec_fn=preexec())  # noqa: S603
 
 
 # Near-lossless H.264 per encoder family: far finer than the differences being judged.
@@ -206,7 +213,9 @@ def extract_clip(
     for index, attempt in enumerate(devices):
         args = clip_command(ffmpeg, video, start, seconds, output, size, hdr, attempt)
         try:
-            subprocess.run(args, capture_output=True, timeout=timeout, check=True)  # noqa: S603
+            subprocess.run(  # noqa: S603 - argument list, no shell
+                args, capture_output=True, timeout=timeout, check=True, preexec_fn=preexec()
+            )
             return
         except subprocess.CalledProcessError:
             if index == len(devices) - 1:

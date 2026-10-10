@@ -6,6 +6,7 @@ import subprocess
 from dataclasses import dataclass
 from pathlib import Path
 
+from reelhaven.cpu_limit import preexec
 from reelhaven.media.info import MediaInfo
 from reelhaven.media.probe import ProbeError, ffmpeg_input, probe
 
@@ -144,7 +145,7 @@ def _decode(ffmpeg: str, path: Path, start: float, timeout_s: float) -> None:
     ]
     try:
         result = subprocess.run(  # noqa: S603 - argument list, no shell
-            args, capture_output=True, timeout=timeout_s, check=False
+            args, capture_output=True, timeout=timeout_s, check=False, preexec_fn=preexec()
         )
     except subprocess.TimeoutExpired as exc:
         raise VerificationError("decode test timed out") from exc

@@ -3,7 +3,7 @@
 from fastapi import APIRouter, Depends, Request
 from pydantic import BaseModel
 
-from reelhaven import audit, device_settings
+from reelhaven import audit, cpu_limit, device_settings
 from reelhaven.api.deps import (
     AnyPrincipalDep,
     DbDep,
@@ -41,6 +41,7 @@ class DevicesOut(BaseModel):
     detected_at: float | None
     devices: list[DeviceOut]
     settings: DeviceSettings
+    cpu_cores_available: int  # cores this container may use
 
 
 def _registry(request: Request) -> DeviceRegistry:
@@ -66,7 +67,7 @@ def _out(request: Request, db: DbDep) -> DevicesOut:
         )  # fmt: skip
     return DevicesOut(
         detecting=registry.detecting, detected_at=registry.detected_at, devices=devices,
-        settings=settings,
+        settings=settings, cpu_cores_available=len(cpu_limit.available()),
     )  # fmt: skip
 
 
@@ -88,4 +89,5 @@ def put_device_settings(
     with db.write() as session:
         device_settings.save(session, body)
         audit.record(session, principal.actor, "devices.updated", None, body.model_dump())
+    cpu_limit.set_limit(body.cpu_cores)  # applies to every process started from now on
     return _out(request, db)

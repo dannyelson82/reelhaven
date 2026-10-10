@@ -19,6 +19,7 @@ from sqlalchemy.orm import Session
 
 from reelhaven import audit
 from reelhaven.config import Settings
+from reelhaven.cpu_limit import preexec
 from reelhaven.db import Database, Job, MediaFile, TuneSession, TuneStep
 from reelhaven.db.types import utcnow
 from reelhaven.encode_planner import VideoPlan, scaled_size, video_bitrate
@@ -320,7 +321,7 @@ def ensure_scene(
             "-ss", f"{start:.3f}", "-i", ffmpeg_input(source), "-t", f"{seconds:.3f}",
             "-map", "0:v:0", "-c", "copy", "-an", "-sn", "-dn", "-y", ffmpeg_input(partial),
         ]  # fmt: skip
-        subprocess.run(args, capture_output=True, timeout=600, check=True)  # noqa: S603
+        subprocess.run(args, capture_output=True, timeout=600, check=True, preexec_fn=preexec())  # noqa: S603
         partial.rename(scene)
         return scene
 

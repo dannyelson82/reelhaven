@@ -6,6 +6,8 @@ import time
 from collections.abc import Callable
 from typing import IO, Protocol
 
+from reelhaven.cpu_limit import preexec
+
 _STDERR_KEEP = 4000
 
 
@@ -37,7 +39,11 @@ def run_ffmpeg(
     """Run ``args`` (an ffmpeg command with ``-progress pipe:1``) to completion."""
     try:
         process = subprocess.Popen(  # noqa: S603 - argument list, no shell
-            args, stdout=subprocess.PIPE, stderr=subprocess.PIPE, stdin=subprocess.DEVNULL
+            args,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            stdin=subprocess.DEVNULL,
+            preexec_fn=preexec(),
         )
     except OSError as exc:
         raise RunError(f"could not start ffmpeg: {exc}") from exc
