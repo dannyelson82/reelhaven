@@ -1,7 +1,7 @@
 # Phase 0.9: Insight and safety
 
 Planned with the owner on 2026-10-09. Decisions: ADR-0032.
-Release: **v0.9.0** (one release at the end).
+Release: **v0.9.0** (one release at the end). Done: #88–#91 and the release.
 
 Owner decisions: review page, wrong-language quarantine with re-search, per-GPU
 stats and trends; wrong-language actions Flag, Quarantine or Delete;
