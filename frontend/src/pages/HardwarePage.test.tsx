@@ -81,3 +81,24 @@ it('explains how to pass a GPU through when none is found', async () => {
   render(<App />);
   expect(await screen.findByText('No GPU found')).toBeInTheDocument();
 });
+
+it('limits the CPU cores ReelHaven may use', async () => {
+  window.location.hash = '#/settings/hardware';
+  const calls = mockApi({
+    'GET auth/state': loggedIn,
+    'GET devices': { body: { ...response, cpu_cores_available: 6 } },
+    'PUT devices/settings': (init) => ({
+      body: {
+        ...response,
+        cpu_cores_available: 6,
+        settings: JSON.parse(String(init?.body)),
+      },
+    }),
+  });
+  render(<App />);
+  expect(await screen.findByText(/may use all 6 cores/)).toBeInTheDocument();
+  await userEvent.click(screen.getByRole('switch', { name: 'Limit CPU cores' }));
+  const put = calls.find((c) => c.key === 'PUT devices/settings');
+  expect(JSON.parse(String(put?.init?.body))).toMatchObject({ cpu_cores: 3 }); // half to start
+  expect(await screen.findByText(/uses at most 3 of 6 cores/)).toBeInTheDocument();
+});

@@ -22,6 +22,9 @@ class DeviceSettings(BaseModel):
     cpu_enabled: bool = False  # CPU encoding is slow; off unless asked for (ADR-0019)
     cpu_concurrency: int = Field(default=1, ge=1, le=4)
     devices: dict[str, DeviceConfig] = Field(default_factory=dict)
+    # CPU limiter: at most this many CPU cores for everything ReelHaven runs (ffmpeg,
+    # ffprobe); None uses all of them. Always at low priority either way (cpu_limit.py).
+    cpu_cores: int | None = Field(default=None, ge=1, le=1024)
 
     def config_for(self, device_id: str) -> DeviceConfig:
         return self.devices.get(device_id, DeviceConfig())

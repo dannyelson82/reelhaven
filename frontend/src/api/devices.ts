@@ -24,6 +24,8 @@ export interface DeviceSettings {
   cpu_enabled: boolean;
   cpu_concurrency: number;
   devices: Record<string, { enabled: boolean; concurrency: number }>;
+  /** CPU limiter: at most this many cores for everything ReelHaven runs; null: all. */
+  cpu_cores?: number | null;
 }
 
 export interface DevicesResponse {
@@ -31,6 +33,8 @@ export interface DevicesResponse {
   detected_at: number | null;
   devices: DeviceInfo[];
   settings: DeviceSettings;
+  /** Cores this container may use. */
+  cpu_cores_available?: number;
 }
 
 const KEY = ['devices'] as const;

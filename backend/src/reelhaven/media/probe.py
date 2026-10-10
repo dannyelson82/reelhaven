@@ -11,6 +11,7 @@ import subprocess
 from pathlib import Path
 from typing import Any
 
+from reelhaven.cpu_limit import preexec
 from reelhaven.media.info import MediaInfo, parse
 
 logger = logging.getLogger(__name__)
@@ -32,7 +33,7 @@ def ffmpeg_input(path: Path) -> str:
 def _run(args: list[str], timeout: float) -> dict[str, Any]:
     try:
         completed = subprocess.run(  # noqa: S603 - argument list, no shell
-            args, capture_output=True, timeout=timeout, check=False
+            args, capture_output=True, timeout=timeout, check=False, preexec_fn=preexec()
         )
     except subprocess.TimeoutExpired as exc:
         raise ProbeError(f"ffprobe timed out after {timeout:.0f}s") from exc

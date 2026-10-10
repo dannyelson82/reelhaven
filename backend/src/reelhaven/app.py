@@ -8,7 +8,7 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.staticfiles import StaticFiles
 
-from reelhaven import __version__
+from reelhaven import __version__, cpu_limit, device_settings
 from reelhaven.api import (
     auth_routes,
     automation_routes,
@@ -70,6 +70,8 @@ def create_app(
     async def lifespan(app: FastAPI) -> AsyncIterator[None]:
         db.migrate()
         ensure_builtin_profiles(db)
+        with db.read() as session:
+            cpu_limit.set_limit(device_settings.load(session).cpu_cores)
         if detect_devices:
             app.state.devices.detect_in_background()
         # A finished job lets Automatic queue the next one straight away.

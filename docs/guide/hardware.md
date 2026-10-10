@@ -67,6 +67,24 @@ the CPU instead. If decoding on the card fails for any reason, the file is
 simply tried again with the CPU, so nothing is lost. The [Jobs](jobs.md) page
 shows which was used.
 
+## CPU limit
+
+Some work always runs on the CPU, even with graphics cards: CPU encodes, files
+a card can't decode (for example 10-bit H.264), audio conversion, quality
+checks after a test encode, and reading new files.
+
+- ReelHaven always runs this work at **low priority**, so Plex, the Unraid web
+  interface and your other containers get the CPU first whenever they need it.
+  When the server is otherwise idle, ReelHaven may use all of it.
+- **Limit CPU cores** (on the Hardware page) also caps how many cores it may
+  use at all, for example 3 of 6. Turning it on starts at half your cores;
+  change **Cores to use** as you like. ReelHaven uses the last cores, since
+  Unraid and other containers tend to favour the first ones.
+- A change applies to jobs that start afterwards; running ones keep their
+  cores until they finish.
+- If Unraid's own CPU pinning (Docker → ReelHaven → **Edit** → **CPU Pinning**)
+  already limits the container, the page counts only the cores it was given.
+
 ## Check that your GPUs really work
 
 Do this once after setting up the container, and again after changing

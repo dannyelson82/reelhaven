@@ -76,6 +76,14 @@ export function HardwarePage() {
         </Alert>
       )}
       {save.isError && <Alert color="red">{errorMessage(save.error)}</Alert>}
+      {data?.cpu_cores_available !== undefined && (
+        <CpuLimit
+          available={data.cpu_cores_available}
+          value={data.settings.cpu_cores ?? null}
+          saving={save.isPending}
+          onChange={(cores) => update((s) => ({ ...s, cpu_cores: cores }))}
+        />
+      )}
       {data?.devices.map((device) => (
         <DeviceCard
           key={device.id}
@@ -110,6 +118,62 @@ export function HardwarePage() {
         />
       ))}
     </Stack>
+  );
+}
+
+/** CPU limiter: how many cores ReelHaven's processes may use (always at low priority). */
+function CpuLimit({
+  available,
+  value,
+  saving,
+  onChange,
+}: {
+  available: number;
+  value: number | null;
+  saving: boolean;
+  onChange: (cores: number | null) => void;
+}) {
+  const limited = value !== null && value < available;
+  return (
+    <Card withBorder>
+      <Stack gap="xs">
+        <Group gap="xs">
+          <IconCpu size={18} />
+          <Text fw={600}>CPU limit</Text>
+        </Group>
+        <Text size="sm" c="dimmed">
+          Everything ReelHaven runs on the CPU (CPU encodes, files a graphics card can&apos;t
+          decode, audio conversion, quality checks, reading files) always runs at low priority, so
+          Plex and your other containers come first. You can also cap how many cores it may use.
+        </Text>
+        <Group gap="md" align="flex-end">
+          <Switch
+            label="Limit CPU cores"
+            checked={limited}
+            disabled={saving || available < 2}
+            onChange={(e) =>
+              onChange(e.currentTarget.checked ? Math.max(1, Math.floor(available / 2)) : null)
+            }
+          />
+          {limited && (
+            <NumberInput
+              label={`Cores to use (of ${available})`}
+              min={1}
+              max={available - 1}
+              value={value}
+              w={180}
+              disabled={saving}
+              onChange={(v) => typeof v === 'number' && v >= 1 && onChange(v)}
+            />
+          )}
+        </Group>
+        <Text size="xs" c="dimmed">
+          {limited
+            ? `ReelHaven uses at most ${value} of ${available} cores; jobs already running keep their cores until they finish.`
+            : `ReelHaven may use all ${available} cores when nothing else needs them.`}
+        </Text>
+      </Stack>
+    </Card>
   );
 }
 

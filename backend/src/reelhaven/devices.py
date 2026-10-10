@@ -14,6 +14,7 @@ from collections.abc import Callable
 from dataclasses import asdict, dataclass, field
 from pathlib import Path
 
+from reelhaven.cpu_limit import preexec
 from reelhaven.encoders import (
     CODECS,
     Codec,
@@ -62,7 +63,7 @@ Runner = Callable[[list[str], float], tuple[int, str, str]]
 def _run(args: list[str], timeout: float) -> tuple[int, str, str]:
     try:
         result = subprocess.run(  # noqa: S603 - argument list, no shell
-            args, capture_output=True, timeout=timeout, check=False
+            args, capture_output=True, timeout=timeout, check=False, preexec_fn=preexec()
         )
     except subprocess.TimeoutExpired:
         return 124, "", f"timed out after {timeout:.0f}s"

@@ -4,6 +4,7 @@ import re
 import subprocess
 from pathlib import Path
 
+from reelhaven.cpu_limit import preexec
 from reelhaven.media.probe import ffmpeg_input, probe_raw
 
 _RAW_FORMAT = {"hevc": "hevc", "h264": "h264"}  # only these carry the settings in SEI
@@ -24,7 +25,9 @@ def read_settings_string(
         "-map", "0:v:0", "-c", "copy", "-frames:v", "3", "-f", fmt, "-",
     ]  # fmt: skip
     try:
-        result = subprocess.run(args, capture_output=True, timeout=timeout, check=False)  # noqa: S603
+        result = subprocess.run(  # noqa: S603 - argument list, no shell
+            args, capture_output=True, timeout=timeout, check=False, preexec_fn=preexec()
+        )
     except (OSError, subprocess.TimeoutExpired):
         return None
     match = _SETTINGS.search(result.stdout[:_MAX_BYTES])
