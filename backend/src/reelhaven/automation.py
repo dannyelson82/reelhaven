@@ -9,6 +9,7 @@ import threading
 from collections.abc import Callable, Iterable
 from dataclasses import dataclass
 from datetime import datetime, time
+from typing import Literal
 
 from sqlalchemy import select
 from sqlalchemy.orm import Session
@@ -126,6 +127,72 @@ def pick_wrong_language(
     return chosen
 
 
+UpcomingWhy = Literal["next", "test_run", "not_automatic"]
+
+
+@dataclass(frozen=True)
+class Upcoming:
+    file_id: int
+    relative_path: str
+    action: str  # "encode", "remux", "quarantine", "delete"
+    saved: int | None  # estimated bytes saved; None if unknown
+    why: UpcomingWhy  # next in line, waiting for a test run, or the library isn't automatic
+
+
+def _saved(item: FilePlan) -> int | None:
+    plan = item.plan
+    if plan is None:
+        return None
+    video = plan.video
+    if plan.action == "encode" and video is not None:
+        if video.bytes_after_estimate is None or video.bytes_before is None:
+            return None
+        return video.bytes_before - video.bytes_after_estimate
+    return plan.remux_saved_bytes
+
+
+def upcoming(
+    plans: Iterable[FilePlan],
+    *,
+    automatic: bool,
+    active: set[int],
+    gave_up: dict[int, FileState],
+    current: dict[int, FileState],
+    encodes_allowed: bool,
+    wrong_language_action: str = "flag",
+) -> list[Upcoming]:
+    """Files that still need work and aren't queued yet, in the order ``pick`` takes them.
+
+    Left out, like ``pick`` does: files already queued or running, files whose last job
+    failed and that haven't changed (they're on the Review page), and files waiting for
+    their original language (also on the Review page).
+    """
+    out: list[Upcoming] = []
+    for item in plans:
+        plan = item.plan
+        if plan is None or item.language_pending or item.file_id in active:
+            continue
+        failed = gave_up.get(item.file_id)
+        if failed is not None and failed == current.get(item.file_id):
+            continue
+        if "wrong_language" in plan.flags and wrong_language_action != "flag":
+            action = wrong_language_action
+        elif plan.action in ("encode", "remux"):
+            action = plan.action
+        else:
+            continue
+        why: UpcomingWhy = (
+            "not_automatic"
+            if not automatic
+            else "test_run"
+            if action == "encode" and not encodes_allowed
+            else "next"
+        )
+        saved = None if action in ("quarantine", "delete") else _saved(item)
+        out.append(Upcoming(item.file_id, item.relative_path, action, saved, why))
+    return out
+
+
 # --- the background thread -----------------------------------------------------------------
 
 
@@ -218,7 +285,7 @@ class Automation:
             encodes_allowed = profile is not None and library.test_run_profile == (
                 profile_fingerprint(profile)
             )
-            gave_up = _given_up(session, library_id)
+            gave_up = given_up(session, library_id)
             action = LanguagePolicy.model_validate(
                 library.language_policy or {}
             ).wrong_language_action
@@ -266,7 +333,7 @@ class Automation:
         return len(jobs)
 
 
-def _given_up(session: Session, library_id: int) -> dict[int, FileState]:
+def given_up(session: Session, library_id: int) -> dict[int, FileState]:
     """Files whose most recent job failed or was cancelled, with the file state it saw."""
     latest: dict[int, Job] = {}
     for job in session.scalars(

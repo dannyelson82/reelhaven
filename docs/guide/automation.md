@@ -72,7 +72,8 @@ time is the server's local time (the container's `TZ` setting).
 
 ## Pause everything
 
-**Pause all processing** on the **Jobs** page stops new jobs from starting,
+**Pause all processing** on the **Dashboard** or the **Jobs** page stops new
+jobs from starting,
 manual or automatic. Jobs that are already running finish. While paused, an
 orange banner on the Jobs page and the Dashboard says so; **Resume** carries on
 where it left off.

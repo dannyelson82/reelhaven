@@ -216,3 +216,46 @@ it('says where each encode decoded its video', async () => {
   ).toBeInTheDocument();
   expect(screen.getByText(/on NVIDIA GeForce RTX 3060 \(decoded on CPU\)/)).toBeInTheDocument();
 });
+
+it('shows upcoming work and why it waits', async () => {
+  window.location.hash = '#/jobs';
+  const item = (file_id: number, why: string, action: string, saved: number | null) => ({
+    file_id,
+    relative_path: `Show/S01E0${file_id}.mkv`,
+    action,
+    saved,
+    why,
+    library_id: 1,
+    library_name: 'TV Shows',
+  });
+  const counts = { next: 2, test_run: 1, not_automatic: 0 };
+  mockApi({
+    'GET auth/state': loggedIn,
+    'GET jobs?status=all&offset=0&limit=50': { body: { total: 0, counts: {}, items: [] } },
+    'GET upcoming?offset=0&limit=50': {
+      body: {
+        total: 3,
+        counts,
+        saved: 3e9,
+        items: [
+          item(1, 'next', 'encode', 2e9),
+          item(2, 'next', 'quarantine', null),
+          item(3, 'test_run', 'encode', 1e9),
+        ],
+      },
+    },
+    'GET upcoming?offset=0&limit=50&why=test_run': {
+      body: { total: 1, counts, saved: 1e9, items: [item(3, 'test_run', 'encode', 1e9)] },
+    },
+  });
+  render(<App />);
+  await userEvent.click(await screen.findByText('Upcoming (3)'));
+  expect(await screen.findByText('3 files, saving about 3.0 GB.')).toBeInTheDocument();
+  expect(screen.getByText('TV Shows · Re-encode · saves about 2.0 GB')).toBeInTheDocument();
+  expect(screen.getByText('TV Shows · Quarantine (wrong language)')).toBeInTheDocument();
+  await userEvent.click(screen.getByRole('button', { name: 'Waiting for a test run (1)' }));
+  expect(
+    await screen.findByText(/Re-encodes in this library start once a test run/),
+  ).toBeInTheDocument();
+  expect(screen.queryByText('Show/S01E01.mkv')).not.toBeInTheDocument();
+});
