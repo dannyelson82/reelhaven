@@ -1,13 +1,16 @@
 """Space saved over the life of the install (ADR-0026)."""
 
-from datetime import datetime
+from dataclasses import asdict
+from datetime import date, datetime, timedelta
 
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, Query
 from pydantic import BaseModel
 from sqlalchemy import select
 
 from reelhaven.api.deps import AnyPrincipalDep, DbDep, csrf_protect, require_setup_done
 from reelhaven.db import Job, JobResult, Library, RecycleItem
+from reelhaven.db.types import utcnow
+from reelhaven.device_stats import JobRow, daily, device_stats
 from reelhaven.savings import Event, Period, summarise
 
 router = APIRouter(dependencies=[Depends(require_setup_done), Depends(csrf_protect)])
@@ -81,4 +84,67 @@ def savings(db: DbDep, _principal: AnyPrincipalDep) -> SavingsOut:
             )
             for lib in s.libraries
         ],
+    )
+
+
+class DeviceStatsOut(BaseModel):
+    device: str
+    files: int
+    failed: int
+    saved: int
+    video_hours: float
+    work_hours: float
+    speed: float | None
+    fps: float | None
+    gpu_decoded: float | None
+
+
+class DayOut(BaseModel):
+    day: date
+    encoded: int
+    remuxed: int
+    failed: int
+    saved: int
+
+
+class PerformanceOut(BaseModel):
+    devices: list[DeviceStatsOut]
+    daily: list[DayOut]
+
+
+@router.get("/stats/performance")
+def performance(
+    db: DbDep,
+    _principal: AnyPrincipalDep,
+    days: int = Query(default=30, ge=0, le=3650),
+) -> PerformanceOut:
+    """Per-device encodes over the last ``days`` days (0: all time), and jobs per day."""
+    with db.read() as session:
+        rows = [
+            JobRow(
+                finished=_local(job.finished_at),
+                type=job.type,
+                status=job.status,
+                device=job.device,
+                decoder=job.decoder,
+                outcome=result.outcome if result else None,
+                saved=(result.bytes_before - result.bytes_after)
+                if result and result.outcome == "replaced"
+                else 0,
+                video_seconds=result.duration_s if result else None,
+                work_seconds=result.process_seconds if result else None,
+                fps=result.fps if result else None,
+            )
+            for job, result in session.execute(
+                select(Job, JobResult)
+                .outerjoin(JobResult, JobResult.job_id == Job.id)
+                .where(Job.finished_at.is_not(None), Job.type.in_(("encode", "remux")))
+            )
+            if job.finished_at is not None
+        ]
+    now = _local(utcnow())
+    since = now - timedelta(days=days) if days else None
+    return PerformanceOut(
+        devices=[DeviceStatsOut(**asdict(d)) for d in device_stats(rows, since)],
+        daily=[DayOut(**asdict(d)) for d in daily(rows, now.date())],
     )
