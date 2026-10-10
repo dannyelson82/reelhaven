@@ -49,9 +49,8 @@ Out of scope: an attacker who already has root on the Unraid host.
   - Requests arriving from the container's **Docker gateway** address never
     get the bypass, because NAT can make every client look like the gateway
     (ADR-0012).
-- **Two-factor (TOTP)**: optional, off by default. Any authenticator app.
-  Enabling it shows 10 single-use recovery codes (stored hashed). When 2FA is
-  on, the local-address bypass cannot be enabled.
+- **No two-factor login** (ADR-0032): ReelHaven is a home-network tool; 2FA
+  can be added later if it turns out to be needed.
 - **API key**: random 32-byte key for webhooks and scripts, sent in the
   `X-Api-Key` header (or `apikey` query parameter for tools that can't set
   headers). Shown once in full, then masked; only a SHA-256 hash is stored
@@ -95,7 +94,7 @@ Out of scope: an attacker who already has root on the Unraid host.
 
 ## Secrets
 
-- Third-party API keys and TOTP secrets are encrypted at rest with a key
+- Third-party API keys are encrypted at rest with a key
   generated on first run and stored in `/config/secret.key`
   (permissions `0600`, owned by PUID).
 - Secrets are never returned in full by the API (masked), never logged

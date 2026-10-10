@@ -352,7 +352,7 @@ Action per library:
 
 | Table | Key fields |
 |---|---|
-| `users` | id, username, password_hash, totp_secret (encrypted), totp_enabled, created_at |
+| `users` | id, username, password_hash, totp_secret, totp_enabled (unused: no 2FA, ADR-0032), created_at |
 | `sessions` | id (hashed), user_id, expires_at, ip, user_agent |
 | `settings` | key, value (JSON) |
 | `libraries` | id, name, type, path, profile_id, language_policy (JSON), watch_mode, wrong_language_action, test_run_passed_at |
@@ -387,7 +387,7 @@ SECURITY.md).
 - **Queue**: pending/active/failed jobs, reorder, retry, cancel, pause.
 - **Review**: flagged files (wrong language, DV, errors) with actions.
 - **Recycle bin / Quarantine**: restore or purge.
-- **Settings**: integrations, security (password, 2FA, API key,
+- **Settings**: integrations, security (password, API key,
   local-address bypass), schedules, logs.
 
 ## 12. Logging and observability
@@ -433,8 +433,8 @@ endpoint (unauthenticated, no details) for Docker health checks.
 | 0.6 Automation | Watch modes and automatic processing (ADR-0025), webhooks, folder watcher, scheduled rescans, notifiers (Plex, Sonarr, Radarr). |
 | 0.7 Setup wizard (ADR-0026) | A guided flow from install to an automatic library: hardware, apps, folder, languages, size vs quality with estimates, audio, test run, Automatic. Space savings tracking (lifetime, weekly, monthly). |
 | 0.8 Compare and tune (ADR-0031) | Full-screen comparison viewer (side by side with synced zoom/pan, swipe), in-browser comparison clips, Mimic in the wizard, find my sweet spot (three sizes, dial in; library files or open-licence test films), audio bitrate guidance. |
-| 0.9 Insight and safety | Rest of the stats dashboard (per-GPU performance, trends), review page, wrong-language quarantine + re-search, optional TOTP 2FA, audit log page. |
-| 1.0 | Hardening, docs, release checklist, CA submission. |
+| 0.9 Insight and safety (ADR-0032) | Per-GPU performance and trends, review page, wrong-language actions (flag, quarantine + re-search, delete). No two-factor login. |
+| 1.0 | Hardening, audit log page, docs, release checklist, CA submission. |
 
 Language handling ships before encoding on purpose: it's fast (stream copy),
 low risk, and exercises the whole verify → replace → notify pipeline before
