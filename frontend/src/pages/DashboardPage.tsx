@@ -37,6 +37,9 @@ export function DashboardPage() {
       )}
       <ActiveJobs />
       <SavingsCard />
+      <Anchor component={Link} to="/stats" size="sm">
+        Speed and results for each graphics card, and jobs per day, are on the Stats page.
+      </Anchor>
     </Stack>
   );
 }
