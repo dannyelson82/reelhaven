@@ -22,6 +22,7 @@ from reelhaven.api import (
     onboarding_routes,
     profile_routes,
     recycle_settings_routes,
+    review_routes,
     security_routes,
     stats_routes,
     test_run_routes,
@@ -150,6 +151,7 @@ def create_app(
     app.include_router(test_run_routes.router, prefix="/api/v1")
     app.include_router(tune_routes.router, prefix="/api/v1")
     app.include_router(film_routes.router, prefix="/api/v1")
+    app.include_router(review_routes.router, prefix="/api/v1")
     app.include_router(live_routes.router, prefix="/api/v1")
     app.include_router(automation_routes.router, prefix="/api/v1")
     app.include_router(recycle_settings_routes.router, prefix="/api/v1")

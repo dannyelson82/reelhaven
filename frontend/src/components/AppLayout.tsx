@@ -17,6 +17,7 @@ import {
   IconMovie,
   IconRecycle,
   IconFolders,
+  IconAlertTriangle,
   IconGauge,
   IconLogout,
   IconPlugConnected,
@@ -25,12 +26,14 @@ import {
 import { NavLink as RouterLink, Outlet, useLocation } from 'react-router';
 import { type AuthState, useLogout, useLogoutEverywhere } from '../api/auth';
 import { useLiveConnection, useLiveJobs } from '../api/live';
+import { useReviewCount } from '../api/review';
 
 const NAV = [
   { to: '/', label: 'Dashboard', icon: IconGauge },
   { to: '/libraries', label: 'Libraries', icon: IconFolders },
   { to: '/profiles', label: 'Profiles', icon: IconMovie },
   { to: '/jobs', label: 'Jobs', icon: IconListCheck },
+  { to: '/review', label: 'Review', icon: IconAlertTriangle },
   { to: '/recycle', label: 'Recycle bin', icon: IconRecycle },
   { to: '/settings/hardware', label: 'Hardware', icon: IconCpu2 },
   { to: '/settings/integrations', label: 'Integrations', icon: IconPlugConnected },
@@ -46,6 +49,7 @@ export function AppLayout({ auth }: { auth: AuthState }) {
   useLiveConnection(auth.method === 'session');
   const live = useLiveJobs();
   const busy = live ? (live.counts.queued ?? 0) + live.active.length : 0;
+  const toReview = useReviewCount();
 
   return (
     <AppShell
@@ -99,6 +103,15 @@ export function AppLayout({ auth }: { auth: AuthState }) {
               to === '/jobs' && busy > 0 ? (
                 <Badge size="sm" variant="light" aria-label={`${busy} jobs in progress`}>
                   {busy}
+                </Badge>
+              ) : to === '/review' && toReview > 0 ? (
+                <Badge
+                  size="sm"
+                  variant="light"
+                  color="orange"
+                  aria-label={`${toReview} files to review`}
+                >
+                  {toReview}
                 </Badge>
               ) : undefined
             }
