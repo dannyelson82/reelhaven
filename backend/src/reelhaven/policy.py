@@ -24,7 +24,9 @@ class LanguagePolicy(BaseModel):
     # "keep", or a language code untagged tracks should be treated as (ADR-0017).
     untagged: str = "keep"
     set_defaults: bool = True
-    wrong_language_action: Literal["flag"] = "flag"  # quarantine/delete: phase 0.7
+    # ADR-0032: flag for review, or (automatic libraries) quarantine or delete and ask
+    # Sonarr/Radarr for another release.
+    wrong_language_action: Literal["flag", "quarantine", "delete"] = "flag"
 
     @field_validator("keep_languages")
     @classmethod

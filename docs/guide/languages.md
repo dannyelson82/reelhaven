@@ -46,6 +46,7 @@ policy**. Nothing changes until you apply a [dry run](dry-run.md).
 | **Keep commentary tracks** | On | Director's commentary and similar audio. |
 | **Tracks without a language tag** | Always keep them | Keep untagged tracks (safest), or treat them as a language you choose. |
 | **Set the default audio and subtitle tracks** | On | Original-language audio plays by default. Your language's forced subtitles are on by default, or full subtitles when the audio is foreign. |
+| **Files with none of your languages** | Flag for review | What happens to a *wrong language* file (an English film with only Spanish audio, say: probably the wrong release). **Flag for review** changes nothing and lists it on the [Review](review.md) page. **Quarantine** or **Delete** moves it out of the library and asks Sonarr/Radarr to blocklist that release and search for another; see [Wrong-language files](#wrong-language-files). |
 | **Show my language's subtitles automatically** | On | Also marks that default subtitle as **forced**, so Plex and other players show it without you switching it on: forced subtitles for the foreign lines in a film in your language, or the full subtitles for a film in another language (say, a Japanese film). Only subtitles in your own language are marked. Files ReelHaven already processed are picked up by the next scan as a quick flag change (no re-encode). |
 
 ## Safety rules
@@ -55,8 +56,35 @@ policy**. Nothing changes until you apply a [dry run](dry-run.md).
   language** or **No wanted audio**. Flagged files are left untouched for you
   to review.
 - Tracks without a language tag never make a file count as *wrong language*.
+- Only *wrong language* files can be quarantined or deleted automatically:
+  the title's original language is known and none of the audio is untagged.
+  *No wanted audio* files (original language unknown, or untagged audio)
+  always wait for you.
 - Language codes are matched however they're written (`fre`, `fra` and `fr`
   are all French).
 - A track-only change (**Remux**) keeps the same container (MKV stays MKV)
   and the same track order, plus chapters and attached fonts. The file name
   doesn't change.
+
+## Wrong-language files
+
+With **Quarantine** or **Delete** chosen, an [Automatic](automation.md)
+library handles wrong-language files by itself, a few at a time like any other
+job. In any library you can also do it for one file from the
+[Review](review.md) page (**Quarantine** or **Delete**, after you confirm).
+
+1. The file leaves the library for its hidden `.reelhaven` folder, on the same
+   disk, so it isn't copied.
+2. Sonarr or Radarr (whichever manages the file) is asked to mark the download
+   that brought it as failed, which **blocklists that release**, and to
+   **search for another**. If it was added by hand (no download to blocklist),
+   it just searches. The job on the [Jobs](jobs.md) page says what each one
+   answered.
+3. The file is kept for the recycle bin's **days to keep** (see
+   [Recycle bin](recycle-bin.md)): quarantined files on the **Quarantine** tab,
+   deleted ones in the recycle bin. Either can be restored until then. With the
+   recycle bin **Off**, the file is removed straight away.
+
+Without Sonarr or Radarr, the file is still moved aside, but nothing searches
+for a replacement.
+

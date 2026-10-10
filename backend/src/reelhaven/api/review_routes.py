@@ -7,6 +7,7 @@ from typing import Any
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
 from pydantic import BaseModel
+from sqlalchemy import select
 
 from reelhaven import audit
 from reelhaven.api.deps import (
@@ -17,7 +18,11 @@ from reelhaven.api.deps import (
     require_setup_done,
 )
 from reelhaven.api.schemas import StrictModel
-from reelhaven.db import Database, MediaFile
+from reelhaven.db import Database, Job, Library, MediaFile
+from reelhaven.dryrun import plan_library
+from reelhaven.jobs import wrong_language
+from reelhaven.jobs.service import ACTIVE
+from reelhaven.jobs.wrong_language import WrongLanguageAction
 from reelhaven.review import KINDS, ReviewItem, ReviewKind, file_state, gather, review_items
 
 router = APIRouter(dependencies=[Depends(require_setup_done), Depends(csrf_protect)])
@@ -119,3 +124,38 @@ def ignore(body: IgnoreIn, request: Request, db: DbDep, principal: InteractiveDe
             {"kind": body.kind},
         )
     clear_cache()
+
+
+class WrongLanguageIn(StrictModel):
+    action: WrongLanguageAction
+
+
+@router.post("/files/{file_id}/wrong-language", status_code=status.HTTP_201_CREATED)
+def act_on_wrong_language(
+    file_id: int, body: WrongLanguageIn, request: Request, db: DbDep, principal: InteractiveDep
+) -> dict[str, int]:
+    """Quarantine or delete one wrong-language file and ask for another release."""
+    with db.read() as session:
+        media_file = session.get(MediaFile, file_id)
+        if media_file is None:
+            raise HTTPException(status.HTTP_404_NOT_FOUND, "file_not_found")
+        library_id = media_file.library_id
+    plan = next((p for p in plan_library(db, library_id) if p.file_id == file_id), None)
+    flags = plan.plan.flags if plan and plan.plan else []
+    if "wrong_language" not in flags and "no_wanted_audio" not in flags:
+        raise HTTPException(status.HTTP_409_CONFLICT, "not_wrong_language")
+    with db.write() as session:
+        media_file = session.get(MediaFile, file_id)
+        library = session.get(Library, library_id)
+        if media_file is None or library is None:
+            raise HTTPException(status.HTTP_404_NOT_FOUND, "file_not_found")
+        busy = session.scalars(
+            select(Job.id).where(Job.media_file_id == file_id, Job.status.in_(ACTIVE))
+        ).first()
+        if busy is not None:
+            raise HTTPException(status.HTTP_409_CONFLICT, "file_busy")
+        job = wrong_language.create_job(session, library, media_file, body.action, principal.actor)
+        job_id = job.id
+    request.app.state.queue.notify()
+    clear_cache()
+    return {"job_id": job_id}

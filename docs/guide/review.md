@@ -23,6 +23,9 @@ this page changes files by itself.
 
 ## Actions
 
+- **Quarantine** and **Delete** (wrong-language files, after you confirm) move
+  the file out of the library and ask Sonarr/Radarr for another release (see
+  [Languages](languages.md#wrong-language-files)).
 - **Open library** goes to the file's library.
 - **Ignore** hides the file from that tab and from the count. If the file
   changes (a new release, for example), it shows up again.

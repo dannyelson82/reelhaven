@@ -6,6 +6,7 @@ import {
   Card,
   Group,
   Loader,
+  Modal,
   Pagination,
   Stack,
   Switch,
@@ -13,6 +14,7 @@ import {
   Text,
   Title,
 } from '@mantine/core';
+import { notifications } from '@mantine/notifications';
 import { useState } from 'react';
 import { Link, useSearchParams } from 'react-router';
 import { errorMessage } from '../api/client';
@@ -23,6 +25,7 @@ import {
   type ReviewKind,
   useIgnore,
   useReview,
+  useWrongLanguageAction,
 } from '../api/review';
 import { formatBytes, languageName } from '../format';
 
@@ -102,6 +105,8 @@ export function ReviewPage() {
 function ReviewCard({ item }: { item: ReviewItem }) {
   const ignore = useIgnore();
   const retry = useRetryJob();
+  const act = useWrongLanguageAction();
+  const [confirm, setConfirm] = useState<'quarantine' | 'delete' | null>(null);
   return (
     <Card withBorder padding="sm" opacity={item.ignored ? 0.6 : 1}>
       <Group justify="space-between" align="flex-start" wrap="nowrap">
@@ -118,13 +123,23 @@ function ReviewCard({ item }: { item: ReviewItem }) {
               ? `Audio: ${item.audio_languages.length > 0 ? item.audio_languages.map(languageName).join(', ') : 'no tagged language'}${item.original_language ? ` · original language: ${languageName(item.original_language)}` : ''}`
               : item.detail}
           </Text>
-          {(ignore.isError || retry.isError) && (
+          {(ignore.isError || retry.isError || act.isError) && (
             <Text size="xs" c="red">
-              {errorMessage(ignore.error ?? retry.error)}
+              {errorMessage(ignore.error ?? retry.error ?? act.error)}
             </Text>
           )}
         </Stack>
         <Group gap="xs" wrap="nowrap">
+          {item.kind === 'wrong_language' && !item.ignored && (
+            <>
+              <Button size="xs" variant="light" onClick={() => setConfirm('quarantine')}>
+                Quarantine
+              </Button>
+              <Button size="xs" variant="light" color="red" onClick={() => setConfirm('delete')}>
+                Delete
+              </Button>
+            </>
+          )}
           {item.kind === 'failed' && item.job_id !== null && (
             <Button
               size="xs"
@@ -152,6 +167,50 @@ function ReviewCard({ item }: { item: ReviewItem }) {
           )}
         </Group>
       </Group>
+      <Modal
+        opened={confirm !== null}
+        onClose={() => setConfirm(null)}
+        title={confirm === 'delete' ? 'Delete this file?' : 'Quarantine this file?'}
+      >
+        <Stack>
+          <Text size="sm">
+            <b>{item.relative_path}</b> leaves the library
+            {confirm === 'delete'
+              ? ' for the recycle bin'
+              : ' for the quarantine (Recycle bin page, Quarantine tab)'}
+            , kept for the recycle bin&apos;s days to keep. Sonarr or Radarr is then asked to
+            blocklist this release and search for another.
+          </Text>
+          <Group justify="flex-end">
+            <Button variant="default" onClick={() => setConfirm(null)}>
+              Cancel
+            </Button>
+            <Button
+              color={confirm === 'delete' ? 'red' : undefined}
+              loading={act.isPending}
+              onClick={() =>
+                confirm &&
+                act.mutate(
+                  { file_id: item.file_id, action: confirm },
+                  {
+                    onSuccess: () => {
+                      notifications.show({
+                        message:
+                          confirm === 'delete'
+                            ? 'Deleting; another release is being searched for.'
+                            : 'Quarantining; another release is being searched for.',
+                      });
+                      setConfirm(null);
+                    },
+                  },
+                )
+              }
+            >
+              {confirm === 'delete' ? 'Delete' : 'Quarantine'}
+            </Button>
+          </Group>
+        </Stack>
+      </Modal>
     </Card>
   );
 }

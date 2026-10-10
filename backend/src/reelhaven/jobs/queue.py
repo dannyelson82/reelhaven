@@ -22,6 +22,7 @@ from reelhaven.db import Database, Job, Library, TestRunSample
 from reelhaven.db.types import utcnow
 from reelhaven.devices import DeviceRegistry, DeviceReport
 from reelhaven.encoders import Device
+from reelhaven.jobs import wrong_language
 from reelhaven.jobs.encode_pipeline import process_encode
 from reelhaven.jobs.pipeline import JobFailedError, process
 from reelhaven.jobs.replace import remove_tree
@@ -67,6 +68,9 @@ class JobQueue:
         self._active = 0
         # Called after every job (e.g. so Automatic can queue the next one at once).
         self.on_job_finished: Callable[[], None] = lambda: None
+        # Wrong-language files (ADR-0032): ask Sonarr/Radarr for another release; set by
+        # the app, which holds the integrations' secrets.
+        self.research: Callable[[str], list[str]] = lambda _path: []
 
     # --- lifecycle -------------------------------------------------------------------
 
@@ -86,7 +90,11 @@ class JobQueue:
     def start(self) -> None:
         self.recover()
         for n in range(self._workers):
-            self._spawn(f"remux-{n}", lambda: self._claim(("remux",)), self._run_remux)
+            self._spawn(
+                f"remux-{n}",
+                lambda: self._claim(("remux", wrong_language.JOB_TYPE)),
+                self._run_remux,
+            )
         if self._devices is not None:
             self._spawn("encode-manager", None, None)
 
@@ -168,7 +176,13 @@ class JobQueue:
                     logger.exception("after-job hook failed")
 
     def _run_remux(self, job_id: int) -> None:
-        process(self._db, self._settings, job_id)
+        with self._db.read() as session:
+            job = session.get(Job, job_id)
+            kind = job.type if job is not None else None
+        if kind == wrong_language.JOB_TYPE:
+            wrong_language.process(self._db, self._settings, job_id, self.research)
+        else:
+            process(self._db, self._settings, job_id)
 
     def _run_encode(self, job_id: int, device: Device) -> None:
         with self._db.read() as session:
@@ -237,9 +251,9 @@ class JobQueue:
         if is_paused(self._db):
             return False
         with self._db.read() as session:
-            queued = self._queued(session, ("remux", *ENCODE_TYPES))
+            queued = self._queued(session, ("remux", wrong_language.JOB_TYPE, *ENCODE_TYPES))
             settings = device_settings.load(session)
-        if any(job.type == "remux" for job in queued):
+        if any(job.type in ("remux", wrong_language.JOB_TYPE) for job in queued):
             return True
         if self._devices is None:
             return False

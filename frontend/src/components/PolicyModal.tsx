@@ -110,6 +110,23 @@ function PolicyForm({
           disabled={!form.values.set_defaults}
           {...form.getInputProps('force_subtitles', { type: 'checkbox' })}
         />
+        <Select
+          label="Files with none of your languages"
+          description="An English film with only Spanish audio, say: probably the wrong release. Quarantine and Delete happen automatically only in Automatic libraries; the Review page can do them for one file anywhere."
+          data={[
+            { value: 'flag', label: 'Flag for review (nothing changes)' },
+            { value: 'quarantine', label: 'Quarantine and ask Sonarr/Radarr for another release' },
+            { value: 'delete', label: 'Delete and ask Sonarr/Radarr for another release' },
+          ]}
+          allowDeselect={false}
+          {...form.getInputProps('wrong_language_action')}
+        />
+        {form.values.wrong_language_action === 'delete' && (
+          <Alert color="orange">
+            Wrong-language files are deleted without asking you. They still go through the recycle
+            bin first, so they can be restored until it empties them.
+          </Alert>
+        )}
         {save.isError && <Alert color="red">{errorMessage(save.error)}</Alert>}
         <Group justify="flex-end">
           <Button variant="default" onClick={onClose}>
