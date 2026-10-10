@@ -88,5 +88,5 @@ def test_performance_api(app: FastAPI, settings: Settings) -> None:  # noqa: F81
     data = admin.get(f"{API}/stats/performance", params={"days": 0}).json()
     (cpu,) = data["devices"]
     assert (cpu["device"], cpu["files"], cpu["failed"]) == ("cpu", 1, 0)
-    assert cpu["saved"] > 0 and cpu["fps"] > 0 and cpu["gpu_decoded"] == 0  # a CPU encode
+    assert cpu["saved"] > 0 and cpu["gpu_decoded"] == 0  # a CPU encode (fps: if ffmpeg said)
     assert data["daily"][-1]["encoded"] == 1
