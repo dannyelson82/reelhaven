@@ -35,6 +35,13 @@ Every file ReelHaven processes is a **job**. The **Jobs** page lists them;
 **Cancel** stops a waiting or running job. **Try again** plans the file again
 (it may have changed) and queues a new job.
 
+**Retry all failed** (on the **Failed** tab) does the same for every file whose
+last job failed, in one go. Cancelled jobs are left alone, since you stopped
+them on purpose. Files that no longer need changes, or that can't be read
+right now, are skipped, and the message next to the button says how many.
+Test-run samples and sweet-spot steps aren't included; try those again from
+their own pages.
+
 **Pause all processing** (top of the Jobs page and the Dashboard) stops new
 jobs from starting; running jobs finish. **Resume processing** carries on.
 Jobs started by an [Automatic](automation.md) library show *requested by

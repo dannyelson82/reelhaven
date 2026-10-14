@@ -46,6 +46,25 @@ it('shows a failed job, reassures that nothing changed, and retries', async () =
   expect(calls.some((c) => c.key === 'POST jobs/4/retry')).toBe(true);
 });
 
+it('retries every failed job from the Failed tab', async () => {
+  window.location.hash = '#/jobs';
+  const page = { body: { total: 1, counts: { failed: 2, cancelled: 1 }, items: [job] } };
+  const calls = mockApi({
+    'GET auth/state': loggedIn,
+    'GET jobs?status=all&offset=0&limit=50': page,
+    'GET jobs?status=failed&offset=0&limit=50': page,
+    'POST jobs/retry-failed': { body: { queued: 1, skipped: 1 } },
+  });
+  render(<App />);
+  expect(screen.queryByRole('button', { name: /Retry all failed/ })).not.toBeInTheDocument();
+  await userEvent.click(await screen.findByText('Failed (3)'));
+  await userEvent.click(await screen.findByRole('button', { name: 'Retry all failed (2)' }));
+  expect(calls.some((c) => c.key === 'POST jobs/retry-failed')).toBe(true);
+  expect(
+    await screen.findByText(/1 file queued again; 1 no longer need changes/),
+  ).toBeInTheDocument();
+});
+
 it('shows savings for a finished job', async () => {
   window.location.hash = '#/jobs';
   mockApi({

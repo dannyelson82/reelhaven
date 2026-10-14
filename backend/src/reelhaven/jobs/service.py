@@ -78,6 +78,31 @@ def create_jobs(session: Session, library: Library, plans: list[FilePlan], actor
     return jobs
 
 
+def failed_files(session: Session, library_id: int | None = None) -> dict[int, list[int]]:
+    """Files whose most recent job failed, by library: what "Retry all" plans again.
+
+    Cancelled jobs were stopped on purpose and stay as they are. Test-run samples and
+    sweet-spot steps are left out; they are tried again from their own pages.
+    """
+    query = select(Job).where(
+        Job.media_file_id.is_not(None),
+        Job.library_id.is_not(None),
+        Job.type.not_in(("test", "tune")),
+    )
+    if library_id is not None:
+        query = query.where(Job.library_id == library_id)
+    latest: dict[int, Job] = {}
+    for job in session.scalars(query):
+        assert job.media_file_id is not None  # noqa: S101
+        if job.media_file_id not in latest or job.id > latest[job.media_file_id].id:
+            latest[job.media_file_id] = job
+    out: dict[int, list[int]] = {}
+    for file_id, job in sorted(latest.items()):
+        if job.status == "failed" and job.library_id is not None:
+            out.setdefault(job.library_id, []).append(file_id)
+    return out
+
+
 def check_applicable(item: FilePlan, media_file: MediaFile) -> None:
     if item.plan is None:
         raise NotApplicableError("file_not_readable")
