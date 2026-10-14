@@ -47,6 +47,24 @@ jobs from starting; running jobs finish. **Resume processing** carries on.
 Jobs started by an [Automatic](automation.md) library show *requested by
 automatic*.
 
+## When a disk is full
+
+If a job runs out of disk space, ReelHaven stops all processing instead of
+letting job after job fail the same way:
+
+- The job goes back in the queue. **Your original file wasn't changed.**
+- Nothing new starts, manual or automatic. Jobs already running finish (or
+  stop the same way, if they hit the full disk too).
+- A red **Processing stopped: a disk is full** box on the Jobs page and the
+  Dashboard says which disk is short and how much room it needs (the size of
+  the file plus 2 GB, on both the library's disk and the transcode folder).
+
+Free up some space (for example, empty the [recycle bin](recycle-bin.md) or
+delete files you don't need). ReelHaven checks every 30 seconds and carries on
+by itself once there's room. **Check now** checks straight away; **Carry on
+anyway** starts work again without waiting, which only helps if you know the
+next files are smaller.
+
 ## Upcoming
 
 An Automatic library keeps only a few jobs waiting at a time (enough to keep

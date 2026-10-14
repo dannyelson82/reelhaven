@@ -8,6 +8,7 @@
 
 import logging
 import threading
+import time
 from collections.abc import Callable
 from functools import partial
 from pathlib import Path
@@ -15,7 +16,7 @@ from pathlib import Path
 from sqlalchemy import select, update
 from sqlalchemy.orm import Session
 
-from reelhaven import device_settings
+from reelhaven import audit, device_settings, space_hold
 from reelhaven.automation_settings import is_paused
 from reelhaven.config import Settings
 from reelhaven.db import Database, Job, Library, TestRunSample
@@ -66,6 +67,8 @@ class JobQueue:
         self._claim_lock = threading.Lock()
         self._idle = threading.Condition()
         self._active = 0
+        self._space_lock = threading.Lock()
+        self._space_checked = 0.0  # time.monotonic() of the last free-space check
         # Called after every job (e.g. so Automatic can queue the next one at once).
         self.on_job_finished: Callable[[], None] = lambda: None
         # Wrong-language files (ADR-0032): ask Sonarr/Radarr for another release; set by
@@ -161,10 +164,10 @@ class JobQueue:
             try:
                 run(job_id)
             except JobFailedError as exc:
-                self._fail(job_id, str(exc))
+                self._failed(job_id, exc, str(exc))
             except Exception as exc:
                 logger.exception("job crashed", extra={"job": job_id})
-                self._fail(job_id, f"unexpected error: {exc}")
+                self._failed(job_id, exc, f"unexpected error: {exc}")
             finally:
                 with self._idle:
                     self._active -= 1
@@ -215,6 +218,8 @@ class JobQueue:
     ) -> int | None:
         if is_paused(self._db):
             return None  # ADR-0025: paused, so nothing new starts; running jobs finish
+        if self.space_held():
+            return None  # a disk is full: nothing starts until there is room again
         with self._claim_lock, self._db.write() as session:
             for job in self._queued(session, types):
                 if job.type == "test" and _test_run_busy(session, job):
@@ -248,7 +253,7 @@ class JobQueue:
 
     def _has_runnable(self) -> bool:
         """Queued jobs that some enabled worker could take right now."""
-        if is_paused(self._db):
+        if is_paused(self._db) or space_hold.is_held(self._db):
             return False
         with self._db.read() as session:
             queued = self._queued(session, ("remux", wrong_language.JOB_TYPE, *ENCODE_TYPES))
@@ -287,6 +292,75 @@ class JobQueue:
                 config = settings.config_for(device.id)
                 total += config.concurrency if config.enabled else 0
         return total
+
+    # --- out of disk space ------------------------------------------------------------
+
+    def space_held(self, check_now: bool = False) -> bool:
+        """Whether a full disk is holding up work. Every ``CHECK_EVERY_S`` (or at once with
+        ``check_now``) the disks are measured, and the hold lifts once they have room."""
+        if not space_hold.is_held(self._db):
+            return False
+        with self._space_lock:
+            now = time.monotonic()
+            if not check_now and now - self._space_checked < space_hold.CHECK_EVERY_S:
+                return True
+            self._space_checked = now
+            with self._db.write() as session:
+                hold = space_hold.load(session)
+                if hold is None:
+                    return False
+                if not space_hold.has_room(space_hold.free_space(hold.paths), hold.needed_bytes):
+                    return True
+                space_hold.clear(session)
+                audit.record(session, "system", "queue.disk_space_free", ", ".join(hold.paths))
+        logger.info("disk space is free again; carrying on")
+        self._wake.set()
+        return False
+
+    def _failed(self, job_id: int, exc: BaseException, error: str) -> None:
+        if space_hold.is_out_of_space(exc):
+            self._hold_for_space(job_id, error)
+        else:
+            self._fail(job_id, error)
+
+    def _hold_for_space(self, job_id: int, error: str) -> None:
+        """A disk filled up: put the job back in the queue and stop until there's room."""
+        logger.warning("disk full; holding all work", extra={"job": job_id, "error": error[:300]})
+        with self._space_lock, self._db.write() as session:
+            job = session.get(Job, job_id)
+            if job is None:
+                return
+            library = session.get(Library, job.library_id) if job.library_id else None
+            paths = [str(self._settings.transcode_dir)]
+            if library is not None:
+                paths.append(library.path)
+            if job.status != "cancelled":
+                if job.type in ("test", "tune"):
+                    # Their sample or step already shows the error; start them again by hand.
+                    job.status = "failed"
+                    job.error = error[:4000]
+                    job.finished_at = utcnow()
+                else:
+                    # The original was never touched: the same job can simply run again.
+                    job.status = "queued"
+                    job.progress = 0.0
+                    job.started_at = None
+                    job.device = None
+                    job.decoder = None
+                    job.error = None
+            current = space_hold.load(session)
+            hold = space_hold.SpaceHold(
+                since=utcnow(),
+                paths=paths,
+                needed_bytes=space_hold.needed_for(job.source_size),
+                error=error[:500],
+            )
+            space_hold.save(session, space_hold.merged(current, hold))
+            if current is None:
+                audit.record(session, "system", "queue.disk_full", job.source_path, {"job": job_id})
+            # Partial output was just deleted, so the disk may look roomy for a moment;
+            # wait a full interval before the first check.
+            self._space_checked = time.monotonic()
 
     def _fail(self, job_id: int, error: str) -> None:
         logger.warning("job failed", extra={"job": job_id, "error": error[:300]})

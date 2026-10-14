@@ -111,3 +111,30 @@ it('pauses from the Dashboard too', async () => {
   await userEvent.click(await screen.findByRole('button', { name: 'Pause all processing' }));
   expect(await screen.findByText('Processing is paused')).toBeInTheDocument();
 });
+
+it('says when a full disk stopped processing, and checks again', async () => {
+  window.location.hash = '#/jobs';
+  const hold = {
+    since: '2026-10-14T10:00:00Z',
+    error: 'No space left on device',
+    needed_bytes: 12 * 1024 ** 3,
+    disks: [
+      { path: '/transcode', free_bytes: 50 * 1024 ** 3 },
+      { path: '/media/tv', free_bytes: 1024 ** 3 },
+    ],
+  };
+  const calls = mockApi({
+    'GET auth/state': loggedIn,
+    'GET automation': { body: automation },
+    'GET automation/space-hold': { body: hold },
+    'GET jobs?status=all&offset=0&limit=50': { body: { total: 0, counts: {}, items: [] } },
+    'POST automation/space-hold/check': { body: null },
+  });
+  render(<App />);
+  expect(await screen.findByText('Processing stopped: a disk is full')).toBeInTheDocument();
+  expect(screen.getByText('/media/tv')).toBeInTheDocument();
+  expect(screen.queryByText('/transcode')).not.toBeInTheDocument(); // has room
+  await userEvent.click(screen.getByRole('button', { name: 'Check now' }));
+  expect(calls.some((c) => c.key === 'POST automation/space-hold/check')).toBe(true);
+  expect(screen.queryByText('Processing stopped: a disk is full')).not.toBeInTheDocument();
+});

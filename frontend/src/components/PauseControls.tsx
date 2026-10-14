@@ -1,7 +1,14 @@
-import { Alert, Button } from '@mantine/core';
+import { Alert, Button, Code, Group, Stack, Text } from '@mantine/core';
 import { IconPlayerPause, IconPlayerPlay } from '@tabler/icons-react';
 import { errorMessage } from '../api/client';
-import { useAutomation, useSaveAutomation } from '../api/automation';
+import {
+  useAutomation,
+  useCheckSpace,
+  useResumeAnyway,
+  useSaveAutomation,
+  useSpaceHold,
+} from '../api/automation';
+import { formatBytes } from '../format';
 
 /** Pause / resume all processing (ADR-0025): running jobs finish, nothing new starts. */
 export function PauseButton() {
@@ -39,6 +46,60 @@ export function PausedBanner() {
         Resume
       </Button>
       {save.isError && <div>{errorMessage(save.error)}</div>}
+    </Alert>
+  );
+}
+
+/** Shown while a full disk holds up all work; it lifts by itself once there's room. */
+export function DiskFullBanner() {
+  const hold = useSpaceHold();
+  const check = useCheckSpace();
+  const resume = useResumeAnyway();
+  const data = hold.data;
+  if (!data) return null;
+  const short = data.disks.filter((disk) => disk.free_bytes < data.needed_bytes);
+  return (
+    <Alert color="red" title="Processing stopped: a disk is full">
+      <Stack gap={6}>
+        <Text size="sm">
+          A job ran out of disk space, so nothing new starts. The job goes back in the queue and
+          your original file wasn't changed. ReelHaven checks every 30 seconds and carries on by
+          itself once each disk has {formatBytes(data.needed_bytes)} free.
+        </Text>
+        {short.map((disk) => (
+          <Text size="sm" key={disk.path}>
+            <Code>{disk.path}</Code>: {formatBytes(disk.free_bytes)} free
+          </Text>
+        ))}
+        <Text size="xs" c="dimmed">
+          {data.error}
+        </Text>
+        <Group gap="xs">
+          <Button
+            size="xs"
+            variant="light"
+            loading={check.isPending}
+            onClick={() => check.mutate()}
+          >
+            Check now
+          </Button>
+          <Button
+            size="xs"
+            variant="subtle"
+            color="gray"
+            loading={resume.isPending}
+            onClick={() => resume.mutate()}
+          >
+            Carry on anyway
+          </Button>
+        </Group>
+        {check.data && check.isSuccess && (
+          <Text size="sm">Still not enough room; free up some space and check again.</Text>
+        )}
+        {(check.isError || resume.isError) && (
+          <Text size="sm">{errorMessage(check.error ?? resume.error)}</Text>
+        )}
+      </Stack>
     </Alert>
   );
 }

@@ -27,7 +27,7 @@ import {
 } from '../api/jobs';
 import { useLiveJobs, withLive } from '../api/live';
 import { type UpcomingItem, type UpcomingWhy, useUpcoming } from '../api/upcoming';
-import { PauseButton, PausedBanner } from '../components/PauseControls';
+import { DiskFullBanner, PauseButton, PausedBanner } from '../components/PauseControls';
 import { formatBytes, formatTimeLeft } from '../format';
 
 // Where the source video was decoded (ADR-0029).
@@ -60,6 +60,7 @@ export function JobsPage() {
         <Title order={2}>Jobs</Title>
         <PauseButton />
       </Group>
+      <DiskFullBanner />
       <PausedBanner />
       <SegmentedControl
         value={filter}
