@@ -28,3 +28,43 @@ export function useSaveAutomation() {
     },
   });
 }
+
+/** Processing stopped because a disk is full; it carries on by itself once there's room. */
+export interface SpaceHold {
+  since: string;
+  error: string;
+  needed_bytes: number;
+  disks: { path: string; free_bytes: number }[];
+}
+
+const HOLD_KEY = ['automation', 'space-hold'];
+
+export function useSpaceHold() {
+  return useQuery({
+    queryKey: HOLD_KEY,
+    queryFn: () => api<SpaceHold | null>('automation/space-hold'),
+    refetchInterval: 15000,
+  });
+}
+
+function useSpaceHoldMutation(request: () => Promise<SpaceHold | null>) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: request,
+    onSuccess: (hold) => {
+      queryClient.setQueryData(HOLD_KEY, hold);
+      void queryClient.invalidateQueries({ queryKey: ['jobs'] });
+    },
+  });
+}
+
+export const useCheckSpace = () =>
+  useSpaceHoldMutation(() =>
+    api<SpaceHold | null>('automation/space-hold/check', { method: 'POST' }),
+  );
+
+export const useResumeAnyway = () =>
+  useSpaceHoldMutation(async () => {
+    await api<void>('automation/space-hold', { method: 'DELETE' });
+    return null;
+  });
