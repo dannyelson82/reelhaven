@@ -22,6 +22,7 @@ import {
   isActive,
   useCancelJob,
   useJobs,
+  useRetryFailed,
   useRetryJob,
 } from '../api/jobs';
 import { useLiveJobs, withLive } from '../api/live';
@@ -78,12 +79,38 @@ export function JobsPage() {
         ]}
         w="fit-content"
       />
+      {filter === 'failed' && (counts.failed ?? 0) > 0 && <RetryAll count={counts.failed ?? 0} />}
       {filter === 'upcoming' ? (
         <UpcomingList />
       ) : (
         <JobList jobs={jobs} page={page} setPage={setPage} live={live} />
       )}
     </Stack>
+  );
+}
+
+function RetryAll({ count }: { count: number }) {
+  const retry = useRetryFailed();
+  const result = retry.data;
+  return (
+    <Group>
+      <Button variant="light" loading={retry.isPending} onClick={() => retry.mutate(undefined)}>
+        Retry all failed ({count})
+      </Button>
+      {result && (
+        <Text size="sm" c="dimmed">
+          {result.queued === 1 ? '1 file queued again' : `${result.queued} files queued again`}
+          {result.skipped > 0 &&
+            `; ${result.skipped} no longer need changes or can't be read right now`}
+          .
+        </Text>
+      )}
+      {retry.isError && (
+        <Text size="sm" c="red">
+          {errorMessage(retry.error)}
+        </Text>
+      )}
+    </Group>
   );
 }
 

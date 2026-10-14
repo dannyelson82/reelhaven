@@ -31,6 +31,7 @@ from reelhaven.jobs.service import (
     NotApplicableError,
     check_applicable,
     create_jobs,
+    failed_files,
     library_profile,
     purge_item,
     restore_item,
@@ -272,6 +273,58 @@ def retry_job(job_id: int, request: Request, db: DbDep, principal: InteractiveDe
             raise HTTPException(status.HTTP_409_CONFLICT, "tune_job")
         file_id = job.media_file_id
     return apply_file(file_id, request, db, principal)
+
+
+class RetryAllResult(BaseModel):
+    queued: int
+    skipped: int  # no longer needs changes, can't be read, or its language isn't known yet
+
+
+@router.post("/jobs/retry-failed")
+def retry_failed(
+    request: Request, db: DbDep, principal: InteractiveDep, library_id: int | None = None
+) -> RetryAllResult:
+    """Plan every file whose last job failed again and queue the ones that still need work."""
+    with db.read() as session:
+        groups = failed_files(session, library_id)
+    queued = skipped = 0
+    for lib_id, file_ids in groups.items():
+        try:
+            plans = {p.file_id: p for p in plan_library(db, lib_id)}
+        except LookupError:
+            skipped += len(file_ids)
+            continue
+        with db.write() as session:
+            library = session.get(Library, lib_id)
+            if library is None:
+                skipped += len(file_ids)
+                continue
+            ready = []
+            for file_id in file_ids:
+                item, media_file = plans.get(file_id), session.get(MediaFile, file_id)
+                if item is None or media_file is None:
+                    skipped += 1
+                    continue
+                try:
+                    check_applicable(item, media_file)
+                except NotApplicableError:
+                    skipped += 1
+                    continue
+                ready.append(item)
+            jobs = create_jobs(session, library, ready, principal.actor)
+            queued += len(jobs)
+            skipped += len(ready) - len(jobs)
+    if groups:
+        with db.write() as session:
+            audit.record(
+                session,
+                principal.actor,
+                "jobs.retry_failed",
+                "jobs",
+                {"queued": queued, "skipped": skipped},
+            )
+    _queue(request).notify()
+    return RetryAllResult(queued=queued, skipped=skipped)
 
 
 @router.get("/recycle")

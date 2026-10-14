@@ -348,6 +348,59 @@ def test_cancel_queued_job(app: FastAPI, settings: Settings) -> None:
     assert jobs(admin)[0]["status"] == "done"
 
 
+def test_retry_all_failed(app: FastAPI, settings: Settings) -> None:
+    admin, lib, _root = setup_library(
+        app,
+        settings,
+        {"A (2020)/a.mkv": MULTI, "B (2021)/b.mkv": MULTI, "C (2022)/c.mkv": MULTI},
+    )
+    app.state.queue.stop()
+    count = admin.get(f"{API}/libraries/{lib}/dry-run").json()["remux"]
+    admin.post(f"{API}/libraries/{lib}/apply", json={"expected_count": count})
+    first = sorted(jobs(admin), key=lambda j: j["file"])
+    db: Database = app.state.db
+    with db.write() as session:
+        # a.mkv failed twice (one retry is enough), b.mkv was cancelled, c.mkv failed.
+        for job_id, state in ((first[0]["id"], "failed"), (first[1]["id"], "cancelled"),
+                              (first[2]["id"], "failed")):  # fmt: skip
+            session.execute(update(Job).where(Job.id == job_id).values(status=state))
+        again = session.get(Job, first[0]["id"])
+        assert again is not None
+        session.add(
+            Job(
+                library_id=again.library_id,
+                media_file_id=again.media_file_id,
+                type=again.type,
+                source_path=again.source_path,
+                source_size=again.source_size,
+                source_mtime_ns=again.source_mtime_ns,
+                plan=again.plan,
+                probe=again.probe,
+                requested_by="test",
+                status="failed",
+            )
+        )
+
+    result = admin.post(f"{API}/jobs/retry-failed")
+    assert result.status_code == 200, result.text
+    assert result.json() == {"queued": 2, "skipped": 0}
+    queued = sorted(j["file"] for j in jobs(admin) if j["status"] == "queued")
+    assert queued == ["A (2020)/a.mkv", "C (2022)/c.mkv"]  # the cancelled one stays cancelled
+    # Nothing failed is left, so a second press queues nothing.
+    assert admin.post(f"{API}/jobs/retry-failed").json() == {"queued": 0, "skipped": 0}
+    other = admin.post(f"{API}/jobs/retry-failed", params={"library_id": lib + 1})
+    assert other.json() == {"queued": 0, "skipped": 0}
+    with db.read() as session:
+        actions = session.scalars(select(AuditLog.action)).all()
+    assert actions.count("jobs.retry_failed") == 1
+
+    app.state.queue = type(app.state.queue)(db, settings)
+    app.state.queue.start()
+    assert app.state.queue.wait_idle(60)
+    statuses = sorted(j["status"] for j in jobs(admin))
+    assert statuses.count("done") == 2
+
+
 def test_startup_recovers_interrupted_jobs(app: FastAPI, settings: Settings) -> None:
     admin, lib, root = setup_library(app, settings, {"Film (2020)/film.mkv": MULTI})
     app.state.queue.stop()

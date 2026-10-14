@@ -104,6 +104,12 @@ export const useCancelJob = () =>
 export const useRetryJob = () =>
   useJobMutation((jobId: number) => api<Job>(`jobs/${jobId}/retry`, { method: 'POST' }));
 
+/** Plan every file whose last job failed again and queue the ones that still need work. */
+export const useRetryFailed = () =>
+  useJobMutation(() =>
+    api<{ queued: number; skipped: number }>('jobs/retry-failed', { method: 'POST' }),
+  );
+
 export function useRecycle(show: 'active' | 'all') {
   return useQuery({
     queryKey: ['recycle', show],
