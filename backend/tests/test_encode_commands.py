@@ -189,7 +189,7 @@ def test_nvenc_hdr_4k_to_1080p_golden() -> None:
         "hevc_nvenc",
         "-gpu",
         "1",
-        "-profile:v",
+        "-profile:v:0",
         "main10",
         "-preset:v:0",
         "p5",
@@ -199,7 +199,7 @@ def test_nvenc_hdr_4k_to_1080p_golden() -> None:
         "vbr",
         "-cq:v:0",
         "29",
-        "-b:v",
+        "-b:v:0",
         "0",
         "-spatial_aq:v:0",
         "1",
@@ -377,7 +377,7 @@ def test_mp4_encode(tmp_path: Path) -> None:
 @pytest.mark.parametrize("family", ["cpu", "nvenc", "qsv", "vaapi"])
 def test_rate_control_is_scoped_to_video(family: str) -> None:
     options = [a for a in _rate_control(family, "hevc", 24, "balanced") if a.startswith("-")]
-    assert options and all(a.endswith(":v:0") or a == "-b:v" for a in options)
+    assert options and all(a.endswith(":v:0") for a in options)
 
 
 @needs_ffmpeg
@@ -395,3 +395,63 @@ def test_intel_quality_option_leaves_opus_audio_alone(tmp_path: Path) -> None:
     ]  # fmt: skip
     run_ffmpeg(args, 1.0, timeout_s=60)
     assert output.stat().st_size > 0
+
+
+@needs_ffmpeg
+def test_encode_with_cover_art(tmp_path: Path) -> None:
+    # 0.9.1 bug: "-profile:v main" also reached the copied cover art (a PNG shown as a
+    # second video track) and ffmpeg refused to start.
+    base = make(tmp_path / "base.mkv", Spec(seconds=2, size="640x360"))
+    cover = tmp_path / "cover.png"
+    run_ffmpeg(
+        [
+            FFMPEG or "ffmpeg",
+            "-nostdin",
+            "-y",
+            "-f",
+            "lavfi",
+            "-i",
+            "color=red:size=400x225",
+            "-frames:v",
+            "1",
+            str(cover),
+        ],  # fmt: skip
+        None,
+        timeout_s=60,
+    )
+    source = tmp_path / "in.mkv"
+    run_ffmpeg(
+        [
+            FFMPEG or "ffmpeg",
+            "-nostdin",
+            "-y",
+            "-i",
+            str(base),
+            "-i",
+            str(cover),
+            "-map",
+            "0",
+            "-map",
+            "1",
+            "-c",
+            "copy",
+            "-disposition:v:1",
+            "attached_pic",
+            str(source),
+        ],  # fmt: skip
+        None,
+        timeout_s=60,
+    )
+    info = probe(source)
+    assert [s.codec for s in info.of_kind("video")] == ["h264", "png"]
+    profile = ProfileSettings(speed="fast", ten_bit=False)  # like the owner's: "main"
+    p = plan(info, "eng", LanguagePolicy())
+    output = tmp_path / "out" / "in.mkv"
+    output.parent.mkdir()
+    run_ffmpeg(
+        encode_command(FFMPEG or "ffmpeg", CPU, source, output, info, p, profile),
+        info.duration_s,
+        timeout_s=300,
+    )
+    result = probe(output)
+    assert result.video is not None and result.video.codec == "hevc"

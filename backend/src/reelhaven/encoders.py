@@ -72,9 +72,9 @@ def device_select_args(device: Device) -> list[str]:
 
 def profile_args(device: Device, codec: Codec, ten_bit: bool) -> list[str]:
     if codec == "hevc":
-        return ["-profile:v", "main10" if ten_bit else "main"]
+        return ["-profile:v:0", "main10" if ten_bit else "main"]
     if codec == "h264":
-        return ["-profile:v", "high"]
+        return ["-profile:v:0", "high"]
     return []
 
 

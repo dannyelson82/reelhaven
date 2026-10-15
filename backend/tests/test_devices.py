@@ -95,7 +95,7 @@ def test_gpu_trial_encode_commands() -> None:
         "hevc_nvenc",
         "-gpu",
         "0",
-        "-profile:v",
+        "-profile:v:0",
         "main10",
         "-f",
         "null",
