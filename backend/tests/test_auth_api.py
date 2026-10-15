@@ -1,3 +1,4 @@
+import logging
 import threading
 from collections.abc import Iterator
 from datetime import timedelta
@@ -116,6 +117,64 @@ def test_login_and_session_cookie_flags(app: FastAPI) -> None:
     assert "SameSite=lax" in cookie
     assert "Secure" not in cookie  # plain HTTP
     assert client.get(f"{API}/settings/security").status_code == 200
+
+
+def session_cookie_header(set_cookie: list[str]) -> str:
+    return next(h for h in set_cookie if "reelhaven_session" in h)
+
+
+def test_keep_me_logged_in(app: FastAPI) -> None:
+    do_setup(client_at(app))
+    client = client_at(app)
+    remembered = client.post(f"{API}/auth/login", json=ADMIN, headers=csrf(client))
+    assert "Max-Age=604800" in session_cookie_header(remembered.headers.get_list("set-cookie"))
+
+    client = client_at(app)
+    body = {**ADMIN, "remember": False}
+    response = client.post(f"{API}/auth/login", json=body, headers=csrf(client))
+    assert response.status_code == 200
+    assert "Max-Age" not in session_cookie_header(
+        response.headers.get_list("set-cookie")
+    )  # gone when the browser closes
+    # The sliding refresh keeps it a browser-session cookie.
+    db: Database = app.state.db
+    with db.write() as session:
+        session.execute(
+            update(AuthSession)
+            .where(AuthSession.remember.is_(False))
+            .values(last_seen_at=utcnow() - timedelta(hours=1))
+        )
+    refreshed = client.get(f"{API}/settings/security")
+    assert refreshed.status_code == 200
+    assert "Max-Age" not in session_cookie_header(refreshed.headers.get_list("set-cookie"))
+
+
+def test_logs_why_a_page_load_was_not_logged_in(
+    app: FastAPI, caplog: pytest.LogCaptureFixture
+) -> None:
+    client = client_at(app)
+    do_setup(client)
+    token = client.cookies.get("reelhaven_session") or ""
+    db: Database = app.state.db
+    with db.write() as session:
+        session.execute(update(AuthSession).values(expires_at=utcnow() - timedelta(seconds=1)))
+
+    def reason(cookie: str | None) -> str:
+        caplog.clear()
+        fresh = client_at(app)
+        if cookie is not None:
+            fresh.cookies.set("reelhaven_session", cookie)
+        fresh.cookies.set("other_app", "x")
+        with caplog.at_level(logging.INFO, logger="reelhaven.api.auth_routes"):
+            assert fresh.get(f"{API}/auth/state").json()["authenticated"] is False
+        (record,) = [r for r in caplog.records if r.getMessage() == "not logged in"]
+        assert token not in str(record.__dict__)  # never the cookie itself
+        assert "other_app" in record.__dict__["cookie_names"]
+        return str(record.__dict__["reason"])
+
+    assert reason(None) == "no_cookie"
+    assert reason("made-up") == "unknown"
+    assert reason(token) == "expired"
 
 
 def test_wrong_password_and_unknown_user_look_identical(app: FastAPI) -> None:

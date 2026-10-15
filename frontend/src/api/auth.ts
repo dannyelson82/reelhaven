@@ -27,6 +27,7 @@ export type SecurityUpdate = Pick<
 interface Credentials {
   username: string;
   password: string;
+  remember?: boolean;
 }
 
 const AUTH_KEY = ['auth-state'] as const;

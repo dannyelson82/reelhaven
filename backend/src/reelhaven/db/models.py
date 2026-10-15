@@ -14,6 +14,7 @@ from sqlalchemy import (
     String,
     Text,
     UniqueConstraint,
+    true,
 )
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column
 
@@ -62,6 +63,8 @@ class AuthSession(Base):
     expires_at: Mapped[datetime] = mapped_column(index=True)
     ip: Mapped[str | None] = mapped_column(String(45), default=None)
     user_agent: Mapped[str | None] = mapped_column(String(512), default=None)
+    # Keep me logged in (ADR-0033): False makes the cookie a browser-session cookie.
+    remember: Mapped[bool] = mapped_column(default=True, server_default=true())
 
 
 class Setting(Base):
