@@ -8,6 +8,7 @@ from reelhaven.devices import CPU
 from reelhaven.encode_planner import encode_marker
 from reelhaven.encoders import Device
 from reelhaven.jobs.encode_commands import (
+    _rate_control,
     encode_command,
     expected_encode_layout,
     expected_video,
@@ -190,19 +191,19 @@ def test_nvenc_hdr_4k_to_1080p_golden() -> None:
         "1",
         "-profile:v",
         "main10",
-        "-preset",
+        "-preset:v:0",
         "p5",
-        "-tune",
+        "-tune:v:0",
         "hq",
-        "-rc",
+        "-rc:v:0",
         "vbr",
-        "-cq",
+        "-cq:v:0",
         "29",
         "-b:v",
         "0",
-        "-spatial_aq",
+        "-spatial_aq:v:0",
         "1",
-        "-rc-lookahead",
+        "-rc-lookahead:v:0",
         "20",
         "-metadata:s:0",
         "BPS=",
@@ -257,18 +258,18 @@ def test_qsv_and_vaapi_commands() -> None:
         "hw",
     ]
     assert "format=p010le,hwupload=extra_hw_frames=64" in qsv
-    assert qsv[qsv.index("-preset") : qsv.index("-preset") + 4] == [
-        "-preset",
+    assert qsv[qsv.index("-preset:v:0") : qsv.index("-preset:v:0") + 4] == [
+        "-preset:v:0",
         "medium",
-        "-global_quality",
+        "-global_quality:v:0",
         "21",
     ]
     vaapi = encode_command(
         "ffmpeg", AMD, Path("/m/a.mkv"), Path("/w/a.mkv"), info, p, ProfileSettings(codec="av1")
     )
     assert "av1_vaapi" in vaapi and vaapi[
-        vaapi.index("-rc_mode") : vaapi.index("-rc_mode") + 4
-    ] == ["-rc_mode", "CQP", "-qp", "34"]
+        vaapi.index("-rc_mode:v:0") : vaapi.index("-rc_mode:v:0") + 4
+    ] == ["-rc_mode:v:0", "CQP", "-qp:v:0", "34"]
 
 
 def test_hevc_in_mp4_gets_hvc1_tag() -> None:
@@ -371,3 +372,26 @@ def test_mp4_encode(tmp_path: Path) -> None:
         name="in.mp4",
     )
     assert result.video is not None and result.video.codec == "hevc"
+
+
+@pytest.mark.parametrize("family", ["cpu", "nvenc", "qsv", "vaapi"])
+def test_rate_control_is_scoped_to_video(family: str) -> None:
+    options = [a for a in _rate_control(family, "hevc", 24, "balanced") if a.startswith("-")]
+    assert options and all(a.endswith(":v:0") or a == "-b:v" for a in options)
+
+
+@needs_ffmpeg
+def test_intel_quality_option_leaves_opus_audio_alone(tmp_path: Path) -> None:
+    # 0.9.1 bug: an unscoped -global_quality reached libopus, which refused to start.
+    # The QSV rate control (preset + global_quality) also works with libx264.
+    output = tmp_path / "out.mkv"
+    args = [
+        FFMPEG or "ffmpeg", "-nostdin", "-y",
+        "-f", "lavfi", "-i", "testsrc=size=128x72:rate=10:duration=1",
+        "-f", "lavfi", "-i", "sine=duration=1",
+        "-c:v:0", "libx264", *_rate_control("qsv", "h264", 21, "balanced"),
+        "-c:a:0", "libopus", "-b:a:0", "96k",
+        "-f", "matroska", str(output),
+    ]  # fmt: skip
+    run_ffmpeg(args, 1.0, timeout_s=60)
+    assert output.stat().st_size > 0

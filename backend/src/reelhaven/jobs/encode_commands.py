@@ -243,6 +243,16 @@ def encode_command(
 
 
 def _rate_control(family: str, codec: Codec, value: float, speed: str) -> list[str]:
+    return _video_only(_rate_options(family, codec, value, speed))
+
+
+def _video_only(args: list[str]) -> list[str]:
+    """Scope each option to the video stream. Unscoped, generic options such as
+    `-global_quality` also reach the audio encoders, and libopus refuses to start."""
+    return [f"{a}:v:0" if a.startswith("-") and ":" not in a else a for a in args]
+
+
+def _rate_options(family: str, codec: Codec, value: float, speed: str) -> list[str]:
     if family == "nvenc":
         return [
             "-preset",
