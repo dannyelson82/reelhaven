@@ -53,7 +53,7 @@ it('retries every failed job from the Failed tab', async () => {
     'GET auth/state': loggedIn,
     'GET jobs?status=all&offset=0&limit=50': page,
     'GET jobs?status=failed&offset=0&limit=50': page,
-    'POST jobs/retry-failed': { body: { queued: 1, skipped: 1 } },
+    'POST jobs/retry-failed': { body: { queued: 1, upcoming: 0, skipped: 1 } },
   });
   render(<App />);
   expect(screen.queryByRole('button', { name: /Retry all failed/ })).not.toBeInTheDocument();
@@ -277,4 +277,23 @@ it('shows upcoming work and why it waits', async () => {
     await screen.findByText(/Re-encodes in this library start once a test run/),
   ).toBeInTheDocument();
   expect(screen.queryByText('Show/S01E01.mkv')).not.toBeInTheDocument();
+});
+
+it('moves waiting jobs back to Upcoming from the In progress tab', async () => {
+  window.location.hash = '#/jobs';
+  const page = { body: { total: 0, counts: { queued: 1200 }, items: [] } };
+  const calls = mockApi({
+    'GET auth/state': loggedIn,
+    'GET jobs?status=all&offset=0&limit=50': page,
+    'GET jobs?status=active&offset=0&limit=50': page,
+    'POST jobs/back-to-upcoming': { body: { moved: 1200 } },
+  });
+  render(<App />);
+  expect(screen.queryByText('Move waiting jobs back to Upcoming')).not.toBeInTheDocument();
+  await userEvent.click(await screen.findByText(/In progress/));
+  await userEvent.click(
+    await screen.findByRole('button', { name: 'Move waiting jobs back to Upcoming' }),
+  );
+  expect(calls.some((c) => c.key === 'POST jobs/back-to-upcoming')).toBe(true);
+  expect(await screen.findByText(/1200 moved/)).toBeInTheDocument();
 });

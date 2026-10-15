@@ -36,15 +36,23 @@ the running jobs first, then the waiting ones in the order they will start.
 **Cancel** stops a waiting or running job. **Try again** plans the file again
 (it may have changed) and queues a new job.
 
-**Retry all failed** (on the **Failed** tab) does the same for every file whose
-last job failed, in one go. Cancelled jobs are left alone, since you stopped
-them on purpose. Files that no longer need changes, or that can't be read
+**Retry all failed** (on the **Failed** tab) plans every file whose last job
+failed again, in one go. In an [Automatic](automation.md) library the files go
+to the **end of the Upcoming list**, so the automatic queue gets to them after
+everything else; in other libraries they're queued straight away. Cancelled
+jobs are left alone, since you stopped them on purpose. Files that no longer need changes, or that can't be read
 right now, are skipped, and the message next to the button says how many.
 Either way, the failures it replaced leave the **Failed** tab, and so does a
 failure when you press **Try again** or the file is queued again. They aren't
 deleted: the failure report still includes them.
 Test-run samples and sweet-spot steps aren't included; try those again from
 their own pages.
+
+**Move waiting jobs back to Upcoming** (on the **In progress** tab) takes jobs
+in Automatic libraries that haven't started yet out of the queue. Nothing is
+lost: the automatic queue takes those files again in its own order, with
+retried files last. Running jobs keep going, and queued jobs in other
+libraries stay where they are.
 
 **Pause all processing** (top of the Jobs page and the Dashboard) stops new
 jobs from starting; running jobs finish. **Resume processing** carries on.

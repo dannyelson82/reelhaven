@@ -71,7 +71,7 @@ function useJobMutation<TBody, TResult>(request: (body: TBody) => Promise<TResul
   return useMutation({
     mutationFn: request,
     onSuccess: () => {
-      for (const key of ['jobs', 'dry-run', 'files', 'plan', 'recycle']) {
+      for (const key of ['jobs', 'dry-run', 'files', 'plan', 'recycle', 'upcoming']) {
         void queryClient.invalidateQueries({ queryKey: [key] });
       }
     },
@@ -107,8 +107,14 @@ export const useRetryJob = () =>
 /** Plan every file whose last job failed again and queue the ones that still need work. */
 export const useRetryFailed = () =>
   useJobMutation(() =>
-    api<{ queued: number; skipped: number }>('jobs/retry-failed', { method: 'POST' }),
+    api<{ queued: number; upcoming: number; skipped: number }>('jobs/retry-failed', {
+      method: 'POST',
+    }),
   );
+
+/** Queued jobs in automatic libraries that haven't started go back to Upcoming. */
+export const useBackToUpcoming = () =>
+  useJobMutation(() => api<{ moved: number }>('jobs/back-to-upcoming', { method: 'POST' }));
 
 export function useRecycle(show: 'active' | 'all') {
   return useQuery({

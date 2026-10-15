@@ -23,6 +23,7 @@ import {
   isActive,
   useCancelJob,
   useJobs,
+  useBackToUpcoming,
   useRetryFailed,
   useRetryJob,
 } from '../api/jobs';
@@ -84,6 +85,7 @@ export function JobsPage() {
           w="fit-content"
         />
       </ScrollArea>
+      {filter === 'active' && (counts.queued ?? 0) > 0 && <BackToUpcoming />}
       {filter === 'failed' && (counts.failed ?? 0) > 0 && <RetryAll count={counts.failed ?? 0} />}
       {filter === 'upcoming' ? (
         <UpcomingList />
@@ -91,6 +93,27 @@ export function JobsPage() {
         <JobList jobs={jobs} page={page} setPage={setPage} live={live} />
       )}
     </Stack>
+  );
+}
+
+function BackToUpcoming() {
+  const move = useBackToUpcoming();
+  return (
+    <Group>
+      <Button variant="default" loading={move.isPending} onClick={() => move.mutate(undefined)}>
+        Move waiting jobs back to Upcoming
+      </Button>
+      <Text size="sm" c="dimmed">
+        {move.data
+          ? `${move.data.moved} moved. The automatic queue takes them again in order, retried files last.`
+          : "Jobs in automatic libraries that haven't started yet. Running jobs keep going."}
+      </Text>
+      {move.isError && (
+        <Text size="sm" c="red">
+          {errorMessage(move.error)}
+        </Text>
+      )}
+    </Group>
   );
 }
 
@@ -104,7 +127,13 @@ function RetryAll({ count }: { count: number }) {
       </Button>
       {result && (
         <Text size="sm" c="dimmed">
-          {result.queued === 1 ? '1 file queued again' : `${result.queued} files queued again`}
+          {[
+            result.upcoming > 0 && `${result.upcoming} back at the end of Upcoming`,
+            (result.queued > 0 || result.upcoming === 0) &&
+              (result.queued === 1 ? '1 file queued again' : `${result.queued} files queued again`),
+          ]
+            .filter(Boolean)
+            .join('; ')}
           {result.skipped > 0 &&
             `; ${result.skipped} no longer need changes or can't be read right now`}
           .

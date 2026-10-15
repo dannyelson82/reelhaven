@@ -14,7 +14,15 @@ from pydantic import BaseModel
 from sqlalchemy import select
 
 from reelhaven.api.deps import AnyPrincipalDep, DbDep, csrf_protect, require_setup_done
-from reelhaven.automation import FileState, Upcoming, UpcomingWhy, given_up, upcoming
+from reelhaven.automation import (
+    FileState,
+    Upcoming,
+    UpcomingWhy,
+    given_up,
+    retried,
+    retried_last,
+    upcoming,
+)
 from reelhaven.db import Database, Job, Library, MediaFile
 from reelhaven.dryrun import plan_library
 from reelhaven.encode_planner import profile_fingerprint
@@ -83,12 +91,13 @@ def _gather(db: Database) -> list[tuple[int, str, Upcoming]]:
                     active,
                     given_up(session, library.id),
                     current,
+                    retried(session, library.id),
                 )
             )
     items: list[tuple[int, str, Upcoming]] = []
-    for library_id, name, automatic, allowed, action, active, gave_up, current in facts:
+    for library_id, name, automatic, allowed, action, active, gave_up, current, back in facts:
         for entry in upcoming(
-            plan_library(db, library_id),
+            retried_last(plan_library(db, library_id), back),
             automatic=automatic,
             active=active,
             gave_up=gave_up,

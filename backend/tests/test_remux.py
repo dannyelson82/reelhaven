@@ -383,7 +383,7 @@ def test_retry_all_failed(app: FastAPI, settings: Settings) -> None:
 
     result = admin.post(f"{API}/jobs/retry-failed")
     assert result.status_code == 200, result.text
-    assert result.json() == {"queued": 2, "skipped": 0}
+    assert result.json() == {"queued": 2, "upcoming": 0, "skipped": 0}
     queued = sorted(j["file"] for j in jobs(admin) if j["status"] == "queued")
     assert queued == ["A (2020)/a.mkv", "C (2022)/c.mkv"]  # the cancelled one stays cancelled
     # The replaced failures leave the Failed tab and its count; the cancelled job stays.
@@ -394,9 +394,13 @@ def test_retry_all_failed(app: FastAPI, settings: Settings) -> None:
         cleared = session.scalars(select(Job).where(Job.cleared_at.is_not(None))).all()
     assert sorted(j.status for j in cleared) == ["failed"] * 3  # kept for the report
     # Nothing failed is left, so a second press queues nothing.
-    assert admin.post(f"{API}/jobs/retry-failed").json() == {"queued": 0, "skipped": 0}
+    assert admin.post(f"{API}/jobs/retry-failed").json() == {
+        "queued": 0,
+        "upcoming": 0,
+        "skipped": 0,
+    }
     other = admin.post(f"{API}/jobs/retry-failed", params={"library_id": lib + 1})
-    assert other.json() == {"queued": 0, "skipped": 0}
+    assert other.json() == {"queued": 0, "upcoming": 0, "skipped": 0}
     with db.read() as session:
         actions = session.scalars(select(AuditLog.action)).all()
     assert actions.count("jobs.retry_failed") == 1
@@ -618,3 +622,56 @@ def test_in_progress_lists_running_jobs_then_the_queue_in_order(
     first_two = sorted(j["id"] for j in jobs(admin) if j["id"] < late_queued)
     assert ids == [running, urgent, *first_two, late_queued]
     assert done not in ids
+
+
+def test_retry_all_in_an_automatic_library_goes_to_the_end_of_upcoming(
+    app: FastAPI, settings: Settings
+) -> None:
+    admin, lib, _root = setup_library(
+        app, settings, {"A (2020)/a.mkv": MULTI, "B (2021)/b.mkv": MULTI, "C (2022)/c.mkv": MULTI}
+    )
+    app.state.queue.stop()
+    count = admin.get(f"{API}/libraries/{lib}/dry-run").json()["remux"]
+    admin.post(f"{API}/libraries/{lib}/apply", json={"expected_count": count})
+    by_file = {j["file"]: j["id"] for j in jobs(admin)}
+    db: Database = app.state.db
+    with db.write() as session:
+        # a.mkv failed; b and c never ran (as if the automatic queue hadn't reached them).
+        session.execute(
+            update(Job).where(Job.id == by_file["A (2020)/a.mkv"]).values(status="failed")
+        )
+        session.execute(
+            update(Job).where(Job.id != by_file["A (2020)/a.mkv"]).values(status="cancelled")
+        )
+    app.state.automation.stop()  # look at the line before anything takes from it
+    admin.patch(f"{API}/libraries/{lib}", json={"watch_mode": "automatic"})
+    with db.write() as session:  # b and c are back in line, not given up
+        session.execute(update(Job).where(Job.status == "cancelled").values(status="done"))
+
+    result = admin.post(f"{API}/jobs/retry-failed").json()
+    assert result == {"queued": 0, "upcoming": 1, "skipped": 0}
+    assert not [j for j in jobs(admin) if j["status"] == "queued"]  # not In progress
+    line = [u["relative_path"] for u in admin.get(f"{API}/upcoming").json()["items"]]
+    assert line[-1] == "A (2020)/a.mkv"  # the end of Upcoming
+
+
+def test_waiting_jobs_go_back_to_upcoming(app: FastAPI, settings: Settings) -> None:
+    admin, lib, _root = setup_library(
+        app, settings, {"A (2020)/a.mkv": MULTI, "B (2021)/b.mkv": MULTI}
+    )
+    app.state.queue.stop()
+    app.state.automation.stop()
+    count = admin.get(f"{API}/libraries/{lib}/dry-run").json()["remux"]
+    admin.post(f"{API}/libraries/{lib}/apply", json={"expected_count": count})
+    # Not automatic: queued jobs stay.
+    assert admin.post(f"{API}/jobs/back-to-upcoming").json() == {"moved": 0}
+    admin.patch(f"{API}/libraries/{lib}", json={"watch_mode": "automatic"})
+    db: Database = app.state.db
+    with db.write() as session:  # one is running: it stays
+        session.execute(
+            update(Job).where(Job.id == min(j["id"] for j in jobs(admin))).values(status="running")
+        )
+    assert admin.post(f"{API}/jobs/back-to-upcoming").json() == {"moved": 1}
+    assert [j["status"] for j in jobs(admin)] == ["running"]
+    line = [u["relative_path"] for u in admin.get(f"{API}/upcoming").json()["items"]]
+    assert line == ["B (2021)/b.mkv"]

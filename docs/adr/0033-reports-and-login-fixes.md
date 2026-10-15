@@ -42,8 +42,12 @@ file leaves it, the reason it was there is gone.
   days. It's updated whenever the review list is computed, so no extra
   background work.
 - **Retry all clears failures**: the failed jobs of every file it plans again
-  get `cleared_at` set, whether a new job was queued or the file no longer
-  needs work. Retrying one job clears that job too. The Failed tab and its
+  get `cleared_at` set, whether the file is retried or no longer needs work.
+  In Automatic libraries the files go to the end of the Upcoming list instead of
+  being queued (a cleared failure no longer counts as given up, and retried
+  files are ordered last); elsewhere they are queued. **Move waiting jobs back
+  to Upcoming** deletes queued jobs that never started in Automatic libraries,
+  so a queue flooded by an earlier Retry all can be put back in order. Retrying one job clears that job too. The Failed tab and its
   count leave out cleared jobs; the failure report and the database keep them.
   Cancelled jobs are untouched, as before.
 - **Login**:
