@@ -3,6 +3,7 @@ import { IconDownload } from '@tabler/icons-react';
 import { errorMessage } from '../api/client';
 import {
   FAILURE_REPORT_URL,
+  REVIEW_REPORT_URL,
   useDeveloperSettings,
   useSaveDeveloperSettings,
 } from '../api/developer';
@@ -39,6 +40,15 @@ export function DeveloperPage() {
                   leftSection={<IconDownload size={16} />}
                 >
                   Download failure report
+                </Button>
+                <Button
+                  component="a"
+                  href={REVIEW_REPORT_URL}
+                  download
+                  variant="default"
+                  leftSection={<IconDownload size={16} />}
+                >
+                  Download review report
                 </Button>
               </Group>
             </>

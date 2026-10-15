@@ -15,9 +15,11 @@ import {
   Title,
 } from '@mantine/core';
 import { notifications } from '@mantine/notifications';
+import { IconDownload } from '@tabler/icons-react';
 import { useState } from 'react';
 import { Link, useSearchParams } from 'react-router';
 import { errorMessage } from '../api/client';
+import { REVIEW_REPORT_URL, useDeveloperOptions } from '../api/developer';
 import { useRetryJob } from '../api/jobs';
 import {
   REVIEW_KINDS,
@@ -36,12 +38,26 @@ export function ReviewPage() {
   const kind = (params.get('kind') as ReviewKind | null) ?? 'wrong_language';
   const [showIgnored, setShowIgnored] = useState(false);
   const [page, setPage] = useState(1);
+  const developer = useDeveloperOptions();
   const review = useReview({ kind, showIgnored, page }, PAGE_SIZE);
   const about = REVIEW_KINDS.find((k) => k.kind === kind)?.about;
 
   return (
     <Stack>
-      <Title order={2}>Review</Title>
+      <Group justify="space-between">
+        <Title order={2}>Review</Title>
+        {developer && (
+          <Button
+            component="a"
+            href={REVIEW_REPORT_URL}
+            download
+            variant="default"
+            leftSection={<IconDownload size={16} />}
+          >
+            Download review report
+          </Button>
+        )}
+      </Group>
       <Text c="dimmed" maw={720}>
         Files that need a decision. Nothing here changes on its own; <b>Ignore</b> hides a file
         until it changes.

@@ -13,9 +13,10 @@ from typing import Any
 from pydantic import ValidationError
 from sqlalchemy import select
 
-from reelhaven.db import Database, Job, Library
+from reelhaven.db import Database, Job, Library, MediaFile, Title
 from reelhaven.logsetup import redact
 from reelhaven.media.info import MediaInfo, Stream
+from reelhaven.review import ReviewItem
 
 RULE = "=" * 78
 
@@ -200,3 +201,113 @@ def failed_jobs(db: Database) -> list[FailedJob]:
             )
             for job in rows
         ]
+
+
+# --- review report ---------------------------------------------------------------------
+
+
+@dataclass(frozen=True)
+class ReviewFacts:
+    item: ReviewItem
+    probe: dict[str, Any] | None
+    title: str | None
+    language_source: str | None  # where the original language came from
+    job_error: str | None  # the last job's full error, for failed items
+
+
+@dataclass(frozen=True)
+class ResolvedEntry:
+    library: str
+    path: str
+    kind: str
+    detail: str
+    first_seen_at: datetime
+    resolved_at: datetime
+
+
+def describe_review_item(facts: ReviewFacts) -> list[str]:
+    item = facts.item
+    lines = [
+        RULE,
+        f"{item.kind}{' (ignored)' if item.ignored else ''}: {item.library_name} / "
+        f"{item.relative_path}",
+        f"Why: {item.detail}",
+        f"Size: {_size(item.size)}",
+    ]
+    if facts.title:
+        lines.append(f"Title: {facts.title}")
+    language = item.original_language or "not known yet"
+    source = f" (from {facts.language_source})" if facts.language_source else ""
+    lines.append(f"Original language: {language}{source}")
+    lines.append(f"Audio languages: {', '.join(item.audio_languages) or 'none tagged'}")
+    lines += ["", "File:", *describe_media(facts.probe or {})]
+    if item.job_id is not None:
+        lines += ["", f"Last job #{item.job_id} error:"]
+        lines += [f"  {line}" for line in (facts.job_error or "(none recorded)").splitlines()]
+    lines.append("")
+    return lines
+
+
+def review_report(
+    current: list[ReviewFacts],
+    resolved: list[ResolvedEntry],
+    version: str,
+    devices: Iterable[str],
+    now: datetime,
+) -> str:
+    lines = header("review report", version, devices, now)
+    by_kind: dict[str, int] = {}
+    for facts in current:
+        by_kind[facts.item.kind] = by_kind.get(facts.item.kind, 0) + 1
+    summary = ", ".join(f"{kind} {count}" for kind, count in sorted(by_kind.items()))
+    lines.append(f"{len(current)} file(s) on the Review page" + (f": {summary}" if summary else ""))
+    lines.append(f"{len(resolved)} resolved in the last 90 days (listed at the end)")
+    lines.append("")
+    for facts in current:
+        lines += describe_review_item(facts)
+    if resolved:
+        lines += [RULE, "Resolved in the last 90 days, newest first:", ""]
+        lines += [
+            f"  {_time(r.resolved_at)}  {r.kind}: {r.library} / {r.path}  ({r.detail}; "
+            f"listed since {_time(r.first_seen_at)})"
+            for r in resolved
+        ]
+    return redact("\n".join(lines) + "\n")
+
+
+def review_facts(db: Database, items: list[ReviewItem]) -> list[ReviewFacts]:
+    """What the database knows about each review item's file."""
+    file_ids = {i.file_id for i in items}
+    job_ids = {i.job_id for i in items if i.job_id is not None}
+    with db.read() as session:
+        files = {
+            f.id: f for f in session.scalars(select(MediaFile).where(MediaFile.id.in_(file_ids)))
+        }
+        titles = {
+            t.id: t
+            for t in session.scalars(
+                select(Title).where(Title.id.in_({f.title_id for f in files.values()}))
+            )
+        }
+        errors = {j.id: j.error for j in session.scalars(select(Job).where(Job.id.in_(job_ids)))}
+        out = []
+        for item in items:
+            media_file = files.get(item.file_id)
+            title = titles.get(media_file.title_id) if media_file and media_file.title_id else None
+            out.append(
+                ReviewFacts(
+                    item=item,
+                    probe=media_file.probe if media_file else None,
+                    title=f"{title.name} ({title.year})"
+                    if title and title.year
+                    else (title.name if title else None),
+                    language_source=(
+                        f"{title.language_source}"
+                        + (f": {title.source_detail}" if title.source_detail else "")
+                        if title
+                        else None
+                    ),
+                    job_error=errors.get(item.job_id) if item.job_id is not None else None,
+                )
+            )
+        return out

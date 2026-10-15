@@ -9,7 +9,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
 from pydantic import BaseModel
 from sqlalchemy import select
 
-from reelhaven import audit
+from reelhaven import audit, review_log
 from reelhaven.api.deps import (
     AnyPrincipalDep,
     DbDep,
@@ -40,9 +40,15 @@ def _all_items(db: Database) -> list[ReviewItem]:
             items: list[ReviewItem] = _cache["items"]
             return items
     items = review_items(gather(db))
+    review_log.record(db, items)  # kept after it's resolved, for the review report
     with _cache_lock:
         _cache.update(db=db, at=time.monotonic(), items=items)
     return items
+
+
+def current_items(db: Database) -> list[ReviewItem]:
+    """Everything on the Review page, ignored items included."""
+    return _all_items(db)
 
 
 def clear_cache() -> None:

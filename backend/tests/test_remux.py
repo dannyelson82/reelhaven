@@ -16,6 +16,7 @@ from fastapi import FastAPI
 from fastapi.testclient import TestClient
 from sqlalchemy import select, update
 
+from reelhaven.api import review_routes
 from reelhaven.app import create_app
 from reelhaven.config import Settings
 from reelhaven.db import AuditLog, Database, Job, RecycleItem, Title
@@ -714,7 +715,27 @@ def test_failure_report(app: FastAPI, settings: Settings) -> None:
     assert "#3 audio aac (LC) fra 2 ch stereo" in text  # what the file contained
     assert "sonarr-key-1234567890" not in text  # secrets redacted
 
+    # The Review page lists the failure; the review report has it with the full error.
+    admin.get(f"{API}/review")
+    review = admin.get(f"{API}/reports/review")
+    assert review.headers["content-disposition"].startswith(
+        'attachment; filename="reelhaven-review-'
+    )
+    assert "failed: Movies / A (2020)/a.mkv" in review.text
+    assert "Original language: eng" in review.text
+    assert "could not start ffmpeg" in review.text
+    assert "sonarr-key-1234567890" not in review.text
+    assert "0 resolved in the last 90 days" in review.text
+
     # A retry clears it from the Failed tab, but the report keeps it.
     app.state.queue.stop()
     admin.post(f"{API}/jobs/retry-failed")
     assert "cleared from the Failed tab by a retry" in admin.get(f"{API}/reports/failures").text
+
+    # Retried, it leaves the Review page; the record keeps it as resolved.
+    review_routes.clear_cache()
+    admin.get(f"{API}/review")
+    review_text = admin.get(f"{API}/reports/review").text
+    assert "0 file(s) on the Review page" in review_text
+    assert "1 resolved in the last 90 days" in review_text
+    assert "failed: Movies / A (2020)/a.mkv" in review_text

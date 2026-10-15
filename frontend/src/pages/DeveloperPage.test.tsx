@@ -22,4 +22,8 @@ it('turns developer options on, which shows the report downloads', async () => {
     'href',
     'api/v1/reports/failures',
   );
+  expect(screen.getByRole('link', { name: 'Download review report' })).toHaveAttribute(
+    'href',
+    'api/v1/reports/review',
+  );
 });

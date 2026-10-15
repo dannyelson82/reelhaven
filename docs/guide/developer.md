@@ -19,7 +19,11 @@ With it on:
   Upcoming**, which empties the queue of jobs in Automatic libraries that haven't
   started, so the automatic queue takes them again in order. See
   [Jobs](jobs.md).
-- The same button is on the **Developer** page.
+- The **Review** page shows **Download review report**: every file waiting
+  for a decision, with why it's there, its tracks, its original language and
+  where that came from, and the last job's error, plus everything resolved in
+  the last 90 days. See [Review](review.md).
+- Both buttons are also on the **Developer** page.
 
 The reports are plain text files. Passwords and API keys are removed; file and
 folder names stay in, because they help work out what went wrong.

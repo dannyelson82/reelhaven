@@ -4,7 +4,7 @@ that shows their buttons (ADR-0033)."""
 from fastapi import APIRouter, Depends, Request
 from fastapi.responses import PlainTextResponse
 
-from reelhaven import __version__, developer_settings, reports
+from reelhaven import __version__, developer_settings, reports, review_log
 from reelhaven.api.deps import (
     AnyPrincipalDep,
     DbDep,
@@ -12,6 +12,7 @@ from reelhaven.api.deps import (
     csrf_protect,
     require_setup_done,
 )
+from reelhaven.api.review_routes import current_items
 from reelhaven.db.types import utcnow
 from reelhaven.developer_settings import DeveloperSettings
 from reelhaven.devices import DeviceRegistry
@@ -53,3 +54,17 @@ def put_developer_settings(
     with db.write() as session:
         developer_settings.save(session, body)
     return body
+
+
+@router.get("/reports/review", response_class=PlainTextResponse)
+def review_report(request: Request, db: DbDep, _principal: AnyPrincipalDep) -> PlainTextResponse:
+    current = reports.review_facts(db, current_items(db))
+    resolved = [
+        reports.ResolvedEntry(
+            r.library_name, r.relative_path, r.kind, r.detail, r.first_seen_at, r.resolved_at
+        )
+        for r in review_log.resolved_since(db)
+        if r.resolved_at is not None
+    ]
+    text = reports.review_report(current, resolved, __version__, _devices(request), utcnow())
+    return _download(text, "review")

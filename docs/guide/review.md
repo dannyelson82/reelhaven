@@ -32,3 +32,12 @@ this page changes files by itself.
   **Show ignored** lists ignored files, with **Show again**.
 
 The page updates every minute.
+
+## Review report
+
+With [Developer options](developer.md) on, **Download review report** (top of
+the page) saves one text file with every file listed here: why it's here, its
+tracks, its original language and where ReelHaven found it, and the last
+job's error for failed files. It also lists what was resolved in the last 90
+days, because ReelHaven keeps a record of everything the page has shown.
+Passwords and API keys are removed; file and folder names stay in.
