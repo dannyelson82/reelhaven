@@ -17,6 +17,7 @@ import {
 } from '@mantine/core';
 import { useState } from 'react';
 import { errorMessage } from '../api/client';
+import { FAILURE_REPORT_URL, useDeveloperOptions } from '../api/developer';
 import { useDeviceName } from '../api/devices';
 import {
   type Job,
@@ -52,6 +53,7 @@ export function JobsPage() {
   const [page, setPage] = useState(1);
   const jobs = useJobs(filter === 'upcoming' ? 'all' : filter, page);
   const upcomingCount = useUpcoming(null, 1).data?.total;
+  const developer = useDeveloperOptions();
   const live = useLiveJobs();
   const counts = live?.counts ?? jobs.data?.counts ?? {};
   const active = (counts.queued ?? 0) + (counts.running ?? 0) + (counts.verifying ?? 0);
@@ -90,15 +92,17 @@ export function JobsPage() {
       {filter === 'failed' && (
         <Group>
           {(counts.failed ?? 0) > 0 && <RetryAll count={counts.failed ?? 0} />}
-          <Button
-            component="a"
-            href="api/v1/reports/failures"
-            download
-            variant="default"
-            leftSection={<IconDownload size={16} />}
-          >
-            Download failure report
-          </Button>
+          {developer && (
+            <Button
+              component="a"
+              href={FAILURE_REPORT_URL}
+              download
+              variant="default"
+              leftSection={<IconDownload size={16} />}
+            >
+              Download failure report
+            </Button>
+          )}
         </Group>
       )}
       {filter === 'upcoming' ? (

@@ -57,7 +57,8 @@ libraries stay where they are.
 
 ## Failure report
 
-**Download failure report** (on the **Failed** tab) saves one text file with
+**Download failure report** (on the **Failed** tab, once **Developer options**
+are on, see [Developer options](developer.md)) saves one text file with
 everything ReelHaven knows about every failed job, newest first, including
 failures a retry has cleared from the tab: the file's tracks and HDR type
 (with the Dolby Vision profile), what was planned, the device, the exact

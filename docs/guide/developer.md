@@ -1,0 +1,23 @@
+---
+title: Developer options
+order: 120
+summary: Download reports about failures and files waiting for review, to send when asking for help.
+---
+
+# Developer options
+
+**Settings → Developer** has one switch, **Developer options** (off by
+default). Turn it on when you want to send someone everything ReelHaven knows
+about a problem.
+
+With it on:
+
+- The **Jobs** page's **Failed** tab shows **Download failure report**: every
+  failed job, including ones a retry has cleared from the tab. See
+  [Jobs](jobs.md#failure-report).
+- The same button is on the **Developer** page.
+
+The reports are plain text files. Passwords and API keys are removed; file and
+folder names stay in, because they help work out what went wrong.
+
+Turning the switch off only hides the buttons. Nothing is deleted.

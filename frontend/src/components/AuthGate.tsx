@@ -14,6 +14,7 @@ import { SweetSpotPage } from '../pages/SweetSpotPage';
 import { ProfilesPage } from '../pages/ProfilesPage';
 import { RecyclePage } from '../pages/RecyclePage';
 import { LoginPage } from '../pages/LoginPage';
+import { DeveloperPage } from '../pages/DeveloperPage';
 import { SecurityPage } from '../pages/SecurityPage';
 import { SetupPage } from '../pages/SetupPage';
 import { WizardPage } from '../wizard/WizardPage';
@@ -58,6 +59,7 @@ export function AuthGate() {
         <Route path="settings/hardware" element={<HardwarePage />} />
         <Route path="settings/integrations" element={<IntegrationsPage />} />
         <Route path="settings/security" element={<SecurityPage />} />
+        <Route path="settings/developer" element={<DeveloperPage />} />
         <Route path="*" element={<DashboardPage />} />
       </Route>
     </Routes>

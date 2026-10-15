@@ -54,6 +54,7 @@ it('retries every failed job from the Failed tab', async () => {
     'GET jobs?status=all&offset=0&limit=50': page,
     'GET jobs?status=failed&offset=0&limit=50': page,
     'POST jobs/retry-failed': { body: { queued: 1, upcoming: 0, skipped: 1 } },
+    'GET settings/developer': { body: { enabled: true } },
   });
   render(<App />);
   expect(screen.queryByRole('button', { name: /Retry all failed/ })).not.toBeInTheDocument();

@@ -695,6 +695,11 @@ def test_failure_report(app: FastAPI, settings: Settings) -> None:
         assert job is not None
         job.error = (job.error or "") + "\nGET http://sonarr/api?apikey=sonarr-key-1234567890"
 
+    assert admin.get(f"{API}/settings/developer").json() == {"enabled": False}
+    assert admin.put(f"{API}/settings/developer", json={"enabled": True}).json() == {
+        "enabled": True
+    }
+    assert admin.get(f"{API}/settings/developer").json() == {"enabled": True}
     response = admin.get(f"{API}/reports/failures")
     assert response.status_code == 200
     assert response.headers["content-disposition"].startswith(

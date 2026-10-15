@@ -12,6 +12,7 @@ import {
 import { useDisclosure } from '@mantine/hooks';
 import {
   IconChevronDown,
+  IconCode,
   IconCpu2,
   IconListCheck,
   IconMovie,
@@ -40,6 +41,7 @@ const NAV = [
   { to: '/settings/hardware', label: 'Hardware', icon: IconCpu2 },
   { to: '/settings/integrations', label: 'Integrations', icon: IconPlugConnected },
   { to: '/settings/security', label: 'Security', icon: IconShieldLock },
+  { to: '/settings/developer', label: 'Developer', icon: IconCode },
 ];
 
 export function AppLayout({ auth }: { auth: AuthState }) {
