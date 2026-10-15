@@ -24,7 +24,7 @@ from reelhaven.api.schemas import AuthState, Credentials, PasswordChange, SetupR
 from reelhaven.auth import passwords, sessions
 from reelhaven.auth.throttle import LoginThrottle
 from reelhaven.auth.tokens import hash_token, new_csrf_token
-from reelhaven.db import User
+from reelhaven.db import Database, User
 from reelhaven.db.types import utcnow
 
 logger = logging.getLogger(__name__)
@@ -43,11 +43,39 @@ def _csrf_token(request: Request, response: Response, ctx: RequestContext) -> st
     return token
 
 
+def _log_not_logged_in(request: Request, db: Database, ctx: RequestContext) -> None:
+    """Say why a page load wasn't logged in (ADR-0033). Never logs the cookie itself."""
+    token = request.cookies.get(SESSION_COOKIE)
+    if not token:
+        reason = "no_cookie"
+    else:
+        with db.read() as session:
+            reason = sessions.miss_reason(session, token)
+    logger.info(
+        "not logged in",
+        extra={
+            "reason": reason,
+            "client": ctx.ip_text,
+            "user_agent": (request.headers.get("user-agent") or "")[:200],
+            # Names only: other apps on the same address share the cookie jar, and a
+            # crowded jar or an oversized Cookie header can push ours out.
+            "cookie_names": sorted(request.cookies)[:40],
+            "cookie_header_bytes": len(request.headers.get("cookie") or ""),
+        },
+    )
+
+
 @router.get("/auth/state")
 def auth_state(
-    request: Request, response: Response, ctx: ContextDep, principal: PrincipalDep
+    request: Request,
+    response: Response,
+    db: DbDep,
+    ctx: ContextDep,
+    principal: PrincipalDep,
 ) -> AuthState:
     """Public: tells the UI whether to show setup, login or the app."""
+    if principal is None and not ctx.setup_required:
+        _log_not_logged_in(request, db, ctx)
     return AuthState(
         setup_required=ctx.setup_required,
         authenticated=principal is not None,
@@ -148,9 +176,10 @@ def login(
             ctx.security.session_idle_days,
             ctx.ip_text,
             request.headers.get("user-agent"),
+            remember=body.remember,
         )
         audit.record(session, user.username, "login.success", ctx.ip_text)
-    set_session_cookie(response, token, ctx)
+    set_session_cookie(response, token, ctx, body.remember)
     return AuthState(
         setup_required=False,
         authenticated=True,

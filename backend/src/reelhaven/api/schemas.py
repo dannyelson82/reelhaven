@@ -27,6 +27,7 @@ def _normalise_username(value: str) -> str:
 class Credentials(StrictModel):
     username: str = Field(max_length=64)
     password: str = Field(max_length=MAX_LENGTH)
+    remember: bool = True  # Keep me logged in (ADR-0033)
 
     @field_validator("username")
     @classmethod

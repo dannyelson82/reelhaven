@@ -18,6 +18,19 @@ choose otherwise. All settings are on the **Security** page.
 - After 3 wrong passwords, each further attempt has to wait a little longer
   (up to 15 minutes).
 - **Log out after this many days of inactivity**: default 7 days.
+- **Keep me logged in** (on the login page, ticked by default): stay logged in
+  on this device until you log out or stop visiting for the days above.
+  Untick it on a shared computer: you're logged out when the browser closes.
+- Password managers (iCloud Keychain, 1Password, Bitwarden, …) recognise the
+  login page and can fill in and save your username and password.
+
+### If you keep getting logged out
+
+ReelHaven writes a line to its log each time a page opens without you being
+logged in, saying why: **no_cookie** (the browser didn't send the login
+cookie), **unknown** or **expired**. To see it, open the Unraid **Docker**
+tab, click the ReelHaven icon and choose **Logs**, then look for
+`not logged in`. Send those lines when reporting the problem.
 
 ## Skipping the login on your home network
 

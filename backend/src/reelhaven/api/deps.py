@@ -83,11 +83,14 @@ def _api_key_from(request: Request) -> str | None:
     return request.headers.get(API_KEY_HEADER) or request.query_params.get(API_KEY_QUERY)
 
 
-def set_session_cookie(response: Response, token: str, ctx: RequestContext) -> None:
+def set_session_cookie(
+    response: Response, token: str, ctx: RequestContext, remember: bool = True
+) -> None:
+    """Unticked "Keep me logged in" gives a browser-session cookie (ADR-0033)."""
     response.set_cookie(
         SESSION_COOKIE,
         token,
-        max_age=ctx.security.session_idle_days * 86400,
+        max_age=ctx.security.session_idle_days * 86400 if remember else None,
         httponly=True,
         samesite="lax",
         secure=ctx.https,
@@ -117,7 +120,7 @@ def current_principal(
             if sessions.needs_refresh(auth_session):
                 with db.write() as session:
                     sessions.refresh(session, auth_session.id_hash, ctx.security.session_idle_days)
-                set_session_cookie(response, token, ctx)
+                set_session_cookie(response, token, ctx, auth_session.remember)
             return Principal("session", user.id, user.username, auth_session.id_hash)
 
     if ctx.security.local_bypass and ctx.ip is not None:

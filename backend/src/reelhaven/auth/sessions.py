@@ -1,6 +1,7 @@
 """Login sessions. Only SHA-256 hashes of session IDs are stored."""
 
 from datetime import timedelta
+from typing import Literal
 
 from sqlalchemy import delete, select
 from sqlalchemy.orm import Session
@@ -15,7 +16,12 @@ REFRESH_INTERVAL = timedelta(minutes=5)
 
 
 def create(
-    session: Session, user: User, idle_days: int, ip: str | None, user_agent: str | None
+    session: Session,
+    user: User,
+    idle_days: int,
+    ip: str | None,
+    user_agent: str | None,
+    remember: bool = True,
 ) -> str:
     """Create a session and return the raw token for the cookie."""
     now = utcnow()
@@ -30,6 +36,7 @@ def create(
             expires_at=now + timedelta(days=idle_days),
             ip=ip,
             user_agent=(user_agent or "")[:512] or None,
+            remember=remember,
         )
     )
     return token
@@ -44,6 +51,12 @@ def find(session: Session, token: str) -> tuple[AuthSession, User] | None:
     if row is None or row[0].expires_at <= utcnow():
         return None
     return row[0], row[1]
+
+
+def miss_reason(session: Session, token: str) -> Literal["unknown", "expired"]:
+    """Why ``find`` returned None for this token, for the log (ADR-0033)."""
+    row = session.get(AuthSession, hash_token(token))
+    return "unknown" if row is None else "expired"
 
 
 def needs_refresh(auth_session: AuthSession) -> bool:
