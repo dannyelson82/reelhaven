@@ -6,11 +6,11 @@ goes through the verifier and the recycle bin, and is audit-logged.
 
 from datetime import datetime
 from pathlib import Path
-from typing import Literal
+from typing import Any, Literal
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
 from pydantic import BaseModel, Field
-from sqlalchemy import func, select
+from sqlalchemy import case, func, select
 
 from reelhaven import audit
 from reelhaven.api.deps import (
@@ -30,11 +30,14 @@ from reelhaven.jobs.replace import ReplaceError
 from reelhaven.jobs.service import (
     NotApplicableError,
     check_applicable,
+    clear_failures,
     create_jobs,
     failed_files,
     library_profile,
     purge_item,
     restore_item,
+    shown_as_failed,
+    status_counts,
 )
 from reelhaven.live import eta_seconds
 
@@ -223,13 +226,22 @@ def list_jobs(
     if status_filter == "active":
         query = query.where(Job.status.in_(("queued", "running", "verifying")))
     elif status_filter == "failed":
-        query = query.where(Job.status.in_(("failed", "cancelled")))
+        query = query.where(shown_as_failed())
     elif status_filter == "done":
         query = query.where(Job.status == "done")
+    if status_filter == "active":
+        # Running jobs first, then the queue in the order it will start them.
+        order: tuple[Any, ...] = (
+            case((Job.status == "queued", 1), else_=0),
+            Job.priority.desc(),
+            Job.id,
+        )
+    else:
+        order = (Job.id.desc(),)
     with db.read() as session:
         total = session.scalar(select(func.count()).select_from(query.subquery())) or 0
-        rows = session.execute(query.order_by(Job.id.desc()).offset(offset).limit(limit)).all()
-        counts = dict(session.execute(select(Job.status, func.count()).group_by(Job.status)).all())
+        rows = session.execute(query.order_by(*order).offset(offset).limit(limit)).all()
+        counts = status_counts(session)
         items = [job_out(job, library, result) for job, library, result in rows]
     return JobPage(total=total, counts=counts, items=items)
 
@@ -311,6 +323,8 @@ def retry_failed(
                     skipped += 1
                     continue
                 ready.append(item)
+            # Files that no longer need work leave the Failed tab too (ADR-0033).
+            clear_failures(session, file_ids)
             jobs = create_jobs(session, library, ready, principal.actor)
             queued += len(jobs)
             skipped += len(ready) - len(jobs)

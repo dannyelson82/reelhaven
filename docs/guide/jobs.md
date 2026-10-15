@@ -7,7 +7,8 @@ summary: Follow the work queue live, cancel or retry jobs, and understand the re
 # Jobs and the dashboard
 
 Every file ReelHaven processes is a **job**. The **Jobs** page lists them;
-**In progress**, **Failed** and **Done** filter the list.
+**In progress**, **Failed** and **Done** filter the list. **In progress** shows
+the running jobs first, then the waiting ones in the order they will start.
 
 ## How a job works
 
@@ -39,6 +40,9 @@ Every file ReelHaven processes is a **job**. The **Jobs** page lists them;
 last job failed, in one go. Cancelled jobs are left alone, since you stopped
 them on purpose. Files that no longer need changes, or that can't be read
 right now, are skipped, and the message next to the button says how many.
+Either way, the failures it replaced leave the **Failed** tab, and so does a
+failure when you press **Try again** or the file is queued again. They aren't
+deleted: the failure report still includes them.
 Test-run samples and sweet-spot steps aren't included; try those again from
 their own pages.
 

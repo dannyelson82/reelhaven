@@ -8,6 +8,7 @@ import {
   Loader,
   Pagination,
   Progress,
+  ScrollArea,
   SegmentedControl,
   Stack,
   Text,
@@ -62,24 +63,27 @@ export function JobsPage() {
       </Group>
       <DiskFullBanner />
       <PausedBanner />
-      <SegmentedControl
-        value={filter}
-        onChange={(v) => {
-          setFilter(v as View);
-          setPage(1);
-        }}
-        data={[
-          { value: 'all', label: 'All' },
-          { value: 'active', label: `In progress (${active})` },
-          { value: 'failed', label: `Failed (${failed})` },
-          { value: 'done', label: `Done (${counts.done ?? 0})` },
-          {
-            value: 'upcoming',
-            label: upcomingCount !== undefined ? `Upcoming (${upcomingCount})` : 'Upcoming',
-          },
-        ]}
-        w="fit-content"
-      />
+      {/* Wider than a phone: scroll the tabs instead of widening the page. */}
+      <ScrollArea type="never" scrollbars="x">
+        <SegmentedControl
+          value={filter}
+          onChange={(v) => {
+            setFilter(v as View);
+            setPage(1);
+          }}
+          data={[
+            { value: 'all', label: 'All' },
+            { value: 'active', label: `In progress (${active})` },
+            { value: 'failed', label: `Failed (${failed})` },
+            { value: 'done', label: `Done (${counts.done ?? 0})` },
+            {
+              value: 'upcoming',
+              label: upcomingCount !== undefined ? `Upcoming (${upcomingCount})` : 'Upcoming',
+            },
+          ]}
+          w="fit-content"
+        />
+      </ScrollArea>
       {filter === 'failed' && (counts.failed ?? 0) > 0 && <RetryAll count={counts.failed ?? 0} />}
       {filter === 'upcoming' ? (
         <UpcomingList />
@@ -263,7 +267,9 @@ function JobCard({ job }: { job: Job }) {
               {new Date(job.created_at).toLocaleString()}
             </Text>
           </Stack>
-          <Badge color={status.color}>{status.label}</Badge>
+          <Badge color={status.color} style={{ flexShrink: 0 }}>
+            {status.label}
+          </Badge>
         </Group>
         {isActive(job) && (
           <Stack gap={2}>

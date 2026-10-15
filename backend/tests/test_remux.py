@@ -386,6 +386,13 @@ def test_retry_all_failed(app: FastAPI, settings: Settings) -> None:
     assert result.json() == {"queued": 2, "skipped": 0}
     queued = sorted(j["file"] for j in jobs(admin) if j["status"] == "queued")
     assert queued == ["A (2020)/a.mkv", "C (2022)/c.mkv"]  # the cancelled one stays cancelled
+    # The replaced failures leave the Failed tab and its count; the cancelled job stays.
+    failed_tab = admin.get(f"{API}/jobs", params={"status": "failed"}).json()
+    assert [j["status"] for j in failed_tab["items"]] == ["cancelled"]
+    assert failed_tab["counts"].get("failed", 0) == 0
+    with db.read() as session:
+        cleared = session.scalars(select(Job).where(Job.cleared_at.is_not(None))).all()
+    assert sorted(j.status for j in cleared) == ["failed"] * 3  # kept for the report
     # Nothing failed is left, so a second press queues nothing.
     assert admin.post(f"{API}/jobs/retry-failed").json() == {"queued": 0, "skipped": 0}
     other = admin.post(f"{API}/jobs/retry-failed", params={"library_id": lib + 1})
@@ -567,3 +574,47 @@ def test_forced_english_subtitles_get_default_and_forced_flags(
     admin.post(f"{API}/libraries/{lib}/scan")
     app.state.scanner.wait(lib, timeout=60)
     assert admin.get(f"{API}/libraries/{lib}/dry-run").json()["remux"] == 0
+
+
+def test_in_progress_lists_running_jobs_then_the_queue_in_order(
+    app: FastAPI, settings: Settings
+) -> None:
+    admin, lib, _root = setup_library(
+        app, settings, {"A (2020)/a.mkv": MULTI, "B (2021)/b.mkv": MULTI}
+    )
+    app.state.queue.stop()
+    count = admin.get(f"{API}/libraries/{lib}/dry-run").json()["remux"]
+    admin.post(f"{API}/libraries/{lib}/apply", json={"expected_count": count})
+    template = sorted(jobs(admin), key=lambda j: j["id"])[0]["id"]
+    db: Database = app.state.db
+    with db.write() as session:
+        base = session.get(Job, template)
+        assert base is not None
+
+        def add(status: str, priority: int = 0) -> int:
+            job = Job(
+                library_id=base.library_id,
+                type=base.type,
+                source_path=base.source_path,
+                source_size=base.source_size,
+                source_mtime_ns=base.source_mtime_ns,
+                plan=base.plan,
+                probe=base.probe,
+                requested_by="test",
+                status=status,
+                priority=priority,
+            )
+            session.add(job)
+            session.flush()
+            return job.id
+
+        late_queued, urgent, running, done = (
+            add("queued"),
+            add("queued", 5),
+            add("running"),
+            add("done"),
+        )
+    ids = [j["id"] for j in admin.get(f"{API}/jobs", params={"status": "active"}).json()["items"]]
+    first_two = sorted(j["id"] for j in jobs(admin) if j["id"] < late_queued)
+    assert ids == [running, urgent, *first_two, late_queued]
+    assert done not in ids

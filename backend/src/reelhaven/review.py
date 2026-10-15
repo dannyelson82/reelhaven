@@ -130,7 +130,7 @@ def _last_failed(db: Database, library_id: int) -> dict[int, tuple[int, str]]:
     return {
         file_id: (job.id, job.error or "")
         for file_id, job in latest.items()
-        if job.status == "failed"
+        if job.status == "failed" and job.cleared_at is None
     }
 
 
