@@ -23,7 +23,7 @@ With it on:
   for a decision, with why it's there, its tracks, its original language and
   where that came from, and the last job's error, plus everything resolved in
   the last 90 days. See [Review](review.md).
-- Both buttons are also on the **Developer** page.
+- Both report buttons are also on the **Developer** page.
 
 The reports are plain text files. Passwords and API keys are removed; file and
 folder names stay in, because they help work out what went wrong.
