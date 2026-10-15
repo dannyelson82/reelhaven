@@ -263,7 +263,7 @@ def _rate_options(family: str, codec: Codec, value: float, speed: str) -> list[s
             "vbr",
             "-cq",
             str(value),
-            "-b:v",
+            "-b:v:0",
             "0",
             "-spatial_aq",
             "1",
