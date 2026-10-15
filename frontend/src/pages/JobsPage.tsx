@@ -8,6 +8,7 @@ import {
   Loader,
   Pagination,
   Progress,
+  ScrollArea,
   SegmentedControl,
   Stack,
   Text,
@@ -22,6 +23,7 @@ import {
   isActive,
   useCancelJob,
   useJobs,
+  useBackToUpcoming,
   useRetryFailed,
   useRetryJob,
 } from '../api/jobs';
@@ -62,24 +64,28 @@ export function JobsPage() {
       </Group>
       <DiskFullBanner />
       <PausedBanner />
-      <SegmentedControl
-        value={filter}
-        onChange={(v) => {
-          setFilter(v as View);
-          setPage(1);
-        }}
-        data={[
-          { value: 'all', label: 'All' },
-          { value: 'active', label: `In progress (${active})` },
-          { value: 'failed', label: `Failed (${failed})` },
-          { value: 'done', label: `Done (${counts.done ?? 0})` },
-          {
-            value: 'upcoming',
-            label: upcomingCount !== undefined ? `Upcoming (${upcomingCount})` : 'Upcoming',
-          },
-        ]}
-        w="fit-content"
-      />
+      {/* Wider than a phone: scroll the tabs instead of widening the page. */}
+      <ScrollArea type="never" scrollbars="x">
+        <SegmentedControl
+          value={filter}
+          onChange={(v) => {
+            setFilter(v as View);
+            setPage(1);
+          }}
+          data={[
+            { value: 'all', label: 'All' },
+            { value: 'active', label: `In progress (${active})` },
+            { value: 'failed', label: `Failed (${failed})` },
+            { value: 'done', label: `Done (${counts.done ?? 0})` },
+            {
+              value: 'upcoming',
+              label: upcomingCount !== undefined ? `Upcoming (${upcomingCount})` : 'Upcoming',
+            },
+          ]}
+          w="fit-content"
+        />
+      </ScrollArea>
+      {filter === 'active' && (counts.queued ?? 0) > 0 && <BackToUpcoming />}
       {filter === 'failed' && (counts.failed ?? 0) > 0 && <RetryAll count={counts.failed ?? 0} />}
       {filter === 'upcoming' ? (
         <UpcomingList />
@@ -87,6 +93,27 @@ export function JobsPage() {
         <JobList jobs={jobs} page={page} setPage={setPage} live={live} />
       )}
     </Stack>
+  );
+}
+
+function BackToUpcoming() {
+  const move = useBackToUpcoming();
+  return (
+    <Group>
+      <Button variant="default" loading={move.isPending} onClick={() => move.mutate(undefined)}>
+        Move waiting jobs back to Upcoming
+      </Button>
+      <Text size="sm" c="dimmed">
+        {move.data
+          ? `${move.data.moved} moved. The automatic queue takes them again in order, retried files last.`
+          : "Jobs in automatic libraries that haven't started yet. Running jobs keep going."}
+      </Text>
+      {move.isError && (
+        <Text size="sm" c="red">
+          {errorMessage(move.error)}
+        </Text>
+      )}
+    </Group>
   );
 }
 
@@ -100,7 +127,13 @@ function RetryAll({ count }: { count: number }) {
       </Button>
       {result && (
         <Text size="sm" c="dimmed">
-          {result.queued === 1 ? '1 file queued again' : `${result.queued} files queued again`}
+          {[
+            result.upcoming > 0 && `${result.upcoming} back at the end of Upcoming`,
+            (result.queued > 0 || result.upcoming === 0) &&
+              (result.queued === 1 ? '1 file queued again' : `${result.queued} files queued again`),
+          ]
+            .filter(Boolean)
+            .join('; ')}
           {result.skipped > 0 &&
             `; ${result.skipped} no longer need changes or can't be read right now`}
           .
@@ -263,7 +296,9 @@ function JobCard({ job }: { job: Job }) {
               {new Date(job.created_at).toLocaleString()}
             </Text>
           </Stack>
-          <Badge color={status.color}>{status.label}</Badge>
+          <Badge color={status.color} style={{ flexShrink: 0 }}>
+            {status.label}
+          </Badge>
         </Group>
         {isActive(job) && (
           <Stack gap={2}>

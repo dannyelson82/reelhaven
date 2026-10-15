@@ -286,6 +286,7 @@ class Automation:
                 profile_fingerprint(profile)
             )
             gave_up = given_up(session, library_id)
+            back_in_line = retried(session, library_id)
             action = LanguagePolicy.model_validate(
                 library.language_policy or {}
             ).wrong_language_action
@@ -295,7 +296,7 @@ class Automation:
                     select(MediaFile).where(MediaFile.library_id == library_id)
                 )
             }
-        plans = plan_library(self._db, library_id)
+        plans = retried_last(plan_library(self._db, library_id), back_in_line)
         active = {i for i in active_jobs if i is not None}
         moving = (
             pick_wrong_language(
@@ -333,8 +334,7 @@ class Automation:
         return len(jobs)
 
 
-def given_up(session: Session, library_id: int) -> dict[int, FileState]:
-    """Files whose most recent job failed or was cancelled, with the file state it saw."""
+def _latest_jobs(session: Session, library_id: int) -> dict[int, Job]:
     latest: dict[int, Job] = {}
     for job in session.scalars(
         select(Job).where(Job.library_id == library_id, Job.media_file_id.is_not(None))
@@ -342,8 +342,33 @@ def given_up(session: Session, library_id: int) -> dict[int, FileState]:
         assert job.media_file_id is not None  # noqa: S101
         if job.media_file_id not in latest or job.id > latest[job.media_file_id].id:
             latest[job.media_file_id] = job
+    return latest
+
+
+def given_up(session: Session, library_id: int) -> dict[int, FileState]:
+    """Files whose most recent job failed or was cancelled, with the file state it saw.
+    A failure Retry all cleared doesn't count: the file is back in line (ADR-0033)."""
     return {
         file_id: FileState(job.source_size, job.source_mtime_ns)
-        for file_id, job in latest.items()
-        if job.status in ("failed", "cancelled") and job.type not in ("test", "tune")
+        for file_id, job in _latest_jobs(session, library_id).items()
+        if job.status in ("failed", "cancelled")
+        and job.type not in ("test", "tune")
+        and job.cleared_at is None
     }
+
+
+def retried(session: Session, library_id: int) -> set[int]:
+    """Files Retry all put back in line: their last job failed and was cleared."""
+    return {
+        file_id
+        for file_id, job in _latest_jobs(session, library_id).items()
+        if job.status == "failed" and job.cleared_at is not None
+    }
+
+
+def retried_last(plans: Iterable[FilePlan], retried_ids: set[int]) -> list[FilePlan]:
+    """Library order, with the files Retry all put back at the end of the line."""
+    plans = list(plans)
+    return [p for p in plans if p.file_id not in retried_ids] + [
+        p for p in plans if p.file_id in retried_ids
+    ]

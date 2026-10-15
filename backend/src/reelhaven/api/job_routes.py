@@ -6,11 +6,11 @@ goes through the verifier and the recycle bin, and is audit-logged.
 
 from datetime import datetime
 from pathlib import Path
-from typing import Literal
+from typing import Any, Literal
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
 from pydantic import BaseModel, Field
-from sqlalchemy import func, select
+from sqlalchemy import case, delete, func, select
 
 from reelhaven import audit
 from reelhaven.api.deps import (
@@ -30,11 +30,14 @@ from reelhaven.jobs.replace import ReplaceError
 from reelhaven.jobs.service import (
     NotApplicableError,
     check_applicable,
+    clear_failures,
     create_jobs,
     failed_files,
     library_profile,
     purge_item,
     restore_item,
+    shown_as_failed,
+    status_counts,
 )
 from reelhaven.live import eta_seconds
 
@@ -223,13 +226,22 @@ def list_jobs(
     if status_filter == "active":
         query = query.where(Job.status.in_(("queued", "running", "verifying")))
     elif status_filter == "failed":
-        query = query.where(Job.status.in_(("failed", "cancelled")))
+        query = query.where(shown_as_failed())
     elif status_filter == "done":
         query = query.where(Job.status == "done")
+    if status_filter == "active":
+        # Running jobs first, then the queue in the order it will start them.
+        order: tuple[Any, ...] = (
+            case((Job.status == "queued", 1), else_=0),
+            Job.priority.desc(),
+            Job.id,
+        )
+    else:
+        order = (Job.id.desc(),)
     with db.read() as session:
         total = session.scalar(select(func.count()).select_from(query.subquery())) or 0
-        rows = session.execute(query.order_by(Job.id.desc()).offset(offset).limit(limit)).all()
-        counts = dict(session.execute(select(Job.status, func.count()).group_by(Job.status)).all())
+        rows = session.execute(query.order_by(*order).offset(offset).limit(limit)).all()
+        counts = status_counts(session)
         items = [job_out(job, library, result) for job, library, result in rows]
     return JobPage(total=total, counts=counts, items=items)
 
@@ -241,6 +253,36 @@ def get_job(job_id: int, db: DbDep, _principal: AnyPrincipalDep) -> JobOut:
         if job is None:
             raise HTTPException(status.HTTP_404_NOT_FOUND, "job_not_found")
         return job_out(job, session.get(Library, job.library_id), session.get(JobResult, job.id))
+
+
+class BackToUpcomingResult(BaseModel):
+    moved: int
+
+
+@router.post("/jobs/back-to-upcoming")
+def back_to_upcoming(
+    request: Request, db: DbDep, principal: InteractiveDep
+) -> BackToUpcomingResult:
+    """Take jobs that haven't started out of the queue in automatic libraries, so the
+    automatic queue takes those files again in its own order (retried files last).
+    Nothing ran yet, so nothing is lost; elsewhere queued jobs stay (ADR-0033)."""
+    with db.write() as session:
+        automatic = select(Library.id).where(Library.watch_mode == "automatic")
+        waiting = session.scalars(
+            select(Job.id).where(
+                Job.status == "queued",
+                Job.started_at.is_(None),
+                Job.type.in_(("remux", "encode")),
+                Job.library_id.in_(automatic),
+            )
+        ).all()
+        if waiting:
+            session.execute(delete(Job).where(Job.id.in_(waiting)))
+            audit.record(
+                session, principal.actor, "jobs.back_to_upcoming", "jobs", {"moved": len(waiting)}
+            )
+    request.app.state.automation.poke()
+    return BackToUpcomingResult(moved=len(waiting))
 
 
 @router.post("/jobs/{job_id}/cancel")
@@ -277,6 +319,7 @@ def retry_job(job_id: int, request: Request, db: DbDep, principal: InteractiveDe
 
 class RetryAllResult(BaseModel):
     queued: int
+    upcoming: int = 0  # automatic libraries: back at the end of the Upcoming list
     skipped: int  # no longer needs changes, can't be read, or its language isn't known yet
 
 
@@ -284,10 +327,12 @@ class RetryAllResult(BaseModel):
 def retry_failed(
     request: Request, db: DbDep, principal: InteractiveDep, library_id: int | None = None
 ) -> RetryAllResult:
-    """Plan every file whose last job failed again and queue the ones that still need work."""
+    """Plan every file whose last job failed again. In automatic libraries the ones that
+    still need work go back to the end of the Upcoming list; elsewhere they're queued.
+    Either way the failures leave the Failed tab (ADR-0033)."""
     with db.read() as session:
         groups = failed_files(session, library_id)
-    queued = skipped = 0
+    queued = skipped = back_in_line = 0
     for lib_id, file_ids in groups.items():
         try:
             plans = {p.file_id: p for p in plan_library(db, lib_id)}
@@ -311,6 +356,11 @@ def retry_failed(
                     skipped += 1
                     continue
                 ready.append(item)
+            # Files that no longer need work leave the Failed tab too (ADR-0033).
+            clear_failures(session, file_ids)
+            if library.watch_mode == "automatic":
+                back_in_line += len(ready)  # the automatic queue takes them after the rest
+                continue
             jobs = create_jobs(session, library, ready, principal.actor)
             queued += len(jobs)
             skipped += len(ready) - len(jobs)
@@ -321,10 +371,11 @@ def retry_failed(
                 principal.actor,
                 "jobs.retry_failed",
                 "jobs",
-                {"queued": queued, "skipped": skipped},
+                {"queued": queued, "upcoming": back_in_line, "skipped": skipped},
             )
     _queue(request).notify()
-    return RetryAllResult(queued=queued, skipped=skipped)
+    request.app.state.automation.poke()
+    return RetryAllResult(queued=queued, upcoming=back_in_line, skipped=skipped)
 
 
 @router.get("/recycle")

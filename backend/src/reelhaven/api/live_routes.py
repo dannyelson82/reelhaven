@@ -10,13 +10,14 @@ import time
 from typing import Any
 
 from fastapi import APIRouter, WebSocket, WebSocketDisconnect
-from sqlalchemy import func, select
+from sqlalchemy import select
 from starlette.concurrency import run_in_threadpool
 
 from reelhaven.api.deps import SESSION_COOKIE
 from reelhaven.api.job_routes import job_out
 from reelhaven.auth import network, security_settings, sessions
 from reelhaven.db import Database, Job, Library
+from reelhaven.jobs.service import status_counts
 from reelhaven.live import ChangeFeed
 
 router = APIRouter()
@@ -54,7 +55,7 @@ def _session_alive(db: Database, token: str) -> bool:
 
 def snapshot(db: Database) -> dict[str, Any]:
     with db.read() as session:
-        counts = dict(session.execute(select(Job.status, func.count()).group_by(Job.status)).all())
+        counts = status_counts(session)
         rows = session.execute(
             select(Job, Library)
             .outerjoin(Library, Library.id == Job.library_id)

@@ -4,7 +4,7 @@ import logging
 from datetime import timedelta
 from pathlib import Path
 
-from sqlalchemy import select
+from sqlalchemy import ColumnElement, func, or_, select, update
 from sqlalchemy.orm import Session
 
 from reelhaven import audit
@@ -75,7 +75,38 @@ def create_jobs(session: Session, library: Library, plans: list[FilePlan], actor
         session.add(job)
         jobs.append(job)
     session.flush()
+    # A new attempt replaces the file's earlier failures on the Failed tab (ADR-0033).
+    clear_failures(session, [j.media_file_id for j in jobs if j.media_file_id is not None])
     return jobs
+
+
+def shown_as_failed() -> ColumnElement[bool]:
+    """Jobs on the Failed tab: failed or cancelled, minus failures a retry cleared."""
+    return Job.status.in_(("failed", "cancelled")) & Job.cleared_at.is_(None)
+
+
+def status_counts(session: Session) -> dict[str, int]:
+    """Jobs per status; "failed" leaves out the failures a retry cleared (ADR-0033)."""
+    rows = session.execute(
+        select(Job.status, func.count())
+        .where(or_(Job.status != "failed", Job.cleared_at.is_(None)))
+        .group_by(Job.status)
+    ).all()
+    return {status: count for status, count in rows}
+
+
+def clear_failures(session: Session, file_ids: list[int]) -> None:
+    """Take these files' failed jobs off the Failed tab; they stay in the failure report."""
+    if file_ids:
+        session.execute(
+            update(Job)
+            .where(
+                Job.media_file_id.in_(file_ids),
+                Job.status == "failed",
+                Job.cleared_at.is_(None),
+            )
+            .values(cleared_at=utcnow())
+        )
 
 
 def failed_files(session: Session, library_id: int | None = None) -> dict[int, list[int]]:
@@ -98,7 +129,7 @@ def failed_files(session: Session, library_id: int | None = None) -> dict[int, l
             latest[job.media_file_id] = job
     out: dict[int, list[int]] = {}
     for file_id, job in sorted(latest.items()):
-        if job.status == "failed" and job.library_id is not None:
+        if job.status == "failed" and job.cleared_at is None and job.library_id is not None:
             out.setdefault(job.library_id, []).append(file_id)
     return out
 

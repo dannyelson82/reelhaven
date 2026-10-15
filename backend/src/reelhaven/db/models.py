@@ -261,6 +261,9 @@ class Job(Base):
     created_at: Mapped[datetime] = mapped_column(default=utcnow)
     started_at: Mapped[datetime | None] = mapped_column(default=None)
     finished_at: Mapped[datetime | None] = mapped_column(default=None)
+    # Set when Retry or Retry all replaced this failure: off the Failed tab, still in the
+    # failure report (ADR-0033).
+    cleared_at: Mapped[datetime | None] = mapped_column(default=None)
 
 
 class JobResult(Base):

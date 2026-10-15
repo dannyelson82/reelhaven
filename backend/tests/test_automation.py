@@ -10,7 +10,14 @@ from fastapi.testclient import TestClient
 from sqlalchemy import select
 
 from reelhaven import device_settings
-from reelhaven.automation import Automation, FileState, pick, queue_target, rescan_due
+from reelhaven.automation import (
+    Automation,
+    FileState,
+    pick,
+    queue_target,
+    rescan_due,
+    retried_last,
+)
 from reelhaven.config import Settings
 from reelhaven.db import Database, Job, Library
 from reelhaven.device_settings import DeviceConfig, DeviceSettings
@@ -329,3 +336,8 @@ def test_a_finished_job_refills_the_queue_at_once(app: FastAPI, settings: Settin
 
 def test_startup_connects_the_queue_to_automatic(app: FastAPI) -> None:  # noqa: F811
     assert app.state.queue.on_job_finished == app.state.automation.poke
+
+
+def test_retried_files_go_last() -> None:
+    plans = [FilePlan(i, f"{i}.mkv", 1, None, None) for i in (1, 2, 3, 4)]
+    assert [p.file_id for p in retried_last(plans, {1, 3})] == [2, 4, 1, 3]
