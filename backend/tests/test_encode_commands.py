@@ -415,7 +415,7 @@ def test_encode_with_cover_art(tmp_path: Path) -> None:
             "-frames:v",
             "1",
             str(cover),
-        ],  # fmt: skip
+        ],
         None,
         timeout_s=60,
     )
@@ -438,7 +438,7 @@ def test_encode_with_cover_art(tmp_path: Path) -> None:
             "-disposition:v:1",
             "attached_pic",
             str(source),
-        ],  # fmt: skip
+        ],
         None,
         timeout_s=60,
     )
