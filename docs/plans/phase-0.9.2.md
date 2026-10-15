@@ -2,6 +2,8 @@
 
 Planned with the owner on 2026-10-15 from their testing notes. Decisions:
 ADR-0033. Release: **v0.9.2**. Dolby Vision handling waits for failure reports.
+Done: #101–#105 and the release. Added from testing: Retry all sends files to the
+end of Upcoming, In progress order, phone layout, Developer options.
 
 | # | Chunk | Contents |
 |---|-------|----------|
