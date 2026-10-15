@@ -101,6 +101,12 @@ def verify_output(
                 f"expected {expected_video.codec} {expected_video.height}p video, "
                 f"found {out_video.codec} {out_video.height}p"
             )
+        if src_video.hdr == "dolby_vision" and out_video.hdr != "dolby_vision":
+            # ADR-0034: the ffmpeg that copied the video didn't keep the Dolby Vision record.
+            raise VerificationError(
+                f"Dolby Vision was lost while copying the video ({src_video.hdr} -> "
+                f"{out_video.hdr}); this ffmpeg build doesn't keep it"
+            )
         if src_video.hdr != out_video.hdr:
             raise VerificationError(f"HDR metadata changed ({src_video.hdr} -> {out_video.hdr})")
 

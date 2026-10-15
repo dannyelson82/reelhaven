@@ -29,6 +29,9 @@ class Settings(BaseSettings):
     # Encoder binaries (jellyfin-ffmpeg in the container; any ffmpeg in dev).
     ffmpeg: str = "ffmpeg"
     ffprobe: str = "ffprobe"
+    # A standard ffmpeg for track changes on Dolby Vision files: jellyfin-ffmpeg 8.1 drops
+    # the Dolby Vision record on stream copy (ADR-0034). None: use `ffmpeg`.
+    copy_ffmpeg: str | None = None
     probe_timeout_s: float = Field(default=120, gt=0)
     host: str = "0.0.0.0"  # noqa: S104 - a container must listen on all interfaces
     port: int = Field(default=7171, ge=1, le=65535)

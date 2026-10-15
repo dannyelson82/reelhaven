@@ -79,7 +79,7 @@ workers. This keeps installation a single Unraid template.
 | Concern | Choice | ADR |
 |---|---|---|
 | Backend | Python 3.13, FastAPI, Uvicorn | 0002, 0009 |
-| Encoder | jellyfin-ffmpeg (NVENC, QSV, VAAPI, AMF, tone mapping) | 0003 |
+| Encoder | jellyfin-ffmpeg (NVENC, QSV, VAAPI, AMF, tone mapping); a standard static ffmpeg for track changes on Dolby Vision files | 0003, 0034 |
 | Database | SQLite (WAL mode) via SQLAlchemy + Alembic migrations | 0004 |
 | Job queue | Built in, persisted in SQLite, one worker pool per device | 0004 |
 | Frontend | React + TypeScript + Vite + Mantine, served by the backend | 0005, 0014 |
@@ -412,8 +412,9 @@ endpoint (unauthenticated, no details) for Docker health checks.
 
 ## 14. Build and release
 - Multi-stage Dockerfile: build frontend → build Python wheel → final image
-  on Debian 13 (trixie) slim with jellyfin-ffmpeg and the Intel/AMD media
-  drivers.
+  on Debian 13 (trixie) slim with jellyfin-ffmpeg, the Intel/AMD media
+  drivers and a pinned standard ffmpeg for Dolby Vision track changes
+  (ADR-0034).
 - GitHub Actions builds and pushes to `ghcr.io/dannyelson82/reelhaven` on
   tags (`vX.Y.Z`, `latest`) and on `main` (`edge`). Image vulnerability scan
   in CI.

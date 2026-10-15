@@ -61,6 +61,9 @@ jobs:
           docker exec rh ffmpeg -hide_banner -version | head -n 1
           docker exec rh ffprobe -hide_banner -version | head -n 1
           docker exec rh sh -c 'ffmpeg -hide_banner -encoders' | grep -E 'hevc_nvenc|hevc_qsv|hevc_vaapi|libx265'
+          # The standard ffmpeg for Dolby Vision track changes (ADR-0034), with the audio encoders.
+          docker exec rh sh -c '"$REELHAVEN_COPY_FFMPEG" -hide_banner -version' | head -n 1
+          docker exec rh sh -c '"$REELHAVEN_COPY_FFMPEG" -hide_banner -encoders' | grep -c -E 'libopus|aac|eac3'
           docker logs rh 2>&1 | tail -n 20
           docker rm -f rh
 

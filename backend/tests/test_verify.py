@@ -68,3 +68,20 @@ def test_decode_test_ignores_the_null_muxers_timestamp_complaints() -> None:
 def test_decode_test_still_reports_real_errors(problem: str) -> None:
     stderr = f"{DTS.format(n=32)}\n{problem}\n{DTS.format(n=36)}\n"
     assert decode_errors(stderr) == problem
+
+
+def test_lost_dolby_vision_is_named(tmp_path: Path) -> None:
+    # ADR-0034: jellyfin-ffmpeg drops the Dolby Vision record on stream copy.
+    source = make(tmp_path / "in.mkv", Spec())
+    output = retag(source, tmp_path / "out.mkv")
+    info = probe(source)
+    assert info.video is not None
+    dv_video = info.video.model_copy(update={"hdr": "dolby_vision", "dv_profile": 5})
+    as_dv = info.model_copy(
+        update={"streams": [dv_video if s.kind == "video" else s for s in info.streams]}
+    )
+    expected: list[tuple[str, str | None, bool | None]] = [
+        (s.kind, s.language, None) for s in info.streams
+    ]
+    with pytest.raises(VerificationError, match="Dolby Vision was lost while copying the video"):
+        verify_output(output, as_dv, expected, FFMPEG or "ffmpeg", "ffprobe")

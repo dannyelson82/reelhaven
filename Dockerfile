@@ -32,7 +32,25 @@ RUN uv sync --locked --no-dev --no-install-project
 COPY backend/src ./src
 RUN uv sync --locked --no-dev --no-editable
 
-# --- 3. Runtime ---------------------------------------------------------------
+# --- 3. Standard ffmpeg for track changes on Dolby Vision files (ADR-0034) -----
+# jellyfin-ffmpeg 8.1 drops the Dolby Vision record on stream copy. A month-end
+# BtbN build (kept long-term), pinned and checked by SHA-256.
+FROM ${DEBIAN_IMAGE} AS copyffmpeg
+ARG COPY_FFMPEG_URL=https://github.com/BtbN/FFmpeg-Builds/releases/download/autobuild-2026-09-30-13-08/ffmpeg-n8.1.3-9-g29e619e767-linux64-gpl-8.1.tar.xz
+ARG COPY_FFMPEG_SHA256=97ce978979194b5cf7e06a5e68020dbdaa7a4f3294c5452b6a1bc347100dbb79
+RUN apt-get update \
+ && apt-get install -y --no-install-recommends ca-certificates curl xz-utils \
+ && rm -rf /var/lib/apt/lists/* \
+ && curl -fsSL -o /tmp/ffmpeg.tar.xz "${COPY_FFMPEG_URL}" \
+ && echo "${COPY_FFMPEG_SHA256}  /tmp/ffmpeg.tar.xz" | sha256sum -c - \
+ && mkdir -p /opt/ffmpeg-copy \
+ && tar -xJf /tmp/ffmpeg.tar.xz -C /opt/ffmpeg-copy --strip-components=1 \
+      --wildcards '*/bin/ffmpeg' '*/LICENSE.txt' \
+ && mv /opt/ffmpeg-copy/bin/ffmpeg /opt/ffmpeg-copy/ffmpeg \
+ && rmdir /opt/ffmpeg-copy/bin \
+ && /opt/ffmpeg-copy/ffmpeg -hide_banner -version | head -n 1
+
+# --- 4. Runtime ---------------------------------------------------------------
 FROM ${DEBIAN_IMAGE}
 ARG TARGETARCH=amd64
 
@@ -61,11 +79,13 @@ RUN groupadd --gid 100 --non-unique reelhaven \
 
 COPY --from=backend /app/venv /app/venv
 COPY --from=frontend /src/frontend/dist /app/web
+COPY --from=copyffmpeg /opt/ffmpeg-copy /opt/ffmpeg-copy
 COPY docker/entrypoint.sh /usr/local/bin/entrypoint.sh
 
 ENV PATH=/app/venv/bin:/usr/lib/jellyfin-ffmpeg:${PATH} \
     REELHAVEN_CONFIG_DIR=/config \
     REELHAVEN_TRANSCODE_DIR=/transcode \
+    REELHAVEN_COPY_FFMPEG=/opt/ffmpeg-copy/ffmpeg \
     REELHAVEN_WEB_DIR=/app/web \
     REELHAVEN_PORT=7171 \
     PUID=99 PGID=100 UMASK=022 TZ=Etc/UTC \
