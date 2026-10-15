@@ -35,7 +35,11 @@ Out of scope: an attacker who already has root on the Unraid host.
 - **Sessions**: random 256-bit IDs, stored hashed server-side. Cookie is
   `HttpOnly`, `SameSite=Lax`, and `Secure` when the request arrived over
   HTTPS (directly or via a trusted proxy). Idle timeout 7 days (configurable);
-  "log out everywhere" button.
+  "log out everywhere" button. **Keep me logged in** (ticked by default) makes
+  the cookie last the idle timeout; unticked, it is a browser-session cookie
+  (the server-side expiry is the same, ADR-0033). When a page load isn't
+  logged in, the server logs why (no cookie, unknown or expired session),
+  never the cookie itself.
 - **Login throttling**: exponential delay per username and per IP after
   failed attempts; lockout events go to the audit log (present from phase 0.1, ADR-0010).
 - **Local-address bypass** (optional, off by default, like Sonarr/Radarr's
