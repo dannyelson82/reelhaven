@@ -41,6 +41,12 @@ class Stream(BaseModel):
     pix_fmt: str | None = None  # e.g. "yuv420p10le"; None in scans before ADR-0029
     frame_rate: float | None = None
     hdr: HdrType | None = None
+    # Dolby Vision profile and base-layer compatibility (e.g. 8 and 1 = "8.1"; profile 5 has
+    # no HDR10 base layer), and the colour tags, for failure reports (ADR-0033).
+    dv_profile: int | None = None
+    dv_compat_id: int | None = None
+    color_transfer: str | None = None
+    color_primaries: str | None = None
     # audio
     channels: int | None = None
     channel_layout: str | None = None
@@ -118,6 +124,14 @@ def _hdr(raw: dict[str, Any], frame_side_data: list[dict[str, Any]]) -> HdrType:
     return "sdr"
 
 
+def _dovi(raw: dict[str, Any]) -> dict[str, Any] | None:
+    for data in raw.get("side_data_list") or []:
+        kind = str(data.get("side_data_type", ""))
+        if "DOVI" in kind or "Dolby Vision" in kind:
+            return dict(data)
+    return None
+
+
 def _kind(codec_type: Any) -> StreamKind:
     if codec_type in ("video", "audio", "subtitle", "attachment"):
         return codec_type  # type: ignore[no-any-return]
@@ -169,6 +183,12 @@ def parse(probe: dict[str, Any], frame_side_data: list[dict[str, Any]] | None = 
                 raw.get("r_frame_rate")
             )
             stream.hdr = _hdr(raw, frame_side_data or [])
+            stream.color_transfer = raw.get("color_transfer") or None
+            stream.color_primaries = raw.get("color_primaries") or None
+            dovi = _dovi(raw)
+            if dovi is not None:
+                stream.dv_profile = _int(dovi.get("dv_profile"))
+                stream.dv_compat_id = _int(dovi.get("dv_bl_signal_compatibility_id"))
         elif kind == "audio":
             stream.channels = _int(raw.get("channels"))
             stream.channel_layout = raw.get("channel_layout")

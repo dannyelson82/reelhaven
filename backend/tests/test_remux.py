@@ -22,6 +22,7 @@ from reelhaven.db import AuditLog, Database, Job, RecycleItem, Title
 from reelhaven.db.types import utcnow
 from reelhaven.jobs import pipeline, replace
 from reelhaven.jobs.commands import MARKER_TAG, expected_remux_codecs, remux_command
+from reelhaven.logsetup import SecretRegistry
 from reelhaven.media.info import MediaInfo, Stream
 from reelhaven.media.probe import probe, probe_raw
 from reelhaven.planner import plan
@@ -675,3 +676,40 @@ def test_waiting_jobs_go_back_to_upcoming(app: FastAPI, settings: Settings) -> N
     assert [j["status"] for j in jobs(admin)] == ["running"]
     line = [u["relative_path"] for u in admin.get(f"{API}/upcoming").json()["items"]]
     assert line == ["B (2021)/b.mkv"]
+
+
+def test_failure_report(app: FastAPI, settings: Settings) -> None:
+    admin, lib, _root = setup_library(app, settings, {"A (2020)/a.mkv": MULTI})
+    app.state.queue.stop()
+    db: Database = app.state.db
+    # An ffmpeg that can't start makes the job fail after its command was recorded.
+    broken = settings.model_copy(update={"ffmpeg": "/nonexistent/ffmpeg"})
+    app.state.queue = type(app.state.queue)(db, broken)
+    app.state.queue.start()
+    apply_all(app, admin, lib)
+    (failed,) = jobs(admin)
+    assert failed["status"] == "failed"
+    SecretRegistry.register("sonarr-key-1234567890")
+    with db.write() as session:
+        job = session.get(Job, failed["id"])
+        assert job is not None
+        job.error = (job.error or "") + "\nGET http://sonarr/api?apikey=sonarr-key-1234567890"
+
+    response = admin.get(f"{API}/reports/failures")
+    assert response.status_code == 200
+    assert response.headers["content-disposition"].startswith(
+        'attachment; filename="reelhaven-failures-'
+    )
+    text = response.text
+    assert "1 failed job(s)" in text
+    assert f"Job #{failed['id']} - remux - failed" in text
+    assert "A (2020)/a.mkv" in text
+    assert "/nonexistent/ffmpeg -hide_banner" in text  # the command that ran
+    assert "could not start ffmpeg" in text
+    assert "#3 audio aac (LC) fra 2 ch stereo" in text  # what the file contained
+    assert "sonarr-key-1234567890" not in text  # secrets redacted
+
+    # A retry clears it from the Failed tab, but the report keeps it.
+    app.state.queue.stop()
+    admin.post(f"{API}/jobs/retry-failed")
+    assert "cleared from the Failed tab by a retry" in admin.get(f"{API}/reports/failures").text

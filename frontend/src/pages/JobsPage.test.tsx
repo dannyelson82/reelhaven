@@ -58,6 +58,8 @@ it('retries every failed job from the Failed tab', async () => {
   render(<App />);
   expect(screen.queryByRole('button', { name: /Retry all failed/ })).not.toBeInTheDocument();
   await userEvent.click(await screen.findByText('Failed (3)'));
+  const report = await screen.findByRole('link', { name: 'Download failure report' });
+  expect(report).toHaveAttribute('href', 'api/v1/reports/failures');
   await userEvent.click(await screen.findByRole('button', { name: 'Retry all failed (2)' }));
   expect(calls.some((c) => c.key === 'POST jobs/retry-failed')).toBe(true);
   expect(

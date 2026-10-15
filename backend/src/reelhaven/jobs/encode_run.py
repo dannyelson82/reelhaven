@@ -27,6 +27,7 @@ def run_encode(
     on_progress: ProgressCallback,
     should_cancel: Callable[[], bool],
     on_decoder: Callable[[str], None] = lambda _decoder: None,
+    on_command: Callable[[list[str]], None] = lambda _args: None,
 ) -> bool:
     """Encode ``source`` to ``output``; returns whether the GPU decoded it.
 
@@ -34,14 +35,17 @@ def run_encode(
     hiccup) is retried once with CPU decoding, so a file is never lost to the speed-up.
     Cancelling stops both.
     ``on_decoder`` hears "gpu" or "cpu" as each attempt starts, for the job's record.
+    ``on_command`` hears each ffmpeg command before it runs, for the failure report.
     """
     video = info.video
     duration = info.duration_s or None
     if video is not None and gpu_decodes(device, video.codec, video.bit_depth, video.pix_fmt):
         on_decoder("gpu")
+        args = encode_command(ffmpeg, device, source, output, info, plan, profile, True)
+        on_command(args)
         try:
             run_ffmpeg(
-                encode_command(ffmpeg, device, source, output, info, plan, profile, True),
+                args,
                 duration,
                 timeout_s=timeout_s,
                 on_progress=on_progress,
@@ -55,8 +59,10 @@ def run_encode(
             )
             output.unlink(missing_ok=True)
     on_decoder("cpu")
+    args = encode_command(ffmpeg, device, source, output, info, plan, profile)
+    on_command(args)
     run_ffmpeg(
-        encode_command(ffmpeg, device, source, output, info, plan, profile),
+        args,
         duration,
         timeout_s=timeout_s,
         on_progress=on_progress,

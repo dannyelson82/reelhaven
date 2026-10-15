@@ -264,6 +264,8 @@ class Job(Base):
     # Set when Retry or Retry all replaced this failure: off the Failed tab, still in the
     # failure report (ADR-0033).
     cleared_at: Mapped[datetime | None] = mapped_column(default=None)
+    # The last ffmpeg command the job ran (ADR-0033).
+    command: Mapped[list[str] | None] = mapped_column(JSON, default=None)
 
 
 class JobResult(Base):

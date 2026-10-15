@@ -230,6 +230,7 @@ def process_test(db: Database, settings: Settings, job_id: int, device: Device) 
             on_progress=progress,
             should_cancel=lambda: _is_cancelled(db, job_id),
             on_decoder=lambda decoder: _set(db, job_id, decoder=decoder),
+            on_command=lambda args: _set(db, job_id, command=args),
         )
         _set(db, job_id, status="verifying", progress=0.8)
         target = expected_video(info, profile)

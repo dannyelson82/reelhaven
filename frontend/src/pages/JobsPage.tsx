@@ -1,3 +1,4 @@
+import { IconDownload } from '@tabler/icons-react';
 import {
   Alert,
   Badge,
@@ -86,7 +87,20 @@ export function JobsPage() {
         />
       </ScrollArea>
       {filter === 'active' && (counts.queued ?? 0) > 0 && <BackToUpcoming />}
-      {filter === 'failed' && (counts.failed ?? 0) > 0 && <RetryAll count={counts.failed ?? 0} />}
+      {filter === 'failed' && (
+        <Group>
+          {(counts.failed ?? 0) > 0 && <RetryAll count={counts.failed ?? 0} />}
+          <Button
+            component="a"
+            href="api/v1/reports/failures"
+            download
+            variant="default"
+            leftSection={<IconDownload size={16} />}
+          >
+            Download failure report
+          </Button>
+        </Group>
+      )}
       {filter === 'upcoming' ? (
         <UpcomingList />
       ) : (

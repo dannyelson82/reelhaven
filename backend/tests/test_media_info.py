@@ -56,6 +56,20 @@ def test_hdr_detection() -> None:
         side_data_list=[{"side_data_type": "DOVI configuration record"}],
     )
     assert parse(probe(dv)).streams[0].hdr == "dolby_vision"
+    profile_8_1 = stream(
+        color_transfer="smpte2084",
+        color_primaries="bt2020",
+        side_data_list=[
+            {
+                "side_data_type": "DOVI configuration record",
+                "dv_profile": 8,
+                "dv_bl_signal_compatibility_id": 1,
+            }
+        ],
+    )
+    video = parse(probe(profile_8_1)).streams[0]
+    assert (video.dv_profile, video.dv_compat_id) == (8, 1)
+    assert (video.color_transfer, video.color_primaries) == ("smpte2084", "bt2020")
     hdr10plus = parse(
         probe(stream(color_transfer="smpte2084")),
         [{"side_data_type": "HDR Dynamic Metadata SMPTE2094-40 (HDR10+)"}],

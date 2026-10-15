@@ -16,7 +16,7 @@ from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass, field
 from functools import partial
 from pathlib import Path
-from typing import Protocol
+from typing import Any, Protocol
 
 from sqlalchemy import delete, select
 
@@ -94,6 +94,15 @@ def _offset(report: Callable[[int], None], before: int, n: int) -> None:
 
 def _in_folders(relative_path: str, folders: list[str]) -> bool:
     return any(relative_path == f or relative_path.startswith(f"{f}/") for f in folders)
+
+
+def _read_before_dv_profiles(probe: dict[str, Any] | None) -> bool:
+    """A Dolby Vision file read before 0.9.2 recorded its profile (ADR-0033): read it again
+    once, so failure and review reports can say which profile it is."""
+    return any(
+        s.get("kind") == "video" and s.get("hdr") == "dolby_vision" and "dv_profile" not in s
+        for s in (probe or {}).get("streams") or []
+    )
 
 
 def content_key(fp: str) -> str:
@@ -304,13 +313,19 @@ class Scanner:
             if library is None:
                 raise LookupError("library no longer exists")
             root = Path(library.path)
-            existing = {
-                row.path: (row.id, row.size, row.mtime_ns, row.fingerprint, row.status)
-                for row in session.scalars(
-                    select(MediaFile).where(MediaFile.library_id == library_id)
-                )
-                if folders is None or _in_folders(row.relative_path, folders)
-            }
+            existing = {}
+            reread: set[str] = set()  # unchanged, but read again (see _read_before_dv_profiles)
+            for row in session.scalars(select(MediaFile).where(MediaFile.library_id == library_id)):
+                if folders is None or _in_folders(row.relative_path, folders):
+                    existing[row.path] = (
+                        row.id,
+                        row.size,
+                        row.mtime_ns,
+                        row.fingerprint,
+                        row.status,
+                    )
+                    if _read_before_dv_profiles(row.probe):
+                        reread.add(row.path)
         if not root.is_dir():
             raise FileNotFoundError(f"library folder is missing: {root}")
 
@@ -337,7 +352,9 @@ class Scanner:
         touched: list[int] = []
         for item in found:
             known = existing.get(item.path.as_posix())
-            if known is not None and known[1] == item.size and known[2] == item.mtime_ns:
+            unchanged = known is not None and (known[1], known[2]) == (item.size, item.mtime_ns)
+            if unchanged and item.path.as_posix() not in reread:
+                assert known is not None  # noqa: S101
                 touched.append(known[0])
                 progress.unchanged += 1
             elif known is None and vanished_by_content:

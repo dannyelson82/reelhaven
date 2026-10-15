@@ -84,8 +84,10 @@ def process(db: Database, settings: Settings, job_id: int) -> None:
                 _set(db, job_id, progress=round(fraction * 0.8, 3))  # remux = first 80 %
 
         def remux_and_verify(plan: Plan) -> MediaInfo:
+            args = remux_command(settings.ffmpeg, source, output, info, plan)
+            _set(db, job_id, command=args)  # for the failure report (ADR-0033)
             run_ffmpeg(
-                remux_command(settings.ffmpeg, source, output, info, plan),
+                args,
                 duration or None,
                 timeout_s=600 + duration * 2,
                 on_progress=progress,

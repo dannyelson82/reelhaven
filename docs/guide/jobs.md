@@ -54,6 +54,18 @@ lost: the automatic queue takes those files again in its own order, with
 retried files last. Running jobs keep going, and queued jobs in other
 libraries stay where they are.
 
+
+## Failure report
+
+**Download failure report** (on the **Failed** tab) saves one text file with
+everything ReelHaven knows about every failed job, newest first, including
+failures a retry has cleared from the tab: the file's tracks and HDR type
+(with the Dolby Vision profile), what was planned, the device, the exact
+ffmpeg command and the error. Send it when asking for help with a failure.
+
+Passwords and API keys are removed from the report. File and folder names stay
+in, because they help work out what went wrong.
+
 **Pause all processing** (top of the Jobs page and the Dashboard) stops new
 jobs from starting; running jobs finish. **Resume processing** carries on.
 Jobs started by an [Automatic](automation.md) library show *requested by
