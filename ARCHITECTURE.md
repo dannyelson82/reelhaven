@@ -434,6 +434,7 @@ endpoint (unauthenticated, no details) for Docker health checks.
 | 0.7 Setup wizard (ADR-0026) | A guided flow from install to an automatic library: hardware, apps, folder, languages, size vs quality with estimates, audio, test run, Automatic. Space savings tracking (lifetime, weekly, monthly). |
 | 0.8 Compare and tune (ADR-0031) | Full-screen comparison viewer (side by side with synced zoom/pan, swipe), in-browser comparison clips, Mimic in the wizard, find my sweet spot (three sizes, dial in; library files or open-licence test films), audio bitrate guidance. |
 | 0.9 Insight and safety (ADR-0032) | Per-GPU performance and trends, review page, wrong-language actions (flag, quarantine + re-search, delete). No two-factor login. |
+| 0.9.2 Fixes and reports (ADR-0033) | Failure and review reports, Retry all clears failures, Keep me logged in, Opus audio fix. |
 | 1.0 | Hardening, audit log page, docs, release checklist, CA submission. |
 
 Language handling ships before encoding on purpose: it's fast (stream copy),
