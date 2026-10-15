@@ -1,3 +1,4 @@
+import { IconDownload } from '@tabler/icons-react';
 import {
   Alert,
   Badge,
@@ -16,6 +17,7 @@ import {
 } from '@mantine/core';
 import { useState } from 'react';
 import { errorMessage } from '../api/client';
+import { FAILURE_REPORT_URL, useDeveloperOptions } from '../api/developer';
 import { useDeviceName } from '../api/devices';
 import {
   type Job,
@@ -51,6 +53,7 @@ export function JobsPage() {
   const [page, setPage] = useState(1);
   const jobs = useJobs(filter === 'upcoming' ? 'all' : filter, page);
   const upcomingCount = useUpcoming(null, 1).data?.total;
+  const developer = useDeveloperOptions();
   const live = useLiveJobs();
   const counts = live?.counts ?? jobs.data?.counts ?? {};
   const active = (counts.queued ?? 0) + (counts.running ?? 0) + (counts.verifying ?? 0);
@@ -85,8 +88,23 @@ export function JobsPage() {
           w="fit-content"
         />
       </ScrollArea>
-      {filter === 'active' && (counts.queued ?? 0) > 0 && <BackToUpcoming />}
-      {filter === 'failed' && (counts.failed ?? 0) > 0 && <RetryAll count={counts.failed ?? 0} />}
+      {developer && filter === 'active' && (counts.queued ?? 0) > 0 && <BackToUpcoming />}
+      {filter === 'failed' && (
+        <Group>
+          {(counts.failed ?? 0) > 0 && <RetryAll count={counts.failed ?? 0} />}
+          {developer && (
+            <Button
+              component="a"
+              href={FAILURE_REPORT_URL}
+              download
+              variant="default"
+              leftSection={<IconDownload size={16} />}
+            >
+              Download failure report
+            </Button>
+          )}
+        </Group>
+      )}
       {filter === 'upcoming' ? (
         <UpcomingList />
       ) : (

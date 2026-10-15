@@ -36,6 +36,8 @@ file leaves it, the reason it was there is gone.
     the report to.
 - **The ffmpeg command is stored on the job** (`jobs.command`) when it runs,
   so the report shows what really ran instead of rebuilding it.
+- **Developer options** (Settings → Developer, off by default) shows the
+  report buttons, so everyday pages stay uncluttered.
 - **A review record** (`review_log` table): each (file, kind) the Review page
   finds is recorded with its detail when first seen, updated while it stays,
   and marked resolved when it's gone. Resolved entries are removed after 90

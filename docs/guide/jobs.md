@@ -48,11 +48,25 @@ deleted: the failure report still includes them.
 Test-run samples and sweet-spot steps aren't included; try those again from
 their own pages.
 
-**Move waiting jobs back to Upcoming** (on the **In progress** tab) takes jobs
+**Move waiting jobs back to Upcoming** (on the **In progress** tab, once
+[Developer options](developer.md) are on) takes jobs
 in Automatic libraries that haven't started yet out of the queue. Nothing is
 lost: the automatic queue takes those files again in its own order, with
 retried files last. Running jobs keep going, and queued jobs in other
 libraries stay where they are.
+
+
+## Failure report
+
+**Download failure report** (on the **Failed** tab, once **Developer options**
+are on, see [Developer options](developer.md)) saves one text file with
+everything ReelHaven knows about every failed job, newest first, including
+failures a retry has cleared from the tab: the file's tracks and HDR type
+(with the Dolby Vision profile), what was planned, the device, the exact
+ffmpeg command and the error. Send it when asking for help with a failure.
+
+Passwords and API keys are removed from the report. File and folder names stay
+in, because they help work out what went wrong.
 
 **Pause all processing** (top of the Jobs page and the Dashboard) stops new
 jobs from starting; running jobs finish. **Resume processing** carries on.

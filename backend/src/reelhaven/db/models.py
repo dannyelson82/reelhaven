@@ -264,6 +264,8 @@ class Job(Base):
     # Set when Retry or Retry all replaced this failure: off the Failed tab, still in the
     # failure report (ADR-0033).
     cleared_at: Mapped[datetime | None] = mapped_column(default=None)
+    # The last ffmpeg command the job ran (ADR-0033).
+    command: Mapped[list[str] | None] = mapped_column(JSON, default=None)
 
 
 class JobResult(Base):
@@ -428,3 +430,22 @@ class TuneStep(Base):
     error: Mapped[str | None] = mapped_column(Text, default=None)
     created_at: Mapped[datetime] = mapped_column(default=utcnow)
     finished_at: Mapped[datetime | None] = mapped_column(default=None)
+
+
+class ReviewLogEntry(Base):
+    """A file the Review page listed, kept after it's resolved (ADR-0033)."""
+
+    __tablename__ = "review_log"
+    __table_args__ = (Index("ix_review_log_open", "resolved_at", "media_file_id", "kind"),)
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    media_file_id: Mapped[int | None] = mapped_column(
+        ForeignKey("media_files.id", ondelete="SET NULL"), default=None
+    )
+    library_name: Mapped[str] = mapped_column(String(256))
+    relative_path: Mapped[str] = mapped_column(String(4096))
+    kind: Mapped[str] = mapped_column(String(32))
+    detail: Mapped[str] = mapped_column(Text)
+    first_seen_at: Mapped[datetime] = mapped_column(default=utcnow)
+    last_seen_at: Mapped[datetime] = mapped_column(default=utcnow)
+    resolved_at: Mapped[datetime | None] = mapped_column(default=None)

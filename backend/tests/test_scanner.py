@@ -12,7 +12,14 @@ from reelhaven import scanner as scanner_module
 from reelhaven.app import create_app
 from reelhaven.config import Settings
 from reelhaven.db import Database, Library, MediaFile
-from reelhaven.scanner import Scanner, ScanProgress, eta_seconds, is_ignored_file, walk
+from reelhaven.scanner import (
+    Scanner,
+    ScanProgress,
+    _read_before_dv_profiles,
+    eta_seconds,
+    is_ignored_file,
+    walk,
+)
 from tests.helpers import API, admin_client
 from tests.media_fixtures import FFMPEG, Audio, Spec, Sub, make
 
@@ -331,3 +338,12 @@ def test_partial_scan_ignores_paths_outside_the_library(
     progress = run_partial(scanner_for(db, settings), library.id, ["../Elsewhere", "Film"])
     assert progress.found == 1
     assert [r.relative_path for r in rows(db)] == ["Film/film.mkv"]
+
+
+def test_dolby_vision_files_read_before_profiles_are_read_again() -> None:
+    old = {"streams": [{"kind": "video", "hdr": "dolby_vision"}]}
+    new = {"streams": [{"kind": "video", "hdr": "dolby_vision", "dv_profile": 8}]}
+    unknown = {"streams": [{"kind": "video", "hdr": "dolby_vision", "dv_profile": None}]}
+    sdr = {"streams": [{"kind": "video", "hdr": "sdr"}]}
+    assert _read_before_dv_profiles(old) is True
+    assert not any(_read_before_dv_profiles(p) for p in (new, unknown, sdr, None))
