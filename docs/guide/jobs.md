@@ -48,7 +48,8 @@ deleted: the failure report still includes them.
 Test-run samples and sweet-spot steps aren't included; try those again from
 their own pages.
 
-**Move waiting jobs back to Upcoming** (on the **In progress** tab) takes jobs
+**Move waiting jobs back to Upcoming** (on the **In progress** tab, once
+[Developer options](developer.md) are on) takes jobs
 in Automatic libraries that haven't started yet out of the queue. Nothing is
 lost: the automatic queue takes those files again in its own order, with
 retried files last. Running jobs keep going, and queued jobs in other

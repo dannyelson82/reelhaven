@@ -88,7 +88,7 @@ export function JobsPage() {
           w="fit-content"
         />
       </ScrollArea>
-      {filter === 'active' && (counts.queued ?? 0) > 0 && <BackToUpcoming />}
+      {developer && filter === 'active' && (counts.queued ?? 0) > 0 && <BackToUpcoming />}
       {filter === 'failed' && (
         <Group>
           {(counts.failed ?? 0) > 0 && <RetryAll count={counts.failed ?? 0} />}

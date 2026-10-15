@@ -15,6 +15,10 @@ With it on:
 - The **Jobs** page's **Failed** tab shows **Download failure report**: every
   failed job, including ones a retry has cleared from the tab. See
   [Jobs](jobs.md#failure-report).
+- The **Jobs** page's **In progress** tab shows **Move waiting jobs back to
+  Upcoming**, which empties the queue of jobs in Automatic libraries that haven't
+  started, so the automatic queue takes them again in order. See
+  [Jobs](jobs.md).
 - The same button is on the **Developer** page.
 
 The reports are plain text files. Passwords and API keys are removed; file and

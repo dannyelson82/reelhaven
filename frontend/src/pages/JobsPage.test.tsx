@@ -290,6 +290,7 @@ it('moves waiting jobs back to Upcoming from the In progress tab', async () => {
     'GET jobs?status=all&offset=0&limit=50': page,
     'GET jobs?status=active&offset=0&limit=50': page,
     'POST jobs/back-to-upcoming': { body: { moved: 1200 } },
+    'GET settings/developer': { body: { enabled: true } },
   });
   render(<App />);
   expect(screen.queryByText('Move waiting jobs back to Upcoming')).not.toBeInTheDocument();
