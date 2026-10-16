@@ -436,6 +436,7 @@ endpoint (unauthenticated, no details) for Docker health checks.
 | 0.8 Compare and tune (ADR-0031) | Full-screen comparison viewer (side by side with synced zoom/pan, swipe), in-browser comparison clips, Mimic in the wizard, find my sweet spot (three sizes, dial in; library files or open-licence test films), audio bitrate guidance. |
 | 0.9 Insight and safety (ADR-0032) | Per-GPU performance and trends, review page, wrong-language actions (flag, quarantine + re-search, delete). No two-factor login. |
 | 0.9.2 Fixes and reports (ADR-0033) | Failure and review reports, Retry all clears failures, Keep me logged in, Opus audio fix. |
+| 0.9.3 Fewer things to review (ADR-0034, 0035) | Dolby Vision track changes keep Dolby Vision, results leave the Review page, damaged files swapped like wrong-language ones, planner fixes. |
 | 1.0 | Hardening, audit log page, docs, release checklist, CA submission. |
 
 Language handling ships before encoding on purpose: it's fast (stream copy),
