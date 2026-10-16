@@ -18,10 +18,10 @@ from functools import partial
 from pathlib import Path
 from typing import Any, Protocol
 
-from sqlalchemy import delete, select
+from sqlalchemy import delete, select, update
 
 from reelhaven.config import Settings
-from reelhaven.db import Database, Library, MediaFile
+from reelhaven.db import Database, Job, Library, MediaFile
 from reelhaven.db.types import utcnow
 from reelhaven.media.probe import ProbeError, probe
 from reelhaven.paths import INTERNAL_DIR, PathNotAllowedError, resolve_within
@@ -385,6 +385,16 @@ class Scanner:
         if vanished:
             ids = [v[0] for v in vanished.values()]
             with self._db.write() as session:
+                # A deleted file's failures can't be retried: off the Failed tab (ADR-0033).
+                session.execute(
+                    update(Job)
+                    .where(
+                        Job.media_file_id.in_(ids),
+                        Job.status == "failed",
+                        Job.cleared_at.is_(None),
+                    )
+                    .values(cleared_at=utcnow())
+                )
                 session.execute(delete(MediaFile).where(MediaFile.id.in_(ids)))
             progress.removed = len(ids)
 

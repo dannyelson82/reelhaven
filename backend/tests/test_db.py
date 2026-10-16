@@ -155,3 +155,68 @@ def test_upgrade_with_existing_library(tmp_path: Path) -> None:
         library = session.scalars(select(Library)).one()
         assert library.language_policy == {}
     database.close()
+
+
+def test_upgrade_clears_failures_that_cant_be_retried(tmp_path: Path) -> None:
+    """0023: failed jobs whose file has had a newer job, or whose file is gone."""
+    from alembic import command
+
+    from reelhaven.db import Job, MediaFile
+    from reelhaven.db.engine import alembic_config
+
+    database = Database(tmp_path / "old.db")
+    command.upgrade(alembic_config(database.engine), "0022")
+    with database.write() as session:
+        library = Library(name="TV", type="tv", path="/media/TV")
+        session.add(library)
+        session.flush()
+        files = [
+            MediaFile(
+                library_id=library.id,
+                path=f"/media/TV/{n}.mkv",
+                relative_path=f"{n}.mkv",
+                size=1,
+                mtime_ns=1,
+                fingerprint=n,
+                status="ok",
+            )
+            for n in ("a", "b")
+        ]
+        session.add_all(files)
+        session.flush()
+
+        def job(file_id: int | None, status: str, kind: str = "encode") -> Job:
+            row = Job(
+                library_id=library.id,
+                media_file_id=file_id,
+                type=kind,
+                status=status,
+                source_path="/media/TV/x.mkv",
+                source_size=1,
+                source_mtime_ns=1,
+                plan={},
+                probe={},
+                requested_by="automatic",
+            )
+            session.add(row)
+            session.flush()
+            return row
+
+        superseded = job(files[0].id, "failed")
+        job(files[0].id, "done")
+        latest = job(files[1].id, "failed")  # still the file's latest: Retry all handles it
+        gone = job(None, "failed")
+        film_step = job(None, "failed", "tune")  # sweet-spot steps have no library file
+        ids = (superseded.id, latest.id, gone.id, film_step.id)
+    database.migrate()
+    with database.read() as session:
+        cleared = {
+            j.id: j.cleared_at is not None for j in session.scalars(select(Job)) if j.id in ids
+        }
+    assert cleared == {
+        superseded.id: True,
+        latest.id: False,
+        gone.id: True,
+        film_step.id: False,
+    }
+    database.close()
