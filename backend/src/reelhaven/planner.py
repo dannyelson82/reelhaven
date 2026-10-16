@@ -11,7 +11,7 @@ from typing import Literal
 
 from pydantic import BaseModel
 
-from reelhaven.audio_rules import AudioCodec, conversion, saved_bytes
+from reelhaven.audio_rules import AudioCodec, conversion, saved_bytes, with_believable_bitrates
 from reelhaven.encode_planner import VideoPlan, format_size, plan_video
 from reelhaven.media.info import MediaInfo, Stream
 from reelhaven.media.languages import display_name
@@ -112,6 +112,24 @@ def plan(info: MediaInfo, original_language: str | None, policy: LanguagePolicy)
     keep_audio: dict[int, str] = {}  # index -> reason kept
     drop_audio: dict[int, str] = {}
     untagged_kept = policy.untagged == "keep"
+    # Every audio track tagged commentary means none is the main audio, so the tags are
+    # wrong: the wanted-language tracks are the main audio, not a reason to call the
+    # file wrong language (ADR-0035). A real commentary next to a main track in another
+    # language stays a commentary, so that main track is never removed.
+    as_main = (
+        {s.index for s in audio if _effective_language(s, policy) in wanted}
+        if audio and all(s.commentary for s in audio)
+        else set()
+    )
+    if as_main:
+        details.append(
+            "Every audio track is tagged commentary; the ones in a wanted language are "
+            "treated as the main audio."
+        )
+
+    def commentary(stream: Stream) -> bool:
+        return stream.commentary and stream.index not in as_main
+
     for stream in audio:
         language = _effective_language(stream, policy)
         if language is None:
@@ -120,7 +138,7 @@ def plan(info: MediaInfo, original_language: str | None, policy: LanguagePolicy)
             else:  # untagged treated as a language that may or may not be wanted
                 drop_audio[stream.index] = "untagged"
         elif language in wanted:
-            if stream.commentary and not policy.keep_commentary:
+            if commentary(stream) and not policy.keep_commentary:
                 drop_audio[stream.index] = "commentary"
             else:
                 keep_audio[stream.index] = (
@@ -129,7 +147,7 @@ def plan(info: MediaInfo, original_language: str | None, policy: LanguagePolicy)
         else:
             drop_audio[stream.index] = "not a wanted language"
 
-    main_kept = [s for s in audio if s.index in keep_audio and not s.commentary]
+    main_kept = [s for s in audio if s.index in keep_audio and not commentary(s)]
     if audio and not main_kept:
         # Never remove the last audio track (§8.2): keep everything and flag.
         has_untagged = any(s.language is None for s in audio)
@@ -175,7 +193,7 @@ def plan(info: MediaInfo, original_language: str | None, policy: LanguagePolicy)
     defaults: dict[int, bool] = {s.index: s.default for s in [*audio, *subtitles]}
     forced_choice: int | None = None  # the subtitle to mark forced, if any
     if policy.set_defaults:
-        kept_main = [s for s in audio if s.index in keep_audio and not s.commentary]
+        kept_main = [s for s in audio if s.index in keep_audio and not commentary(s)]
         chosen = _pick_default_audio(kept_main, original_language, viewer)
         if chosen is not None:
             for stream in audio:
@@ -354,6 +372,7 @@ _CODEC_NAMES = {"eac3": "E-AC-3", "aac": "AAC", "opus": "Opus"}
 
 def _plan_audio(info: MediaInfo, result: Plan, profile: ProfileSettings) -> int:
     """Mark kept audio tracks the profile converts; returns the estimated bytes saved."""
+    info = with_believable_bitrates(info)
     saved = 0
     for track in result.tracks:
         if track.kind != "audio" or not track.keep:

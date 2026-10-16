@@ -6,8 +6,9 @@ from reelhaven.audio_rules import (
     is_lossless,
     is_object_audio,
     target_kbps,
+    with_believable_bitrates,
 )
-from reelhaven.media.info import Stream
+from reelhaven.media.info import MediaInfo, Stream
 
 
 def a(
@@ -112,3 +113,30 @@ def test_downmix_leaves_stereo_to_the_usual_rules() -> None:
 
 def test_downmix_needs_a_converting_profile() -> None:
     assert conversion(a("truehd"), "copy", "aac", None, downmix=True) is None
+
+
+def stale_file(audio_kbps: int, video_kbps: int, total_kbps: int) -> MediaInfo:
+    video = Stream(index=0, kind="video", codec="hevc", bit_rate=video_kbps * 1000)
+    track = a("aac", channels=2, kbps=audio_kbps)
+    return MediaInfo(
+        container="matroska,webm",
+        duration_s=2700,
+        size_bytes=total_kbps * 1000 * 2700 // 8,
+        bit_rate=None,
+        streams=[video, track],
+    )
+
+
+def test_stale_audio_bitrate_tags_are_dropped() -> None:
+    # From the owner's library: tags left by an earlier re-encode add up to far more
+    # than the file (ADR-0035). The AAC track isn't converted on the strength of them.
+    info = with_believable_bitrates(stale_file(768, 8_200, 2_400))
+    track = info.streams[1]
+    assert track.bit_rate is None
+    assert conversion(track, "convert", "opus", None) is None
+
+
+def test_believable_tags_are_kept() -> None:
+    info = with_believable_bitrates(stale_file(640, 6_000, 6_700))
+    assert info.streams[1].bit_rate == 640_000
+    assert conversion(info.streams[1], "convert", "opus", None) is not None

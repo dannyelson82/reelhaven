@@ -7,7 +7,7 @@ the command and tells the verifier what to expect.
 from dataclasses import dataclass
 from pathlib import Path
 
-from reelhaven.audio_rules import ENCODER, conversion
+from reelhaven.audio_rules import ENCODER, conversion, with_believable_bitrates
 from reelhaven.encode_planner import encode_marker
 from reelhaven.encoders import (
     Codec,
@@ -55,6 +55,7 @@ class OutputStream:
 def output_streams(
     info: MediaInfo, plan: Plan, profile: ProfileSettings, fmt: str
 ) -> list[OutputStream]:
+    info = with_believable_bitrates(info)  # as the plan saw it (ADR-0035)
     planned = {t.index: t for t in plan.tracks}
     main_video = info.video
     out: list[OutputStream] = []
