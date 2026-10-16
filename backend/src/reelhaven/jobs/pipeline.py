@@ -37,6 +37,16 @@ class JobFailedError(Exception):
     pass
 
 
+def remux_ffmpeg(settings: Settings, info: MediaInfo) -> str:
+    """The ffmpeg for a track change: jellyfin-ffmpeg drops the Dolby Vision record on
+    stream copy, so Dolby Vision sources use the standard build when there is one
+    (ADR-0034)."""
+    video = info.video
+    if video is not None and video.hdr == "dolby_vision" and settings.copy_ffmpeg:
+        return settings.copy_ffmpeg
+    return settings.ffmpeg
+
+
 def _set(db: Database, job_id: int, **fields: object) -> None:
     with db.write() as session:
         job = session.get(Job, job_id)
@@ -84,7 +94,7 @@ def process(db: Database, settings: Settings, job_id: int) -> None:
                 _set(db, job_id, progress=round(fraction * 0.8, 3))  # remux = first 80 %
 
         def remux_and_verify(plan: Plan) -> MediaInfo:
-            args = remux_command(settings.ffmpeg, source, output, info, plan)
+            args = remux_command(remux_ffmpeg(settings, info), source, output, info, plan)
             _set(db, job_id, command=args)  # for the failure report (ADR-0033)
             run_ffmpeg(
                 args,
