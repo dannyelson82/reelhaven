@@ -237,6 +237,13 @@ def with_audio(info: MediaInfo, codec: str, kbps: int | None, channels: int = 6)
         channels=channels,
         bit_rate=kbps * 1000 if kbps else None,
     )
+    return consistent(info)
+
+
+def consistent(info: MediaInfo) -> MediaInfo:
+    """Size the file to match its tracks, as a real file would be (stale tags aside)."""
+    total = sum(s.bit_rate or 0 for s in info.streams)
+    info.size_bytes = int(total * (info.duration_s or 0) / 8)
     return info
 
 
@@ -274,6 +281,7 @@ def test_track_changes_take_the_audio_conversion_along() -> None:
     info.streams.append(
         Stream(index=2, kind="audio", codec="ac3", language="fra", channels=6, bit_rate=448_000)
     )
+    consistent(info)
     p = plan_file(info, "eng", LanguagePolicy(), CONVERT_AAC)
     assert p.action == "remux"
     assert [t.index for t in p.tracks if t.convert_codec] == [1]

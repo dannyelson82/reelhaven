@@ -470,3 +470,20 @@ def test_files_needing_review_get_no_forced_flags() -> None:
     p = plan(info, "jpn", DEFAULT)  # no wanted audio: review
     assert p.action == "skip"
     assert forced_flags(p) == {}
+
+
+def test_only_wanted_audio_tagged_commentary_is_the_main_audio() -> None:
+    # A real file: its only audio, in English, carries the commentary flag (ADR-0035).
+    info = media(audio(1, "eng", default=True, commentary=True), sub(2, "eng"))
+    result = plan(info, "eng", DEFAULT)
+    assert "wrong_language" not in result.flags and "no_wanted_audio" not in result.flags
+    assert any("treated as the main audio" in d for d in result.details)
+    assert [t.keep for t in result.tracks if t.kind == "audio"] == [True]
+
+
+def test_a_real_commentary_track_is_still_commentary() -> None:
+    info = media(audio(1, "eng", default=True), audio(2, "eng", commentary=True))
+    result = plan(info, "eng", DEFAULT)
+    assert not any("treated as the main audio" in d for d in result.details)
+    kept = {t.index: t.keep for t in result.tracks if t.kind == "audio"}
+    assert kept == {1: True, 2: DEFAULT.keep_commentary}

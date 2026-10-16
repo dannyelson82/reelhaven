@@ -3,7 +3,7 @@
 from dataclasses import dataclass
 from typing import Literal
 
-from reelhaven.media.info import Stream
+from reelhaven.media.info import MediaInfo, Stream
 
 AudioCodec = Literal["eac3", "aac", "opus"]
 
@@ -86,3 +86,27 @@ def saved_bytes(stream: Stream, target_kbps: int, duration_s: float) -> int:
     if before is None:
         return 0
     return max(int((before - target_kbps * 1000) * duration_s / 8), 0)
+
+
+def with_believable_bitrates(info: MediaInfo) -> MediaInfo:
+    """``info`` with audio bitrate tags that can't be right removed (ADR-0035).
+
+    MKV statistics tags (BPS) go stale when another tool re-encodes a file and keeps
+    them. A track can't use more than the whole file, and the tracks together can't
+    either; when that happens the audio figures are dropped, so a lossy track isn't
+    converted on the strength of a bitrate it never had.
+    """
+    total = info.bit_rate or (
+        int(info.size_bytes * 8 / info.duration_s) if info.size_bytes and info.duration_s else None
+    )
+    if total is None:
+        return info
+    tagged = sum(s.bit_rate or 0 for s in info.streams)
+    stale = tagged > total * 1.05
+    streams = [
+        s.model_copy(update={"bit_rate": None})
+        if s.kind == "audio" and s.bit_rate and (stale or s.bit_rate > total)
+        else s
+        for s in info.streams
+    ]
+    return info.model_copy(update={"streams": streams})
