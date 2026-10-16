@@ -186,6 +186,8 @@ class MediaFile(Base):
     # An audio conversion that was tried and didn't make the file smaller (its signature):
     # it isn't planned again while the profile asks for the same conversion.
     no_gain_audio: Mapped[str | None] = mapped_column(String(32), default=None)
+    # Colour check (ADR-0036): verdict and measurements, tied to the file's size and time.
+    colour_check: Mapped[dict[str, Any] | None] = mapped_column(default=None)
     # Review page (ADR-0032): kinds the owner chose to ignore, each with the file's
     # "size:mtime" at the time; a changed file shows up again.
     review_ignored: Mapped[dict[str, Any] | None] = mapped_column(default=None)

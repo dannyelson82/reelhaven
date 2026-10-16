@@ -3,7 +3,7 @@ import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tansta
 import { api, json } from './client';
 
 export type ReviewKind =
-  'wrong_language' | 'failed' | 'unreadable' | 'skipped' | 'no_gain' | 'waiting';
+  'wrong_language' | 'wrong_colours' | 'failed' | 'unreadable' | 'skipped' | 'no_gain' | 'waiting';
 
 export interface ReviewItem {
   kind: ReviewKind;
@@ -31,6 +31,12 @@ export const REVIEW_KINDS: { kind: ReviewKind; label: string; about: string }[] 
     kind: 'wrong_language',
     label: 'Wrong language',
     about: "None of the audio is in the library's languages: probably the wrong release.",
+  },
+  {
+    kind: 'wrong_colours',
+    label: 'Wrong colours',
+    about:
+      'The picture plays green and purple: usually a Dolby Vision file that lost its Dolby Vision information when it was re-encoded. It needs another copy.',
   },
   {
     kind: 'failed',

@@ -129,3 +129,29 @@ it('keeps results off the Review page and lists them under Stats', async () => {
     await screen.findByText("Re-encoding with this profile didn't save enough."),
   ).toBeInTheDocument();
 });
+
+it('lists wrong-colour files with Quarantine and Delete', async () => {
+  const c = {
+    wrong_language: 0,
+    wrong_colours: 1,
+    failed: 0,
+    unreadable: 0,
+    skipped: 0,
+    no_gain: 0,
+    waiting: 0,
+  };
+  const detail = 'Green and purple picture: probably a Dolby Vision profile 5 file.';
+  window.location.hash = '#/review?kind=wrong_colours';
+  mockApi({
+    'GET auth/state': loggedIn,
+    'GET review?offset=0&limit=1': { body: { counts: c, ignored: 0, total: 1, items: [] } },
+    'GET review?kind=wrong_colours&offset=0&limit=100': {
+      body: { counts: c, ignored: 0, total: 1, items: [item('wrong_colours', { detail })] },
+    },
+  });
+  render(<App />);
+  expect(await screen.findByRole('tab', { name: /Wrong colours/ })).toBeInTheDocument();
+  expect(await screen.findByText(detail)).toBeInTheDocument();
+  expect(screen.getByRole('button', { name: 'Quarantine' })).toBeInTheDocument();
+  expect(screen.getByRole('button', { name: 'Delete' })).toBeInTheDocument();
+});

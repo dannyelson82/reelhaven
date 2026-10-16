@@ -55,6 +55,7 @@ export const FLAG_LABELS: Record<string, string> = {
   hdr10plus: 'HDR10+',
   no_audio: 'No audio',
   probe_failed: "Can't read",
+  wrong_colours: 'Wrong colours',
 };
 
 export function usePolicy(libraryId: number) {

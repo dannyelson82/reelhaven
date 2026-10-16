@@ -18,6 +18,7 @@ from reelhaven.api.deps import (
     require_setup_done,
 )
 from reelhaven.api.schemas import StrictModel
+from reelhaven.automation import swap_cause
 from reelhaven.db import Database, Job, Library, MediaFile
 from reelhaven.dryrun import plan_library
 from reelhaven.jobs import wrong_language
@@ -148,7 +149,8 @@ def act_on_wrong_language(
         library_id = media_file.library_id
     plan = next((p for p in plan_library(db, library_id) if p.file_id == file_id), None)
     flags = plan.plan.flags if plan and plan.plan else []
-    if "wrong_language" not in flags and "no_wanted_audio" not in flags:
+    cause = swap_cause(plan) if plan else None
+    if cause is None and "no_wanted_audio" not in flags:
         raise HTTPException(status.HTTP_409_CONFLICT, "not_wrong_language")
     with db.write() as session:
         media_file = session.get(MediaFile, file_id)
@@ -160,7 +162,9 @@ def act_on_wrong_language(
         ).first()
         if busy is not None:
             raise HTTPException(status.HTTP_409_CONFLICT, "file_busy")
-        job = wrong_language.create_job(session, library, media_file, body.action, principal.actor)
+        job = wrong_language.create_job(
+            session, library, media_file, body.action, principal.actor, cause
+        )
         job_id = job.id
     request.app.state.queue.notify()
     clear_cache()
