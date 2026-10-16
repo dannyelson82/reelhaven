@@ -59,6 +59,12 @@ export const REVIEW_KINDS: { kind: ReviewKind; label: string; about: string }[] 
   },
 ];
 
+/** Results, not decisions (ADR-0035): listed under Stats → Kept as is, not on Review. */
+export const KEPT_KINDS: ReviewKind[] = ['no_gain', 'skipped'];
+
+/** What the Review page lists: files that need a decision. */
+export const DECISION_KINDS = REVIEW_KINDS.filter((k) => !KEPT_KINDS.includes(k.kind));
+
 export function useReview(
   params: { kind?: ReviewKind; showIgnored?: boolean; page?: number } = {},
   pageSize = 100,
@@ -76,13 +82,13 @@ export function useReview(
   });
 }
 
-/** How many files need a decision (ignored ones and waiting ones left out), for the menu. */
+/** How many files need a decision, for the menu: ignored, waiting and kept-as-is left out. */
 export function useReviewCount(): number {
   const review = useReview({}, 1);
   const counts = review.data?.counts;
   if (!counts) return 0;
   return Object.entries(counts)
-    .filter(([kind]) => kind !== 'waiting')
+    .filter(([kind]) => kind !== 'waiting' && !KEPT_KINDS.includes(kind as ReviewKind))
     .reduce((sum, [, n]) => sum + n, 0);
 }
 

@@ -16,6 +16,7 @@ import { useState } from 'react';
 import { errorMessage } from '../api/client';
 import { useDeviceName } from '../api/devices';
 import { type DeviceStats, usePerformance } from '../api/stats';
+import { KeptAsIs } from '../components/KeptAsIs';
 import { SavingsCard } from '../components/SavingsCard';
 import { formatBytes } from '../format';
 
@@ -72,6 +73,7 @@ export function StatsPage() {
         </Card>
       )}
       <SavingsCard />
+      <KeptAsIs />
     </Stack>
   );
 }

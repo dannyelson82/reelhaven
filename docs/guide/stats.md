@@ -34,3 +34,15 @@ and failures.
 
 The same [space saved](jobs.md#space-saved) card as on the Dashboard: total, this week and
 this month, per week or month, and per library.
+
+## Kept as is
+
+Files ReelHaven left unchanged on purpose. Nothing to decide; they're listed so
+you can see what was kept and why.
+
+- **No gain**: re-encoding, or converting the audio, didn't make the file
+  smaller, so the original was kept. It isn't tried again with the same
+  settings.
+- **Not re-encoded**: Dolby Vision and HDR10+ files, which ReelHaven never
+  re-encodes (it would lose their extra picture information). Their languages
+  are still handled, and track changes keep the Dolby Vision layer.

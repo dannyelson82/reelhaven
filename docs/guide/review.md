@@ -17,9 +17,12 @@ this page changes files by itself.
 | **Wrong language** | None of the audio is in the library's languages, for example an English film with only Spanish audio: probably the wrong release. It shows the audio languages and the title's original language. Untagged audio never counts as wrong. |
 | **Failed** | The file's last job failed. The original wasn't changed. **Try again** queues it again. |
 | **Can't be read** | ReelHaven couldn't read the file. It may be damaged, or still being copied; it's read again when it changes. |
-| **Not re-encoded** | Dolby Vision and HDR10+ files, which ReelHaven never re-encodes (it would lose their extra picture information). Their languages are still handled. Track changes on Dolby Vision files keep the Dolby Vision layer, and the check after each job makes sure of it. |
-| **No gain** | Re-encoding, or converting the audio, didn't make the file smaller, so the original was kept. It isn't tried again with the same settings. |
 | **Waiting** | The title's original language hasn't been looked up yet, so the file waits (see [Languages](languages.md)). Not counted in the menu: it sorts itself out. |
+
+Files ReelHaven kept unchanged on purpose aren't listed here, because there's nothing to
+decide. They're under **Stats → Kept as is**: **No gain** (re-encoding or converting
+the audio didn't make the file smaller) and **Not re-encoded** (Dolby Vision and HDR10+
+files). See [Stats](stats.md#kept-as-is).
 
 ## Actions
 
