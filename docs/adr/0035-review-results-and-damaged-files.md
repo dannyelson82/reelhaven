@@ -29,9 +29,10 @@ Sonarr/Radarr download another release, and ReelHaven processes it as usual.
   listed under **Stats → Kept as is**. Review keeps what needs a decision: wrong
   language, failed, unreadable and waiting. The review report still includes
   everything.
-- **Commentary-only audio:** when no audio track in a wanted language is main
-  audio, a wanted-language track tagged commentary counts as main audio. A file
-  whose only English track is mis-tagged is not "wrong language".
+- **Commentary-only audio:** when *every* audio track is tagged commentary, the
+  tags are wrong (a file has no main audio), so the wanted-language tracks count
+  as main audio. A real commentary next to a main track in another language
+  stays a commentary, so that main track is never removed.
 - **Stale audio bitrate tags:** an audio track's bitrate tag is ignored when it
   is higher than the whole file's bitrate, or when all the tracks' tags add up to
   more than the whole file. A lossy track with no believable bitrate isn't
