@@ -43,7 +43,7 @@ policy**. Nothing changes until you apply a [dry run](dry-run.md).
 | **Languages you want** | English | Audio and subtitles in these languages are kept. The **first** one is your own language: it decides which subtitles play by default. |
 | **Also keep each title's original language** | On | Keeps original-language audio and subtitles too. |
 | **Subtitles to keep**: **Full**, **Forced**, **SDH / hearing impaired** | All on | Which kinds of subtitles to keep in your wanted languages. |
-| **Keep commentary tracks** | On | Director's commentary and similar audio. |
+| **Keep commentary tracks** | On | Director's commentary and similar audio. If *every* audio track in a file is tagged commentary, the tags must be wrong, so the tracks in your languages are treated as the main audio. |
 | **Tracks without a language tag** | Always keep them | Keep untagged tracks (safest), or treat them as a language you choose. |
 | **Set the default audio and subtitle tracks** | On | Original-language audio plays by default. Your language's forced subtitles are on by default, or full subtitles when the audio is foreign. |
 | **Files with none of your languages** | Flag for review | What happens to a *wrong language* file (an English film with only Spanish audio, say: probably the wrong release). **Flag for review** changes nothing and lists it on the [Review](review.md) page. **Quarantine** or **Delete** moves it out of the library and asks Sonarr/Radarr to blocklist that release and search for another; see [Wrong-language files](#wrong-language-files). |
