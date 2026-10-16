@@ -7,6 +7,7 @@ encoding decisions are added in phase 0.4.
 
 import hashlib
 import json
+import re
 from typing import Literal
 
 from pydantic import BaseModel
@@ -77,8 +78,22 @@ def _effective_language(stream: Stream, policy: LanguagePolicy) -> str | None:
     return stream.language
 
 
+_FORCED_TITLE = re.compile(r"\bforced\b", re.IGNORECASE)
+_FULL_TITLE = re.compile(r"\b(full|complete|completi|completos?)\b", re.IGNORECASE)
+
+
+def forced_only(stream: Stream) -> bool:
+    """A forced-only subtitle (just the foreign lines and signs). The forced flag alone
+    doesn't prove it: ReelHaven marks a foreign film's full subtitles forced too, so a
+    title that says "full" wins over the flag."""
+    title = stream.title or ""
+    if not stream.forced or _FORCED_TITLE.search(title):
+        return stream.forced
+    return not _FULL_TITLE.search(title)
+
+
 def _subtitle_kind(stream: Stream) -> str:
-    if stream.forced:
+    if forced_only(stream):
         return "forced"
     if stream.hearing_impaired:
         return "SDH"
@@ -198,6 +213,7 @@ def plan(info: MediaInfo, original_language: str | None, policy: LanguagePolicy)
     # --- default flags (§8.3) -----------------------------------------------------------
     defaults: dict[int, bool] = {s.index: s.default for s in [*audio, *subtitles]}
     forced_choice: int | None = None  # the subtitle to mark forced, if any
+    unforce: set[int] = set()  # full subtitles whose forced flag comes off
     if policy.set_defaults:
         kept_main = [s for s in audio if s.index in keep_audio and not commentary(s)]
         chosen = _pick_default_audio(kept_main, original_language, viewer)
@@ -214,12 +230,19 @@ def plan(info: MediaInfo, original_language: str | None, policy: LanguagePolicy)
                     )
                 # Only a subtitle in the viewer's own language is ever forced: foreign
                 # lines in a film in their language, or the whole film when it isn't.
-                if (
-                    policy.force_subtitles
-                    and sub_choice is not None
-                    and sub_choice.language == viewer
-                ):
-                    forced_choice = sub_choice.index
+                if policy.force_subtitles:
+                    if sub_choice is not None and sub_choice.language == viewer:
+                        forced_choice = sub_choice.index
+                    # Full subtitles marked forced that aren't the choice (a second full
+                    # English track, or any in a film in English) would show as well.
+                    for stream in kept_sub_streams:
+                        if (
+                            stream.index != forced_choice
+                            and stream.language == viewer
+                            and "forced" in stream.dispositions
+                            and not forced_only(stream)
+                        ):
+                            unforce.add(stream.index)
             # Untagged default audio: subtitle defaults are left as they are.
 
     # MP4/MOV can't store "no default track": the muxer then enables the first
@@ -251,7 +274,9 @@ def plan(info: MediaInfo, original_language: str | None, policy: LanguagePolicy)
                 default_after=defaults[stream.index] if keep else False,
                 reason=reason,
                 forced_before="forced" in stream.dispositions,
-                forced_after=True if stream.index == forced_choice else None,
+                forced_after=True
+                if stream.index == forced_choice
+                else (False if stream.index in unforce else None),
             )
         )
 
@@ -272,9 +297,8 @@ def plan(info: MediaInfo, original_language: str | None, policy: LanguagePolicy)
         verb = "Make default" if track.default_after else "Clear default"
         details.append(f"{verb}: {track.kind} {_describe(stream)}.")
     for track in forced_changes:
-        details.append(
-            f"Show automatically (forced): subtitle {_describe(_stream(info, track.index))}."
-        )
+        verb = "Show automatically (forced)" if track.forced_after else "Stop forcing"
+        details.append(f"{verb}: subtitle {_describe(_stream(info, track.index))}.")
 
     if "wrong_language" in flags or "no_wanted_audio" in flags:
         # The file needs a human decision: change nothing at all.
@@ -283,7 +307,9 @@ def plan(info: MediaInfo, original_language: str | None, policy: LanguagePolicy)
             track.default_after = track.default_before
             track.forced_after = None
         removed, default_changes, forced_changes = [], [], []
-        details = [d for d in details if not d.startswith(("Remove", "Make", "Clear", "Show"))]
+        details = [
+            d for d in details if not d.startswith(("Remove", "Make", "Clear", "Show", "Stop"))
+        ]
     action: Action = "remux" if removed or default_changes or forced_changes else "skip"
     summary = _summary(action, original_language, removed, default_changes, forced_changes)
     return Plan(
@@ -319,14 +345,18 @@ def _pick_default_subtitle(
     viewer_subs = [s for s in candidates if s.language == viewer and not s.commentary]
     if audio_language == viewer:
         # Viewer understands the audio: only forced subtitles (signs, foreign lines).
-        forced = [s for s in viewer_subs if s.forced]
+        forced = [s for s in viewer_subs if forced_only(s)]
         return forced[0] if forced else None
     # Foreign audio: full subtitles in the viewer's language, SDH as a fallback.
-    full = [s for s in viewer_subs if not s.forced and not s.hearing_impaired]
-    sdh = [s for s in viewer_subs if s.hearing_impaired and not s.forced]
-    if full:
-        return full[0]
-    return sdh[0] if sdh else None
+    full = [s for s in viewer_subs if not forced_only(s) and not s.hearing_impaired]
+    sdh = [s for s in viewer_subs if s.hearing_impaired and not forced_only(s)]
+    # Then one that is forced only by its flag, not its title: possibly full subtitles
+    # this planner marked forced earlier, which must stay the default.
+    flagged = [s for s in viewer_subs if s.forced and not _FORCED_TITLE.search(s.title or "")]
+    for choice in (full, sdh, flagged):
+        if choice:
+            return choice[0]
+    return None
 
 
 def _stream(info: MediaInfo, index: int) -> Stream:
@@ -368,8 +398,10 @@ def _summary(
         parts.append(f"remove {subs} subtitle track{'s' if subs != 1 else ''}")
     if default_changes:
         parts.append("fix default tracks")
-    if forced_changes:
+    if any(t.forced_after for t in forced_changes or []):
         parts.append("show subtitles automatically")
+    elif forced_changes:
+        parts.append("fix forced subtitles")
     return f"{origin} Will {', '.join(parts)}."
 
 
