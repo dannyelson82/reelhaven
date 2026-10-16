@@ -43,7 +43,8 @@ everything else; in other libraries they're queued straight away. Cancelled
 jobs are left alone, since you stopped them on purpose. Files that no longer need changes, or that can't be read
 right now, are skipped, and the message next to the button says how many.
 Either way, the failures it replaced leave the **Failed** tab, and so does a
-failure when you press **Try again** or the file is queued again. They aren't
+failure when you press **Try again**, when the file is queued again, or when the
+file is deleted from the library. They aren't
 deleted: the failure report still includes them.
 Test-run samples and sweet-spot steps aren't included; try those again from
 their own pages.

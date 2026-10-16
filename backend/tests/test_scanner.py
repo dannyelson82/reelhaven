@@ -11,7 +11,7 @@ from sqlalchemy import select
 from reelhaven import scanner as scanner_module
 from reelhaven.app import create_app
 from reelhaven.config import Settings
-from reelhaven.db import Database, Library, MediaFile
+from reelhaven.db import Database, Job, Library, MediaFile
 from reelhaven.scanner import (
     Scanner,
     ScanProgress,
@@ -347,3 +347,33 @@ def test_dolby_vision_files_read_before_profiles_are_read_again() -> None:
     sdr = {"streams": [{"kind": "video", "hdr": "sdr"}]}
     assert _read_before_dv_profiles(old) is True
     assert not any(_read_before_dv_profiles(p) for p in (new, unknown, sdr, None))
+
+
+def test_a_deleted_files_failures_leave_the_failed_tab(
+    db: Database, settings: Settings, library: Library, sample: Path
+) -> None:
+    root = Path(library.path)
+    scanner = scanner_for(db, settings)
+    put(sample, root / "Gone" / "gone.mkv")
+    run_scan(scanner, library.id)
+    (row,) = rows(db)
+    with db.write() as session:
+        session.add(
+            Job(
+                library_id=library.id,
+                media_file_id=row.id,
+                type="encode",
+                status="failed",
+                source_path=row.path,
+                source_size=row.size,
+                source_mtime_ns=row.mtime_ns,
+                plan={},
+                probe={},
+                requested_by="automatic",
+            )
+        )
+    (root / "Gone" / "gone.mkv").unlink()
+    assert run_scan(scanner, library.id).removed == 1
+    with db.read() as session:
+        (job,) = session.scalars(select(Job)).all()
+        assert job.cleared_at is not None  # kept for the failure report
