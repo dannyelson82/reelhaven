@@ -101,6 +101,22 @@ def pick(
     return chosen
 
 
+SwapCause = Literal["wrong_language", "wrong_colours", "damaged"]
+
+
+def swap_cause(item: FilePlan) -> SwapCause | None:
+    """Why this file would be swapped for another copy, if it would."""
+    if item.damaged:
+        return "damaged"
+    if item.plan is None:
+        return None
+    if "wrong_colours" in item.plan.flags:
+        return "wrong_colours"
+    if "wrong_language" in item.plan.flags:
+        return "wrong_language"
+    return None
+
+
 def pick_wrong_language(
     plans: Iterable[FilePlan],
     *,
@@ -109,16 +125,18 @@ def pick_wrong_language(
     current: dict[int, FileState],
     limit: int,
 ) -> list[FilePlan]:
-    """Wrong-language files to quarantine or delete (ADR-0032), when the library asks for
-    it. Only files flagged ``wrong_language``: the original language is known and no audio
-    is untagged (ADR-0017); ``no_wanted_audio`` files always wait for the owner."""
+    """Files to quarantine or delete and download again, when the library asks for it:
+    wrong language (ADR-0032; the original language is known and no audio is untagged,
+    ADR-0017; ``no_wanted_audio`` files always wait for the owner), damaged files and
+    wrong colours (ADR-0035, ADR-0036)."""
     chosen: list[FilePlan] = []
     for item in plans:
         if len(chosen) >= limit:
             break
-        if item.plan is None or "wrong_language" not in item.plan.flags:
+        cause = swap_cause(item)
+        if cause is None or item.file_id in active:
             continue
-        if item.language_pending or item.file_id in active:
+        if cause == "wrong_language" and item.language_pending:
             continue
         failed = gave_up.get(item.file_id)
         if failed is not None and failed == current.get(item.file_id):
@@ -170,13 +188,18 @@ def upcoming(
     out: list[Upcoming] = []
     for item in plans:
         plan = item.plan
-        if plan is None or item.language_pending or item.file_id in active:
+        cause = swap_cause(item)
+        if item.file_id in active or (cause is None and (plan is None or item.language_pending)):
+            continue
+        if cause == "wrong_language" and item.language_pending:
             continue
         failed = gave_up.get(item.file_id)
         if failed is not None and failed == current.get(item.file_id):
             continue
-        if "wrong_language" in plan.flags and wrong_language_action != "flag":
+        if cause is not None and wrong_language_action != "flag":
             action = wrong_language_action
+        elif plan is None or cause is not None:
+            continue
         elif plan.action in ("encode", "remux"):
             action = plan.action
         else:
@@ -325,7 +348,9 @@ class Automation:
                 media_file = session.get(MediaFile, item.file_id)
                 if media_file is not None and action != "flag":
                     jobs.append(
-                        wrong_language.create_job(session, library, media_file, action, ACTOR)
+                        wrong_language.create_job(
+                            session, library, media_file, action, ACTOR, swap_cause(item)
+                        )
                     )
             if jobs:
                 audit.record(

@@ -8,7 +8,7 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.staticfiles import StaticFiles
 
-from reelhaven import __version__, cpu_limit, device_settings
+from reelhaven import __version__, automation_settings, cpu_limit, device_settings
 from reelhaven.api import (
     auth_routes,
     automation_routes,
@@ -35,6 +35,7 @@ from reelhaven.api import (
 from reelhaven.auth.network import IPAddress, read_default_gateways
 from reelhaven.auth.throttle import LoginThrottle
 from reelhaven.automation import Automation
+from reelhaven.colour_check import ColourChecker
 from reelhaven.config import Settings, get_settings
 from reelhaven.db import Database, Job
 from reelhaven.devices import DeviceRegistry
@@ -81,12 +82,14 @@ def create_app(
         app.state.automation.start()
         app.state.watcher.start()
         app.state.notifier.start()
+        app.state.colour_check.start()
         janitor = threading.Thread(
             target=_janitor, args=(db, app.state.stop), name="janitor", daemon=True
         )
         janitor.start()
         yield
         app.state.stop.set()
+        app.state.colour_check.stop()
         app.state.automation.stop()
         app.state.watcher.stop()
         app.state.notifier.stop()
@@ -119,6 +122,9 @@ def create_app(
         notify_queue=lambda: app.state.queue.notify(),
         encode_slots=lambda: app.state.queue.encode_slots(),
         remux_slots=lambda: app.state.queue.remux_slots(),
+    )
+    app.state.colour_check = ColourChecker(
+        db, settings.ffmpeg, paused=lambda: automation_settings.is_paused(db)
     )
     app.state.watcher = FolderWatcher(
         db,

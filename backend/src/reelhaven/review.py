@@ -13,9 +13,12 @@ from sqlalchemy import select
 from reelhaven.db import Database, Job, Library, MediaFile
 from reelhaven.dryrun import plan_library
 
-ReviewKind = Literal["wrong_language", "skipped", "unreadable", "waiting", "failed", "no_gain"]
+ReviewKind = Literal[
+    "wrong_language", "wrong_colours", "skipped", "unreadable", "waiting", "failed", "no_gain"
+]
 KINDS: tuple[ReviewKind, ...] = (
     "wrong_language",
+    "wrong_colours",
     "failed",
     "unreadable",
     "skipped",
@@ -41,6 +44,7 @@ class FileFacts:
     no_gain_video: bool = False
     no_gain_audio: bool = False
     ignored: dict[str, str] = field(default_factory=dict)  # kind -> "size:mtime"
+    colour_detail: str | None = None  # the colour check's finding (ADR-0036)
 
 
 @dataclass(frozen=True)
@@ -70,6 +74,10 @@ def _kinds(facts: FileFacts) -> list[tuple[ReviewKind, str, int | None]]:
     if "wrong_language" in facts.flags or "no_wanted_audio" in facts.flags:
         # The page names the languages (audio_languages, original_language).
         found.append(("wrong_language", "None of the audio is in the library's languages.", None))
+    if "wrong_colours" in facts.flags:
+        found.append(
+            ("wrong_colours", facts.colour_detail or "The picture has the wrong colours.", None)
+        )
     if "dolby_vision" in facts.flags:
         found.append(("skipped", "Dolby Vision: not re-encoded, it would lose its layers.", None))
     elif "hdr10plus" in facts.flags:
@@ -184,6 +192,11 @@ def gather(db: Database, library_ids: Iterable[int] | None = None) -> list[FileF
                     no_gain_video=row.no_gain_profile is not None,
                     no_gain_audio=row.no_gain_audio is not None,
                     ignored=dict(row.review_ignored or {}),
+                    colour_detail=(
+                        plan.plan.details[0]
+                        if plan and plan.plan and "wrong_colours" in plan.plan.flags
+                        else None
+                    ),
                 )
             )
     return facts

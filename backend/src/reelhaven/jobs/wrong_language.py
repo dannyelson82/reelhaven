@@ -32,6 +32,18 @@ WrongLanguageAction = Literal["quarantine", "delete"]
 REASONS: dict[WrongLanguageAction, str] = {"quarantine": "quarantine", "delete": "wrong-language"}
 JOB_TYPE = "wrong_language"
 
+Cause = Literal["wrong_language", "wrong_colours", "damaged"]
+CAUSES: dict[Cause, str] = {
+    "wrong_language": "wrong language",
+    "wrong_colours": "wrong colours",
+    "damaged": "damaged file",
+}
+WHY: dict[Cause, str] = {
+    "wrong_language": "none of its audio is in the library's languages",
+    "wrong_colours": "its picture has the wrong colours",
+    "damaged": "it can't be read",
+}
+
 
 def create_job(
     session: Session,
@@ -39,17 +51,18 @@ def create_job(
     media_file: MediaFile,
     action: WrongLanguageAction,
     actor: str,
+    cause: Cause | None = "wrong_language",
 ) -> Job:
+    """Move a file aside and ask Sonarr/Radarr for another copy: wrong language
+    (ADR-0032), damaged (ADR-0035) or wrong colours (ADR-0036)."""
     what = "Quarantine" if action == "quarantine" else "Delete"
+    cause = cause or "wrong_language"
     plan = Plan(
         action="skip",
         tracks=[],
-        flags=["wrong_language"],
-        summary=f"{what}: wrong language",
-        details=[
-            f"{what} this file (none of its audio is in the library's languages) and ask "
-            "Sonarr/Radarr for another release."
-        ],
+        flags=["wrong_colours" if cause == "wrong_colours" else "wrong_language"],
+        summary=f"{what}: {CAUSES[cause]}",
+        details=[f"{what} this file ({WHY[cause]}) and ask Sonarr/Radarr for another release."],
         removed_bytes=0,
     )
     job = Job(

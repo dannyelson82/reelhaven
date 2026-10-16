@@ -20,7 +20,13 @@ from reelhaven.profiles import ProfileSettings
 
 Action = Literal["skip", "remux", "encode"]
 Flag = Literal[
-    "wrong_language", "no_wanted_audio", "dolby_vision", "hdr10plus", "probe_failed", "no_audio"
+    "wrong_language",
+    "no_wanted_audio",
+    "dolby_vision",
+    "hdr10plus",
+    "probe_failed",
+    "no_audio",
+    "wrong_colours",
 ]
 
 
@@ -515,3 +521,23 @@ def without_conversions(plan: Plan) -> Plan:
     if not has_track_changes(stripped):
         stripped.action = "skip"
     return stripped
+
+
+def mark_wrong_colours(plan: Plan, detail: str) -> Plan:
+    """Nothing is worth doing to a file whose picture has the wrong colours: it needs
+    another copy, which the library's wrong-language action asks for (ADR-0036)."""
+    video = plan.video
+    if video is not None:
+        video = video.model_copy(
+            update={"decision": "keep", "reason": "The picture has the wrong colours."}
+        )
+    return plan.model_copy(
+        update={
+            "action": "skip",
+            "flags": [*plan.flags, "wrong_colours"],
+            "summary": "Wrong colours: needs another copy.",
+            "details": [detail],
+            "video": video,
+            "audio_saved_bytes": None,
+        }
+    )
