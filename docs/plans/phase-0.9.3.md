@@ -14,4 +14,5 @@ language and damaged files. The owner sets this in each library's settings.
 | 3 | Planner fixes | Commentary-only wanted audio counts as main audio; stale audio bitrate tags ignored |
 | 4 | Kept as is | No gain and Not re-encoded leave the Review page for Stats → Kept as is |
 | 5 | Damaged files | Unreadable for 24 hours → the library's wrong-language action (quarantine + re-search) |
+| 5b | Colour check | ADR-0036: green/purple Dolby Vision 5 damage (owner request, FileFlows re-encodes), same swap |
 | 6 | Release | Guide, release notes, v0.9.3 |

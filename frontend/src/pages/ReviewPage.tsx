@@ -34,6 +34,9 @@ import { formatBytes, languageName } from '../format';
 
 const PAGE_SIZE = 100;
 
+/** Kinds that can be moved aside and downloaded again (ADR-0032, ADR-0035, ADR-0036). */
+const SWAPPABLE: ReviewKind[] = ['wrong_language', 'wrong_colours', 'unreadable'];
+
 export function ReviewPage() {
   const [params, setParams] = useSearchParams();
   const asked = params.get('kind') as ReviewKind | null;
@@ -148,7 +151,7 @@ function ReviewCard({ item }: { item: ReviewItem }) {
           )}
         </Stack>
         <Group gap="xs" wrap="nowrap">
-          {item.kind === 'wrong_language' && !item.ignored && (
+          {SWAPPABLE.includes(item.kind) && !item.ignored && (
             <>
               <Button size="xs" variant="light" onClick={() => setConfirm('quarantine')}>
                 Quarantine

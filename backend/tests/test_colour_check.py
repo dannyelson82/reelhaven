@@ -76,32 +76,14 @@ def clip(path: Path, tint: bool) -> Path:
     """A 10-bit clip with no colour tags; ``tint`` makes it green like a lost Dolby
     Vision profile 5 picture."""
     mix = "colorchannelmixer=rr=0.4:gg=1.0:bb=0.4," if tint else ""
-    subprocess.run(  # noqa: S603 - argument list, no shell
-        [
-            FFMPEG or "ffmpeg",
-            "-v",
-            "error",
-            "-y",
-            "-f",
-            "lavfi",
-            "-i",
-            "testsrc2=size=320x180:rate=10:duration=13",
-            "-f",
-            "lavfi",
-            "-i",
-            "sine=duration=13",
-            "-vf",
-            f"{mix}format=yuv420p10le",
-            "-c:v",
-            "ffv1",
-            "-g",
-            "5",
-            "-c:a",
-            "aac",
-            str(path),
-        ],  # fmt: skip
-        check=True,
-    )
+    args = [
+        FFMPEG or "ffmpeg", "-v", "error", "-y",
+        "-f", "lavfi", "-i", "testsrc2=size=320x180:rate=10:duration=13",
+        "-f", "lavfi", "-i", "sine=duration=13",
+        "-vf", f"{mix}format=yuv420p10le", "-c:v", "ffv1", "-g", "5",
+        "-c:a", "aac", str(path),
+    ]  # fmt: skip
+    subprocess.run(args, check=True)  # noqa: S603 - argument list, no shell
     return path
 
 
@@ -121,12 +103,8 @@ def test_wrong_colours_and_damaged_files_are_swapped(app: FastAPI, settings: Set
     admin, lib, root = setup_library(app, settings, {"Good (2020)/good.mkv": MULTI})
     app.state.queue.stop()
     app.state.automation.stop()
-    green = (
-        clip(root / "Green (2021)" / "green.mkv", True)
-        if ((root / "Green (2021)").mkdir() or True)
-        else None
-    )
-    assert green is not None
+    (root / "Green (2021)").mkdir()
+    green = clip(root / "Green (2021)" / "green.mkv", True)
     broken = root / "Broken (2022)" / "broken.mkv"
     broken.parent.mkdir()
     broken.write_bytes(b"\0" * 4096)  # starts with zeros, like the owner's damaged files

@@ -80,6 +80,12 @@ export function PlanView({ fileId }: { fileId: number }) {
             review.
           </Alert>
         )}
+        {p.flags.includes('wrong_colours') && (
+          <Alert color="orange">
+            This file's picture has the wrong colours (green and purple). It isn't processed; it
+            needs another copy.
+          </Alert>
+        )}
       </Stack>
     </Card>
   );

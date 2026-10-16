@@ -132,6 +132,7 @@ def measure(ffmpeg: str, path: Path, duration_s: float, timeout_s: float = 120) 
 
 BATCH = 200
 IDLE_S = 600.0  # after a full pass with nothing to check, look again this much later
+START_DELAY_S = 60.0  # let the app settle after starting before the first pass
 
 
 def next_unchecked(db: Database, after_id: int) -> list[tuple[int, str, int, int, dict[str, Any]]]:
@@ -185,6 +186,7 @@ class ColourChecker:
             self._thread.join(5)
 
     def _loop(self) -> None:
+        self._stop.wait(START_DELAY_S)
         while not self._stop.is_set():
             try:
                 checked = self.run_pass()
