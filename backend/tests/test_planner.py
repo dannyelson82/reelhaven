@@ -487,3 +487,53 @@ def test_a_real_commentary_track_is_still_commentary() -> None:
     assert not any("treated as the main audio" in d for d in result.details)
     kept = {t.index: t.keep for t in result.tracks if t.kind == "audio"}
     assert kept == {1: True, 2: DEFAULT.keep_commentary}
+
+
+def test_full_subtitles_marked_forced_stay_the_default() -> None:
+    """A Korean film: its only English subtitles, full, get the forced flag. The next
+    scan must not take them for forced-only subtitles and clear the default."""
+    info = media(audio(1, "eng"), audio(2, "kor", default=True), sub(3, "eng"))
+    p = plan(info, "kor", DEFAULT)
+    assert defaults(p) == [2, 3] and forced_flags(p) == {3: True}
+    after = apply(info, p)
+    after = after.model_copy(
+        update={
+            "streams": [
+                s.model_copy(update={"forced": "forced" in s.dispositions}) for s in after.streams
+            ]
+        }
+    )
+    assert plan(after, "kor", DEFAULT).action == "skip"
+
+
+def test_two_full_subtitles_settle_on_one() -> None:
+    """City of God after the bug: both full English tracks forced, neither default."""
+    full = [
+        sub(2, "eng", forced=True).model_copy(update={"title": "ENG Full OCR"}),
+        sub(3, "eng", forced=True).model_copy(update={"title": "ENG Full"}),
+    ]
+    info = media(audio(1, "por", default=True), *full)
+    p = plan(info, "por", DEFAULT)
+    assert defaults(p) == [1, 2]
+    assert forced_flags(p) == {2: True, 3: False}  # only 3 changes
+    assert "Stop forcing: subtitle English (full)." in p.details
+    assert "fix default tracks, fix forced subtitles" in p.summary
+    assert plan(apply(info, p), "por", DEFAULT).action == "skip"
+
+
+def test_a_forced_title_still_means_forced_only() -> None:
+    info = media(
+        audio(1, "jpn", default=True),
+        sub(2, "eng", forced=True).model_copy(update={"title": "English Forced"}),
+        sub(3, "eng"),
+    )
+    p = plan(info, "jpn", DEFAULT)
+    assert defaults(p) == [1, 3]
+    assert forced_flags(p) == {3: True}
+
+
+def test_full_subtitles_forced_in_a_film_in_your_language_stop_showing() -> None:
+    full = sub(2, "eng", default=True, forced=True).model_copy(update={"title": "English (Full)"})
+    p = plan(media(audio(1, "eng", default=True), full), "eng", DEFAULT)
+    assert defaults(p) == [1]
+    assert forced_flags(p) == {2: False}
