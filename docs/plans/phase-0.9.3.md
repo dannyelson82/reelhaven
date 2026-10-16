@@ -1,7 +1,8 @@
 # 0.9.3: Fewer things to review
 
 Planned with the owner on 2026-10-16 from their review report. Decisions:
-ADR-0034 (Dolby Vision track changes), ADR-0035. Release: **v0.9.3**.
+ADR-0034 (Dolby Vision track changes), ADR-0035, ADR-0036. Release: **v0.9.3**.
+Done: #108–#114 and the release.
 
 Owner decisions: build ideas 1–4 from the review analysis; quarantine follows
 the recycle bin (current behaviour); TV and Movies both use Quarantine for wrong
