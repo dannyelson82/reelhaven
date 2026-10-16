@@ -22,7 +22,8 @@ import { errorMessage } from '../api/client';
 import { REVIEW_REPORT_URL, useDeveloperOptions } from '../api/developer';
 import { useRetryJob } from '../api/jobs';
 import {
-  REVIEW_KINDS,
+  DECISION_KINDS,
+  KEPT_KINDS,
   type ReviewItem,
   type ReviewKind,
   useIgnore,
@@ -35,12 +36,13 @@ const PAGE_SIZE = 100;
 
 export function ReviewPage() {
   const [params, setParams] = useSearchParams();
-  const kind = (params.get('kind') as ReviewKind | null) ?? 'wrong_language';
+  const asked = params.get('kind') as ReviewKind | null;
+  const kind = asked && !KEPT_KINDS.includes(asked) ? asked : 'wrong_language';
   const [showIgnored, setShowIgnored] = useState(false);
   const [page, setPage] = useState(1);
   const developer = useDeveloperOptions();
   const review = useReview({ kind, showIgnored, page }, PAGE_SIZE);
-  const about = REVIEW_KINDS.find((k) => k.kind === kind)?.about;
+  const about = DECISION_KINDS.find((k) => k.kind === kind)?.about;
 
   return (
     <Stack>
@@ -71,7 +73,7 @@ export function ReviewPage() {
         }}
       >
         <Tabs.List>
-          {REVIEW_KINDS.map((k) => (
+          {DECISION_KINDS.map((k) => (
             <Tabs.Tab
               key={k.kind}
               value={k.kind}

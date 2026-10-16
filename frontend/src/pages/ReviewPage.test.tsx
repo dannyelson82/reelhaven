@@ -81,3 +81,51 @@ it('lists files to review and acts on them', async () => {
     '#/libraries/4',
   );
 });
+
+it('keeps results off the Review page and lists them under Stats', async () => {
+  const kept = {
+    wrong_language: 1,
+    failed: 0,
+    unreadable: 0,
+    skipped: 136,
+    no_gain: 195,
+    waiting: 0,
+  };
+  const page = (items: object[]) => ({
+    body: { counts: kept, ignored: 0, total: items.length, items },
+  });
+  window.location.hash = '#/review';
+  mockApi({
+    'GET auth/state': loggedIn,
+    'GET review?offset=0&limit=1': page([]),
+    'GET review?kind=wrong_language&offset=0&limit=100': page([]),
+    'GET review?kind=no_gain&offset=0&limit=50': page([
+      item('no_gain', { detail: "Re-encoding with this profile didn't save enough." }),
+    ]),
+    'GET stats/performance': { body: { devices: [], daily: [] } },
+    'GET stats/savings': {
+      body: {
+        total_saved: 0,
+        files: 0,
+        this_week: 0,
+        this_month: 0,
+        weekly: [],
+        monthly: [],
+        libraries: [],
+      },
+    },
+  });
+  render(<App />);
+  expect(await screen.findByRole('tab', { name: /Wrong language/ })).toBeInTheDocument();
+  expect(screen.queryByRole('tab', { name: /No gain/ })).not.toBeInTheDocument();
+  expect(screen.queryByRole('tab', { name: /Not re-encoded/ })).not.toBeInTheDocument();
+  // The menu counts only what needs a decision: 1, not 332.
+  expect(await screen.findByLabelText('1 files to review')).toBeInTheDocument();
+
+  window.location.hash = '#/stats';
+  expect(await screen.findByText('Kept as is')).toBeInTheDocument();
+  expect(await screen.findByText(/No gain \(195\)/)).toBeInTheDocument();
+  expect(
+    await screen.findByText("Re-encoding with this profile didn't save enough."),
+  ).toBeInTheDocument();
+});
