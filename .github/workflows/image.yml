@@ -40,6 +40,10 @@ jobs:
           tags: reelhaven:ci
           cache-from: type=gha
           cache-to: type=gha,mode=max
+          # Always rebuild the runtime stage so it gets the newest Debian security
+          # updates and jellyfin-ffmpeg (a cached apt layer keeps the packages of its
+          # first build). Publish below then reuses exactly this tested layer.
+          no-cache-filters: runtime
 
       - name: Smoke test
         run: |
