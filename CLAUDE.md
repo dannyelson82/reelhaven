@@ -20,6 +20,10 @@ recorded in docs/adr/.
 - Never commit secrets, real media files, or personal infrastructure details
   (IPs, domains, container names). Setup-specific notes go in the gitignored
   LOCAL_NOTES.md.
+- CI's **Privacy check** (`.github/scripts/privacy-check.py`) fails when new
+  commits add real private or Tailscale addresses or real `*.ts.net` names,
+  or use a computer's local address as commit email (it must be the GitHub
+  noreply address). Genuine example addresses go in `.privacy-allow`.
 - No sudo, no Docker socket. Images are built by GitHub Actions only.
 - Sample media lives in /projects/reelhaven-testmedia, outside the repo.
   Tests generate their own fixtures with ffmpeg.
