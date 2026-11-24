@@ -28,7 +28,23 @@ jobs:
           enable-cache: true
           cache-dependency-glob: backend/uv.lock
       - name: Install ffmpeg
-        run: sudo apt-get update -q && sudo apt-get install -y -q --no-install-recommends ffmpeg
+        # The same jellyfin-ffmpeg the image ships (ADR-0003), not Ubuntu's ffmpeg, so the
+        # tests exercise the encoder users run (Ubuntu 26.04's ffmpeg 8.0 fails 5.1 Opus
+        # jobs that jellyfin-ffmpeg 8.1 handles). Portable build, checksum verified. Keep
+        # the version in step with the image's jellyfin-ffmpeg8 package.
+        env:
+          JF_FFMPEG: 8.1.3-2
+          JF_FFMPEG_SHA256: 1df84d04c4322902dba81c290508cdf3d89524d210b9fe03154bea6c4e3bfbb6
+        run: |
+          set -eu
+          file="jellyfin-ffmpeg_${JF_FFMPEG}_portable_linux64-gpl.tar.xz"
+          curl -fsSLo "$RUNNER_TEMP/$file" \
+            "https://github.com/jellyfin/jellyfin-ffmpeg/releases/download/v${JF_FFMPEG}/$file"
+          echo "${JF_FFMPEG_SHA256}  $RUNNER_TEMP/$file" | sha256sum -c -
+          mkdir -p "$RUNNER_TEMP/ffmpeg"
+          tar -xJf "$RUNNER_TEMP/$file" -C "$RUNNER_TEMP/ffmpeg"
+          echo "$RUNNER_TEMP/ffmpeg" >> "$GITHUB_PATH"
+          "$RUNNER_TEMP/ffmpeg/ffmpeg" -hide_banner -version | head -n 1
       - name: Install
         run: uv sync --locked
       - name: Lint
